@@ -24,7 +24,7 @@ import theano.tensor.nnet as nnet
 import numpy as np
 import random
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 class Network():
     """

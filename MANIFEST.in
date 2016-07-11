@@ -1,0 +1,4 @@
+include *.md
+prune .git
+prune dist
+prune build
