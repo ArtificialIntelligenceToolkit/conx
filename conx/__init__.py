@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, 
+# Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
 import theano
@@ -63,11 +63,14 @@ class Network():
             inputs=[self.th_inputs, self.th_target],
             outputs=self.compute_error,
             updates=self.update_weights())
-        self.propagate = function([self.th_inputs], self.layer[-1])
+        self._propagate = function([self.th_inputs], self.layer[-1])
         self.compute_target = None
         # Properties:
         self.inputs = None
         self.targets = None
+
+    def propagate(self, inputs):
+        return self._propagate(inputs)
 
     def update_weights(self):
         """
@@ -77,7 +80,7 @@ class Network():
         for i in range(len(self.weights)):
             updates.append(
                 (self.weights[i],
-                 self.compute_delta_weights(self.compute_error, 
+                 self.compute_delta_weights(self.compute_error,
                                             self.weights[i])))
         return updates
 
@@ -99,7 +102,7 @@ class Network():
         """
         Method to get epsilon (learning rate).
         """
-        return self._epsilon
+        return self._epsilon.get_value()
 
     epsilon = property(get_epsilon, set_epsilon)
 
@@ -138,19 +141,19 @@ class Network():
                     inputs = self.inputs[i]
                 error = self.train_one(inputs, target)
                 total += 1
-                output = self.propagate(inputs)
+                output = self._propagate(inputs)
                 if np.sum(np.abs(output - target)) <= tolerance:
                     correct += 1
             if (e + 1) % report_rate == 0 or e == 0:
-                print('Epoch:', e + 1, 
-                      'TSS error:', error, 
+                print('Epoch:', e + 1,
+                      'TSS error:', error,
                       '%correct:', correct/total)
             if stop_percentage is not None:
                 if correct/total >= stop_percentage:
                     break
         print("-" * 50)
-        print('Epoch:', e + 1, 
-              'TSS error:', error, 
+        print('Epoch:', e + 1,
+              'TSS error:', error,
               '%correct:', correct/total)
 
     def test(self, stop=None, start=0):
@@ -209,3 +212,121 @@ class Network():
         """
         print("Output:", v)
         print()
+
+class SRN(Network):
+    """
+    Simple Recurrent Network
+    """
+    def __init__(self, *sizes, epsilon=0.1):
+        """
+        Initialize network, given sizes of layers from
+        input to output (inclusive).
+        """
+        self.sizes = sizes
+        # learning rate
+        self._epsilon = theano.shared(epsilon, name='epsilon')
+        self.th_inputs = T.dvector('inputs') # inputs
+        self.th_target = T.dvector('target') # target/output
+        self.weights = []
+        self.layer = []
+        self.context_layer = []
+        self.context_weights = []
+        # Just the hidden layers:
+        for i in range(1,len(self.sizes) - 1):
+            self.context_weights.append(
+                theano.shared(
+                    self.make_weights(self.sizes[i],
+                                      self.sizes[i]),
+                    name='self.context_weights[%s]' % (i - 1))
+            )
+            self.context_layer.append(
+                theano.shared(
+                    np.array([0.5] * self.sizes[i],
+                             dtype='float64'),
+                    name="self.context_layer[%s]" % (i - 1))
+            )
+        for i in range(len(self.sizes) - 1):
+            self.weights.append(
+                theano.shared(self.make_weights(self.sizes[i],
+                                                self.sizes[i+1]),
+                              name='self.weights[%s]' % i))
+            if i == 0:
+                self.layer.append(
+                    self.compute_activation(self.th_inputs,
+                                            self.context_layer[0],
+                                            self.context_weights[0],
+                                            self.weights[0]))
+            elif i < len(self.sizes) - 2:
+                self.layer.append(
+                    T.sum(self.compute_activation(self.layer[i - 1],
+                                                  self.context_layer[i],
+                                                  self.context_weights[i],
+                                                  self.weights[i])))
+            else:
+                self.layer.append(
+                    T.sum(self.compute_activation(self.layer[i - 1],
+                                                  None,
+                                                  None,
+                                                  self.weights[i])))
+        # Theano function:
+        self.compute_error = T.sum((self.layer[-1] - self.th_target) ** 2)
+        # Dynamic Methods:
+        self.train_one = function(
+            inputs=[self.th_inputs, self.th_target],
+            outputs=self.compute_error,
+            updates=self.update_weights())
+        self._propagate = function([self.th_inputs], self.layer[-1])
+        self.compute_target = None
+        # Properties:
+        self.inputs = None
+        self.targets = None
+
+    def compute_activation(self, inputs, context, cweights, weights):
+        """
+        Theano function to compute activation at a layer.
+        """
+        bias = np.array([1], dtype='float64')
+        all_inputs = T.concatenate([inputs, bias])
+        if context:
+            all_context = T.concatenate([context, bias])
+            net_input = (T.dot(weights.T, all_inputs) +
+                         T.dot(cweights.T, all_context))
+        else:
+            net_input = T.dot(weights.T, all_inputs)
+        activation = nnet.sigmoid(net_input)
+        return activation
+
+    def propagate(self, inputs):
+        """
+        Propagate activation, and copy contexts.
+        """
+        retval = self._propagate(inputs)
+        self.copy_context(inputs)
+        return retval
+
+    def copy_context(self, inputs):
+        """
+        Copy hidden activations to context layers.
+        """
+        for i in range(len(self.context_layer)):
+            value = function([self.th_inputs], self.layer[i])(inputs)
+            self.context_layer[i].set_value(value)
+
+    def update_weights(self):
+        """
+        Returns [(weights, Theano update function), ...]
+        """
+        updates = super().update_weights()
+        # Hidden layers:
+        for i in range(len(self.context_layer)):
+            updates.append(
+                (self.context_layer[i], self.layer[i])
+            )
+            # FIXME: can I backprop error through both
+            # context_weights and weights?
+            updates.append(
+                (self.context_weights[i],
+                 self.compute_delta_weights(self.compute_error,
+                                            self.context_weights[i]))
+            )
+        return updates
