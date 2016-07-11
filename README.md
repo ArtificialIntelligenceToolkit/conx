@@ -30,11 +30,8 @@ Given a specified target:
 from conx import Network
 inputs = [[0,0], [0,1], [1,0], [1,1]]
 
-net.set_inputs(inputs)
-
 net = Network(2, 2, 1)
 net.set_inputs(inputs)
-net.set_target_function(xor)
 net.train()
 net.test()
 ```
