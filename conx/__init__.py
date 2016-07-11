@@ -1,3 +1,5 @@
+from __future__ import print_function, division
+
 # conx - a neural network library
 #
 # Copyright (c) 2016 Douglas S. Blank <dblank@cs.brynmawr.edu>
@@ -24,19 +26,25 @@ import theano.tensor.nnet as nnet
 import numpy as np
 import random
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 class Network():
     """
     Backpropagation of error neural network on top of
     Theano.
     """
-    def __init__(self, *sizes, epsilon=0.1):
+    def __init__(self, *sizes, **kwargs):
         """
         Initialize network, given sizes of layers from
         input to output (inclusive).
         """
         self.sizes = sizes
+        epsilon = 0.1
+        for key in kwargs:
+            if key == "epsilon":
+                epsilon = kwargs["epsilon"]
+            else:
+                raise Exception("unknown argument: '%s'" % key)
         # learning rate
         self._epsilon = theano.shared(epsilon, name='epsilon')
         self.th_inputs = T.dvector('inputs') # inputs
@@ -217,12 +225,18 @@ class SRN(Network):
     """
     Simple Recurrent Network
     """
-    def __init__(self, *sizes, epsilon=0.1):
+    def __init__(self, *sizes, **kwargs):
         """
         Initialize network, given sizes of layers from
         input to output (inclusive).
         """
         self.sizes = sizes
+        epsilon = 0.1
+        for key in kwargs:
+            if key == "epsilon":
+                epsilon = kwargs["epsilon"]
+            else:
+                raise Exception("unknown argument: '%s'" % key)
         # learning rate
         self._epsilon = theano.shared(epsilon, name='epsilon')
         self.th_inputs = T.dvector('inputs') # inputs
@@ -316,7 +330,7 @@ class SRN(Network):
         """
         Returns [(weights, Theano update function), ...]
         """
-        updates = super().update_weights()
+        updates = Network.update_weights(self)
         # Hidden layers:
         for i in range(len(self.context_layer)):
             updates.append(

@@ -1,12 +1,20 @@
+from __future__ import print_function, division, with_statement
+
 from conx import Network
 import pickle
 import gzip
 import numpy
+import os
 
-with gzip.open('mnist.pkl.gz', 'rb') as f:
-    u = pickle._Unpickler(f)
-    u.encoding = 'latin1'
-    data = u.load()
+directory, filname = os.path.split(__file__)
+
+with gzip.open(os.path.join(directory, 'mnist.pkl.gz'), 'rb') as f:
+    try: # Python3
+        u = pickle._Unpickler(f)
+        u.encoding = 'latin1'
+        data = u.load()
+    except: # Python2
+        data = pickle.load(f)
     train_set, validation_set, test_set = data
 
 net = Network(784, 100, 1)
