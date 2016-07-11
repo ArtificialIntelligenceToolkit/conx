@@ -24,7 +24,7 @@ import theano.tensor.nnet as nnet
 import numpy as np
 import random
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 class Network():
     """
@@ -54,8 +54,8 @@ class Network():
                                             self.weights[0]))
             else:
                 self.layer.append(
-                    T.sum(self.compute_activation(self.layer[i - 1],
-                                                  self.weights[i])))
+                    self.compute_activation(self.layer[i - 1],
+                                            self.weights[i]))
         # Theano function:
         self.compute_error = T.sum((self.layer[-1] - self.th_target) ** 2)
         # Dynamic Methods:
@@ -258,16 +258,16 @@ class SRN(Network):
                                             self.weights[0]))
             elif i < len(self.sizes) - 2:
                 self.layer.append(
-                    T.sum(self.compute_activation(self.layer[i - 1],
-                                                  self.context_layer[i],
-                                                  self.context_weights[i],
-                                                  self.weights[i])))
+                    self.compute_activation(self.layer[i - 1],
+                                            self.context_layer[i],
+                                            self.context_weights[i],
+                                            self.weights[i]))
             else:
                 self.layer.append(
-                    T.sum(self.compute_activation(self.layer[i - 1],
-                                                  None,
-                                                  None,
-                                                  self.weights[i])))
+                    self.compute_activation(self.layer[i - 1],
+                                            None,
+                                            None,
+                                            self.weights[i]))
         # Theano function:
         self.compute_error = T.sum((self.layer[-1] - self.th_target) ** 2)
         # Dynamic Methods:

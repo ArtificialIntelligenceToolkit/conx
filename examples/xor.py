@@ -13,5 +13,11 @@ def xor(inputs):
 net = Network(2, 2, 1)
 net.set_inputs(inputs)
 net.set_target_function(xor)
-net.train()
+net.train(stop_percentage=1.0)
+net.test()
+
+net = Network(2, 2, 2, 1)
+net.set_inputs(inputs)
+net.set_target_function(xor)
+net.train(stop_percentage=1.0, max_epoch=10000)
 net.test()
