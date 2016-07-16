@@ -8,7 +8,7 @@ inputs = [[0, 0],
 def xor(inputs):
     a = inputs[0]
     b = inputs[1]
-    return [int((a or b) and not(a and b))]
+    return [[0.1, 0.9][int((a or b) and not(a and b))]]
 
 net = Network(2, 2, 1)
 net.set_inputs(inputs)
