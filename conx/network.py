@@ -27,23 +27,28 @@ import numpy as np
 import random
 import copy
 
+# Based on code from:
+# http://colinraffel.com/talks/next2015theano.pdf
+# http://nbviewer.ipython.org/github/craffel/theano-tutorial/blob/master/Theano%20Tutorial.ipynb#example-mlp
+# http://mlg.eng.cam.ac.uk/yarin/620bdeb168a59f1b072e4173ac867e79/Ex4_MLP_answer.py
+
 class Layer(object):
-    def __init__(self, weights, biases, activation_function):
+    def __init__(self, n_input, n_output, activation_function):
         '''
         A layer of a neural network, computes s(Wx + b) where s is a
         nonlinearity and x is the input vector.
 
-        :parameters:
+        Properties:
             - weights : np.ndarray, shape=(n_output, n_input)
                 Values to initialize the weight matrix to.
             - biases : np.ndarray, shape=(n_output,)
                 Values to initialize the bias vector
             - activation_function : theano.tensor.elemwise.Elemwise
                 Activation function for layer output
-
         '''
-        # Retrieve the input and output dimensionality based on W's initialization
-        n_output, n_input = weights.shape
+        weights = self.make_weights(n_input, n_output)
+        biases = np.ones(n_output, dtype=theano.config.floatX)
+
         # Make sure b is n_output in size
         assert biases.shape == (n_output,)
         # All parameters should be shared variables.
@@ -78,17 +83,18 @@ class Layer(object):
         self.activation_function = activation_function
         # We'll compute the gradient of the cost of the network with respect to the parameters in this list.
         self.params = [self.weights, self.biases]
-        self.n_output, self.n_input = n_output, n_input
+        self.n_output, self.n_input = (n_output, n_input)
         # Dynamic functions
-        inputs = T.vector()
-        self.propagate = function([inputs], self._propagate(inputs))
+        inputs = T.vector(dtype=theano.config.floatX)
+        self.propagate = function([inputs], self._propagate(inputs),
+                                  allow_input_downcast=True)
 
     def _propagate(self, inputs):
         '''
         Compute this layer's output given an input
 
         :parameters:
-            - inouts : theano.tensor.var.TensorVariable
+            - inputs : theano.tensor.var.TensorVariable
                 Theano symbolic variable for layer input
 
         :returns:
@@ -101,6 +107,33 @@ class Layer(object):
         # Otherwise, apply the activation function
         return (lin_output if self.activation_function is None
                 else self.activation_function(lin_output))
+
+    def make_weights(self, ins, outs):
+        """
+        Makes a 2D matrix of random weights centered around 0.0.
+        """
+        return np.array(2 * np.random.rand(outs, ins) - 1,
+                        dtype=theano.config.floatX)
+
+    def reset(self):
+        """
+        Resets a layer's learned values.
+        """
+        out_size, in_size = self.weights.get_value().shape
+        self.weights.set_value(
+            self.make_weights(in_size, out_size)
+        )
+        self.biases.set_value(
+            np.ones(out_size, dtype=theano.config.floatX)
+        )
+
+    def change_size(self, ins, outs):
+        """
+        Change the size of the weights/biases for this layer.
+        """
+        self.n_output, self.n_input = (outs, ins)
+        self.weights.set_value(self.make_weights(ins, outs))
+        self.biases.set_value(np.ones(outs, dtype=theano.config.floatX))
 
 class Network(object):
     def __init__(self, *sizes, **kwargs):
@@ -142,26 +175,9 @@ class Network(object):
         self._momentum = theano.shared(settings["momentum"], name='self.momentum')
         self._set_momentum(settings["momentum"])
         self._set_epsilon(settings["epsilon"])
-        weights = []
-        biases = []
-        activation_functions = []
-        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
-            weights.append(self.make_weights(n_input, n_output))
-            # Set initial biases to 1
-            biases.append(np.ones(n_output))
-            # We'll use sigmoid activation for all layers
-            # Note that this doesn't make a ton of sense when using squared distance
-            # because the sigmoid function is bounded on [0, 1].
-            activation_functions.append(settings["activation_function"])
-
-        # Make sure the input lists are all of the same length
-        assert len(weights) == len(biases) == len(activation_functions)
-
-        # Initialize lists of layers
         self.layer = []
-        # Construct the layers
-        for weight, bias, activation_function in zip(weights, biases, activation_functions):
-            self.layer.append(Layer(weight, bias, activation_function))
+        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
+            self.layer.append(Layer(n_input, n_output, settings["activation_function"]))
 
         # Combine parameters from all layers
         self.params = []
@@ -169,20 +185,23 @@ class Network(object):
             self.params += layer.params # [weights, biases]
 
         # Create Theano variables for the input
-        self.th_inputs = T.vector('self.th_inputs')
+        self.th_inputs = T.vector('self.th_inputs', dtype=theano.config.floatX)
         # ... and the desired output
-        self.th_targets = T.vector('self.th_targets')
+        self.th_targets = T.vector('self.th_targets', dtype=theano.config.floatX)
 
         error = self._tss_error(self.th_inputs, self.th_targets)
         # Dynamic Python methods:
         self._pytrain_one = function(
             [self.th_inputs, self.th_targets],
             error,
-            updates=self.compute_delta_weights(error))
+            updates=self.compute_delta_weights(error),
+            allow_input_downcast=True)
         self._pypropagate = function([self.th_inputs],
-                                     self._propagate(self.th_inputs))
+                                     self._propagate(self.th_inputs),
+                                     allow_input_downcast=True)
         self.tss_error = function([self.th_inputs, self.th_targets],
-                                  self._tss_error(self.th_inputs, self.th_targets))
+                                  self._tss_error(self.th_inputs, self.th_targets),
+                                  allow_input_downcast=True)
         self.target_function = None
         self.epoch = 0
         self.history = {}
@@ -281,10 +300,13 @@ class Network(object):
             # Each parameter is updated by taking a step in the direction of the gradient.
             # However, we also "mix in" the previous step according to the given momentum value.
             # Note that when updating param_update, we are using its old value and also the new gradient step.
-            updates.append((param, param - self._epsilon * param_update))
+            updates.append((param, T.cast(param - self._epsilon * param_update,
+                                          theano.config.floatX)))
             # Note that we don't need to derive backpropagation to compute updates - just use T.grad!
             updates.append((param_update,
-                            self._momentum * param_update + (1. - self._momentum) * T.grad(error, param)))
+                            T.cast((self._momentum * param_update) +
+                                   (1. - self._momentum) * T.grad(error, param),
+                                   theano.config.floatX)))
         return updates
 
     def _propagate(self, inputs):
@@ -319,14 +341,8 @@ class Network(object):
             - error : theano.tensor.var.TensorVariable
                 The squared Euclidian distance between the network output and y
         '''
-        return T.sum((self._propagate(inputs) - targets)**2)
-
-    def make_weights(self, ins, outs):
-        """
-        Makes a 2D matrix of random weights centered around 0.0.
-        """
-        return np.array(2 * np.random.rand(outs, ins) - 1,
-                        dtype=theano.config.floatX)
+        return T.sum((self._propagate(inputs) - targets)**2,
+                     dtype=theano.config.floatX)
 
     def train(self, **kwargs):
         """
@@ -349,7 +365,8 @@ class Network(object):
                 inputs = self.inputs[i][0]
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
-            if all(map(lambda v: v <= self.settings["tolerance"], np.abs(output - target))):
+            if all(map(lambda v: v <= self.settings["tolerance"],
+                       np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
             total += 1
         print('Epoch:', self.epoch,
@@ -373,7 +390,8 @@ class Network(object):
                     error += self.train_one(inputs, target)
                     total += 1
                     output = self.propagate(inputs)
-                    if all(map(lambda v: v <= self.settings["tolerance"], np.abs(output - target))):
+                    if all(map(lambda v: v <= self.settings["tolerance"],
+                               np.abs(output - target, dtype=theano.config.floatX))):
                         correct += 1
                 self.epoch += 1
                 if self.epoch % self.settings["report_rate"] == 0:
@@ -406,11 +424,12 @@ class Network(object):
                 target = self.target_function(inputs)
             else:
                 # inputs is input and target
-                target = inputs[i][1]
-                inputs = inputs[i][0]
+                target = inputs[1]
+                inputs = inputs[0]
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
-            if all(map(lambda v: v <= self.settings["tolerance"], np.abs(output - target))):
+            if all(map(lambda v: v <= self.settings["tolerance"],
+                       np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
             total += 1
             self.display_test_input(inputs)
@@ -427,13 +446,7 @@ class Network(object):
         self.epoch = 0
         self.history = {}
         for i in range(len(self.layer)):
-            out_size, in_size = self.layer[i].weights.get_value().shape
-            self.layer[i].weights.set_value(
-                self.make_weights(in_size, out_size)
-            )
-            self.layer[i].biases.set_value(
-                np.ones(out_size)
-            )
+            self.layer[i].reset()
 
     def config(self, kwargs):
         self.settings.update(kwargs)
