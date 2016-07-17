@@ -86,8 +86,21 @@ class Layer(object):
         self.n_output, self.n_input = (n_output, n_input)
         # Dynamic functions
         inputs = T.vector(dtype=theano.config.floatX)
-        self.propagate = function([inputs], self._propagate(inputs),
-                                  allow_input_downcast=True)
+        self._pypropagate = function([inputs], self._propagate(inputs),
+                                     allow_input_downcast=True)
+
+    def __str__(self):
+        retval = "    Type: %s\n" % type(self)
+        retval += "    Act : %s\n" % self.activation_function
+        retval += "    In  : %s\n" % self.n_input
+        retval += "    Out : %s\n" % self.n_output
+        return retval
+
+    def propagate(self, inputs):
+        """
+        Layer's propagate method. May be overridden in subclasses.
+        """
+        return self._pypropagate(inputs)
 
     def _propagate(self, inputs):
         '''
@@ -511,3 +524,13 @@ class Network(object):
         """
         print("Output:", v)
         print()
+
+    def __repr__(self):
+        retval = "Network:"
+        retval += ("-" * 50) + "\n"
+        for i in range(len(self.layer)):
+            layer = self.layer[i]
+            retval += "Layer %s:\n" % i
+            retval += str(layer)
+            retval += ("-" * 50) + "\n"
+        return retval

@@ -52,12 +52,14 @@ class SRNLayer(Layer):
         super(SRNLayer, self).__init__(n_input, n_output, activation_function)
         self.params += [self.cweights]
         inputs = T.vector(dtype=theano.config.floatX)
+        # Replaces Layer's _pypropagate:
         self._pypropagate = function([inputs], self._propagate(inputs),
                                      allow_input_downcast=True)
-        # was over written in the parent __init__
-        self.propagate = self.new_propagate
 
-    def new_propagate(self, inputs):
+    def propagate(self, inputs):
+        """
+        Overrides Layer's propagate method to save the outputs.
+        """
         outputs = self._pypropagate(inputs)
         self.last_outputs.set_value(outputs)
         return outputs
@@ -103,7 +105,14 @@ class SRNLayer(Layer):
 
 
 class SRN(Network):
+    """
+    Create a Elman-style recurrent network. All hidden layers
+    get a context layer.
+    """
     def make_layers(self, sizes):
+        """
+        Puts a context layer on hidden layers.
+        """
         self.layer = [] # [0, 1, 2], [1, 2, 3] for 4 layers
         i = 0
         for n_input, n_output in zip(sizes[:-1], sizes[1:]):
@@ -113,8 +122,15 @@ class SRN(Network):
                 self.layer.append(Layer(n_input, n_output, self.settings["activation_function"]))
             i += 1
 
-    def propagate(self, inputs):
-        activations = inputs
-        for layer in self.layer:
-            activations = layer.propagate(activations)
+    def propagate(self, inputs, copy_context=True):
+        """
+        This override explicitly calls the propagate in each layer
+        so to copy the context values.
+        """
+        if copy_context:
+            activations = inputs
+            for layer in self.layer:
+                activations = layer.propagate(activations)
+        else:
+            activations = self._pypropagate(inputs)
         return activations
