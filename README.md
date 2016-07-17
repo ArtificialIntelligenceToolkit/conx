@@ -4,7 +4,7 @@ Neural network library in Python built on Theano
 
 ## Example
 
-Computing an XOR target on the fly:
+Computing XOR via a target function:
 
 ```
 from conx import Network
@@ -30,8 +30,10 @@ Given a specified XOR target:
 
 ```
 from conx import Network
-inputs = [[0,0], [0,1], [1,0], [1,1]]
-
+inputs = [[[0, 0], [0, 0]],
+          [[0, 1], [1, 1]],
+          [[1, 0], [1, 1]],
+          [[1, 1], [0, 0]]]
 net = Network(2, 2, 1)
 net.set_inputs(inputs)
 net.train()
