@@ -33,7 +33,7 @@ def display_digit(vector):
             print(ch, end="")
         print()
         
-net.display_input = display_digit
+net.display_test_input = display_digit
 net.set_inputs(list(zip(inputs, targets)))
 
 net.test(2)
