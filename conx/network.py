@@ -166,7 +166,7 @@ class Network(object):
         '''
         self.settings = {
             "max_training_epochs": 5000,  # train
-            "stop_percentage": None,  #train
+            "stop_percentage": 1.0,  #train
             "tolerance": 0.1, # train
             "report_rate": 500,# train
             "activation_function": T.nnet.sigmoid, # init

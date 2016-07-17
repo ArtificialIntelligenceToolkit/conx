@@ -37,7 +37,7 @@ net.display_test_input = display_digit
 net.set_inputs(list(zip(inputs, targets)))
 
 net.test(2)
-net.train(stop_percentage=1.0, report_rate=1, tolerance=0.05)
+net.train(report_rate=1, tolerance=0.05)
 net.test(2)
 
 for i in range(100):

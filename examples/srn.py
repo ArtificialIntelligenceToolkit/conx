@@ -15,15 +15,13 @@ def xor(inputs):
 net = SRN(1, 2, 2, 1)
 net.set_inputs(inputs)
 net.set_target_function(xor)
-net.train(stop_percentage=1.0,
-          max_training_epochs=5000,
+net.train(max_training_epochs=5000,
           epsilon=0.1)
 net.test()
 
 net = SRN(1, 10, 1)
 net.set_inputs(inputs)
 net.set_target_function(xor)
-net.train(stop_percentage=1.0,
-          max_training_epochs=5000,
+net.train(max_training_epochs=5000,
           epsilon=0.1)
 net.test()
