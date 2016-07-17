@@ -534,3 +534,14 @@ class Network(object):
             retval += str(layer)
             retval += ("-" * 50) + "\n"
         return retval
+
+    def get_device(self):
+        """
+        Returns 'cpu' or 'gpu' indicating which device
+        the network will use.
+        """
+        if np.any([isinstance(x.op, T.Elemwise) for x
+                   in self._pypropagate.maker.fgraph.toposort()]):
+            return "cpu"
+        else:
+            return "gpu"
