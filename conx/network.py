@@ -175,10 +175,7 @@ class Network(object):
         self._momentum = theano.shared(settings["momentum"], name='self.momentum')
         self._set_momentum(settings["momentum"])
         self._set_epsilon(settings["epsilon"])
-        self.layer = []
-        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
-            self.layer.append(Layer(n_input, n_output, settings["activation_function"]))
-
+        self.make_layers(sizes)
         # Combine parameters from all layers
         self.params = []
         for layer in self.layer:
@@ -205,6 +202,15 @@ class Network(object):
         self.target_function = None
         self.epoch = 0
         self.history = {}
+
+    def make_layers(self, sizes):
+        """
+        Create the layers for the network.
+        """
+        self.layer = []
+        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
+            self.layer.append(Layer(n_input, n_output,
+                                    self.settings["activation_function"]))
 
     def _get_report_rate(self):
         return self.settings["report_rate"]

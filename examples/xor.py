@@ -19,7 +19,7 @@ net.test()
 net = Network(2, 2, 2, 1)
 net.set_inputs(inputs)
 net.set_target_function(xor)
-net.train(stop_percentage=1.0, max_epoch=10000)
+net.train(stop_percentage=1.0, max_training_epochs=10000)
 net.test()
 
 inputs = [[[0, 0], [0, 0]],
@@ -29,5 +29,5 @@ inputs = [[[0, 0], [0, 0]],
 
 net = Network(2, 10, 2)
 net.set_inputs(inputs)
-net.train(stop_percentage=1.0, max_epoch=10000)
+net.train(stop_percentage=1.0, max_training_epochs=10000)
 net.test()

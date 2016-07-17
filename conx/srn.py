@@ -26,128 +26,95 @@ import theano.tensor.nnet as nnet
 import numpy as np
 import random
 
-from .network import Network
+from .network import Network, Layer
 
-class SRN(Network):
-    """
-    Simple Recurrent Network
-    """
-    def __init__(self, *sizes, **kwargs):
-        """
-        Initialize network, given sizes of layers from
-        input to output (inclusive).
-        """
-        self.sizes = sizes
-        epsilon = 0.1
-        for key in kwargs:
-            if key == "epsilon":
-                epsilon = kwargs["epsilon"]
-            else:
-                raise Exception("unknown argument: '%s'" % key)
-        # learning rate
-        self._epsilon = theano.shared(epsilon, name='epsilon')
-        self.th_inputs = T.dvector('inputs') # inputs
-        self.th_target = T.dvector('target') # target/output
-        self.weights = []
-        self.layer = []
-        self.context_layer = []
-        self.context_weights = []
-        # Just the hidden layers:
-        for i in range(1,len(self.sizes) - 1):
-            self.context_weights.append(
-                theano.shared(
-                    self.make_weights(self.sizes[i],
-                                      self.sizes[i]),
-                    name='self.context_weights[%s]' % (i - 1))
-            )
-            self.context_layer.append(
-                theano.shared(
-                    np.array([0.5] * self.sizes[i],
-                             dtype='float64'),
-                    name="self.context_layer[%s]" % (i - 1))
-            )
-        for i in range(len(self.sizes) - 1):
-            self.weights.append(
-                theano.shared(self.make_weights(self.sizes[i],
-                                                self.sizes[i+1]),
-                              name='self.weights[%s]' % i))
-            if i == 0:
-                self.layer.append(
-                    self.compute_activation(self.th_inputs,
-                                            self.context_layer[0],
-                                            self.context_weights[0],
-                                            self.weights[0]))
-            elif i < len(self.sizes) - 2:
-                self.layer.append(
-                    self.compute_activation(self.layer[i - 1],
-                                            self.context_layer[i],
-                                            self.context_weights[i],
-                                            self.weights[i]))
-            else:
-                self.layer.append(
-                    self.compute_activation(self.layer[i - 1],
-                                            None,
-                                            None,
-                                            self.weights[i]))
-        # Theano function:
-        self.compute_error = T.sum((self.layer[-1] - self.th_target) ** 2)
-        # Dynamic Methods:
-        self.train_one = function(
-            inputs=[self.th_inputs, self.th_target],
-            outputs=self.compute_error,
-            updates=self.update_weights())
-        self._propagate = function([self.th_inputs], self.layer[-1])
-        self.compute_target = None
-        # Properties:
-        self.inputs = None
-        self.targets = None
+class SRNLayer(Layer):
+    def __init__(self, n_input, n_output, activation_function):
+        cweights = self.make_weights(n_output, n_output)
+        self.cweights = theano.shared(
+            value=cweights.astype(theano.config.floatX),
+            # The name parameter is solely for printing purporses
+            name='self.cweights',
+            # Setting borrow=True allows Theano to use user memory for this object.
+            # It can make code slightly faster by avoiding a deep copy on construction.
+            # For more details, see
+            # http://deeplearning.net/software/theano/tutorial/aliasing.html
+            borrow=True
+        )
+        # Initialize context to 0.5:
+        last_outputs = np.array([0.5] * n_output,
+                                dtype=theano.config.floatX)
+        self.last_outputs = theano.shared(
+            value=last_outputs.astype(theano.config.floatX),
+            name="self.last_outputs",
+            borrow=True
+        )
+        super(SRNLayer, self).__init__(n_input, n_output, activation_function)
+        self.params += [self.cweights]
+        inputs = T.vector(dtype=theano.config.floatX)
+        self._pypropagate = function([inputs], self._propagate(inputs),
+                                     allow_input_downcast=True)
+        # was over written in the parent __init__
+        self.propagate = self.new_propagate
 
-    def compute_activation(self, inputs, context, cweights, weights):
-        """
-        Theano function to compute activation at a layer.
-        """
-        bias = np.array([1], dtype='float64')
-        all_inputs = T.concatenate([inputs, bias])
-        if context:
-            all_context = T.concatenate([context, bias])
-            net_input = (T.dot(weights.T, all_inputs) +
-                         T.dot(cweights.T, all_context))
-        else:
-            net_input = T.dot(weights.T, all_inputs)
-        activation = nnet.sigmoid(net_input)
+    def new_propagate(self, inputs):
+        outputs = self._pypropagate(inputs)
+        self.last_outputs.set_value(outputs)
+        return outputs
+
+    def _propagate(self, inputs):
+        '''
+        Compute this layer's output given an input
+
+        :parameters:
+            - inputs : theano.tensor.var.TensorVariable
+                Theano symbolic variable for layer input
+
+        :returns:
+            - output : theano.tensor.var.TensorVariable
+                Mixed, biased, and activated inputs
+        '''
+        # Compute linear mix
+        lin_output = (T.dot(self.weights, inputs) + self.biases +
+                      T.dot(self.cweights, self.last_outputs))
+        # Output is just linear mix if no activation function
+        # Otherwise, apply the activation function
+        activation = (lin_output if self.activation_function is None
+                      else self.activation_function(lin_output))
         return activation
 
+    def reset(self):
+        """
+        Resets a layer's learned values and context.
+        """
+        super(SRNLayer, self).reset()
+        self.last_outputs.set_value([0.5] * n_output)
+        out_size, in_size = self.cweights.get_value().shape
+        self.cweights.set_value(
+            self.make_weights(out_size, out_size)
+        )
+
+    def change_size(self, ins, outs):
+        """
+        Change the size of the weights/biases for this layer.
+        """
+        super(SRNLayer, self).change_size(ins, outs)
+        self.cweights.set_value(self.make_weights(outs, outs))
+
+
+class SRN(Network):
+    def make_layers(self, sizes):
+        self.layer = [] # [0, 1, 2], [1, 2, 3] for 4 layers
+        i = 0
+        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
+            if i < len(sizes) - 1: # hidden
+                self.layer.append(SRNLayer(n_input, n_output, self.settings["activation_function"]))
+            else:
+                self.layer.append(Layer(n_input, n_output, self.settings["activation_function"]))
+            i += 1
+
     def propagate(self, inputs):
-        """
-        Propagate activation, and copy contexts.
-        """
-        retval = self._propagate(inputs)
-        self.copy_context(inputs)
-        return retval
-
-    def copy_context(self, inputs):
-        """
-        Copy hidden activations to context layers.
-        """
-        for i in range(len(self.context_layer)):
-            value = function([self.th_inputs], self.layer[i])(inputs)
-            self.context_layer[i].set_value(value)
-
-    def update_weights(self):
-        """
-        Returns [(weights, Theano update function), ...]
-        """
-        updates = Network.update_weights(self)
-        # Hidden layers:
-        for i in range(len(self.context_layer)):
-            updates.append(
-                (self.context_layer[i], self.layer[i])
-            )
-            # FIXME: can I backprop error through both
-            # context_weights and weights?
-            updates.append(
-                (self.context_weights[i],
-                 self.compute_delta_weights(self.compute_error,
-                                            self.context_weights[i]))
-            )
-        return updates
+        activations = inputs
+        for layer in self.layer:
+            activations = layer.propagate(activations)
+        return activations
