@@ -2,7 +2,9 @@
 
 Neural network library in Python built on Theano
 
-Computing a target on the fly:
+## Example
+
+Computing an XOR target on the fly:
 
 ```
 from conx import Network
@@ -24,7 +26,7 @@ net.train()
 net.test()
 ```
 
-Given a specified target:
+Given a specified XOR target:
 
 ```
 from conx import Network
@@ -35,3 +37,13 @@ net.set_inputs(inputs)
 net.train()
 net.test()
 ```
+
+## Install
+
+```python
+pip install conx -U
+```
+
+## Examples
+
+See the examples folder for additional examples, including handwritten letter recognition of MNIST data.
