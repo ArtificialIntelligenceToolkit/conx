@@ -121,6 +121,23 @@ class Layer(object):
         return (lin_output if self.activation_function is None
                 else self.activation_function(lin_output))
 
+    def save_deltas_and_reset_weights(self):
+        # compute delta weights/biases
+        # save deltas
+        self.delta_weights = self.weights.get_value() - self.orig_weights
+        self.delta_biases = self.biases.get_value() - self.orig_biases
+        # reset the weights/biases
+        self.weights.set_value(self.orig_weights)
+        self.biases.set_value(self.orig_biases)
+
+    def save_weights(self):
+        self.orig_weights = self.weights.get_value()
+        self.orig_biases = self.biases.get_value()
+
+    def update_weights_from_deltas(self):
+        self.weights.set_value(self.orig_weights + self.delta_weights)
+        self.biases.set_value(self.orig_biases + self.delta_biases)
+
     def make_weights(self, ins, outs):
         """
         Makes a 2D matrix of random weights centered around 0.0.
@@ -172,6 +189,7 @@ class Network(object):
             "activation_function": T.nnet.sigmoid, # init
             "epsilon": 0.1, # train
             "momentum": 0.9, # train
+            "batch": False, # train
         }
         self.defaults = copy.copy(self.settings)
         settings = self.settings
@@ -292,7 +310,28 @@ class Network(object):
     activation_function = property(_get_activation_function, _set_activation_function)
 
     def train_one(self, inputs, targets):
-        return self._pytrain_one(inputs, targets)
+        retval = self._pytrain_one(inputs, targets)
+        if self.settings["batch"]:
+            self.save_deltas_and_reset_weights()
+        return retval
+
+    def save_deltas_and_reset_weights(self):
+        """
+        """
+        for layer in self.layer:
+            layer.save_deltas_and_reset_weights()
+
+    def save_weights(self):
+        """
+        """
+        for layer in self.layer:
+            layer.save_weights()
+
+    def update_weights_from_deltas(self):
+        """
+        """
+        for layer in self.layer:
+            layer.update_weights_from_deltas()
 
     def propagate(self, inputs):
         return self._pypropagate(inputs)
@@ -397,6 +436,8 @@ class Network(object):
                 error = 0
                 correct = 0
                 total = 0
+                if self.settings["batch"]:
+                    self.save_weights()
                 random.shuffle(self.inputs)
                 for i in range(len(self.inputs)):
                     if self.target_function:
@@ -412,6 +453,8 @@ class Network(object):
                     if all(map(lambda v: v <= self.settings["tolerance"],
                                np.abs(output - target, dtype=theano.config.floatX))):
                         correct += 1
+                if self.settings["batch"]:
+                    self.update_weights_from_deltas()
                 self.epoch += 1
                 if self.epoch % self.settings["report_rate"] == 0:
                     self.history[self.epoch] = [error, correct/total]
