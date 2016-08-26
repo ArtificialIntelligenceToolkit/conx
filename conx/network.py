@@ -190,6 +190,7 @@ class Network(object):
             "epsilon": 0.1, # train
             "momentum": 0.9, # train
             "batch": False, # train
+            "shuffle": True, # train
         }
         self.defaults = copy.copy(self.settings)
         settings = self.settings
@@ -402,6 +403,18 @@ class Network(object):
         return T.sum((self._propagate(inputs) - targets)**2,
                      dtype=theano.config.floatX)
 
+    def set(self, item, value):
+        if item in self.setting:
+            self.settings[item] = value
+        else:
+            raise AttributeError("Invalid setting: '%s'" % item)
+
+    def get(self, item):
+        if item in self.setting:
+            return self.settings[item]
+        else:
+            raise AttributeError("Invalid setting: '%s'" % item)
+
     def train(self, **kwargs):
         """
         Method to train network.
@@ -413,6 +426,8 @@ class Network(object):
         total = 0
         print("-" * 50)
         print("Training for max trails:", self.settings["max_training_epochs"], "...")
+        if self.settings["shuffle"]:
+            self.shuffle_inputs()
         for i in range(len(self.inputs)):
             if self.target_function:
                 target = self.target_function(self.inputs[i])
@@ -438,7 +453,8 @@ class Network(object):
                 total = 0
                 if self.settings["batch"]:
                     self.save_weights()
-                random.shuffle(self.inputs)
+                if self.settings["shuffle"]:
+                    self.shuffle_inputs()
                 for i in range(len(self.inputs)):
                     if self.target_function:
                         target = self.target_function(self.inputs[i])
@@ -470,6 +486,12 @@ class Network(object):
               'TSS error:', error,
               '%correct:', correct/total)
 
+    def shuffle_inputs(self):
+        """
+        Shuffle the input/target patterns.
+        """
+        random.shuffle(self.inputs)
+
     def test(self, stop=None, start=0):
         """
         Method to test network.
@@ -481,6 +503,8 @@ class Network(object):
         correct = 0
         print("-" * 50)
         print("Test:")
+        if self.settings["shuffle"]:
+            self.shuffle_inputs()
         for inputs in self.inputs[start:stop]:
             if self.target_function:
                 target = self.target_function(inputs)
@@ -490,12 +514,16 @@ class Network(object):
                 inputs = inputs[0]
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
+            answer = "Incorrect"
             if all(map(lambda v: v <= self.settings["tolerance"],
                        np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
+                answer = "Correct"
             total += 1
+            print("*" * 30)
             self.display_test_input(inputs)
             self.display_test_output(output)
+            self.display_test_output(target, result=answer, label='Target')
         print("-" * 50)
         print('Epoch:', self.epoch,
               'TSS error:', error,
@@ -559,14 +587,13 @@ class Network(object):
         """
         Method to display input pattern.
         """
-        print("Input:", v)
+        print("Input :", v)
 
-    def display_test_output(self, v):
+    def display_test_output(self, v, result='', label='Output'):
         """
         Method to display output pattern.
         """
-        print("Output:", v)
-        print()
+        print("%s:" % label, v, result)
 
     def __repr__(self):
         retval = "Network:"

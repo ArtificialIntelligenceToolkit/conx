@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 from .network import Network
 from .srn import SRN
