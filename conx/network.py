@@ -415,6 +415,16 @@ class Network(object):
         else:
             raise AttributeError("Invalid setting: '%s'" % item)
 
+    def initialize_inputs(self):
+        if self.settings["shuffle"]:
+            self.shuffle_inputs()
+
+    def inputs_size(self):
+        return len(self.inputs)
+
+    def get_inputs(self, i):
+        return self.inputs[i]
+        
     def train(self, **kwargs):
         """
         Method to train network.
@@ -426,16 +436,16 @@ class Network(object):
         total = 0
         print("-" * 50)
         print("Training for max trails:", self.settings["max_training_epochs"], "...")
-        if self.settings["shuffle"]:
-            self.shuffle_inputs()
-        for i in range(len(self.inputs)):
+        self.initialize_inputs()
+        for i in range(self.inputs_size()):
+            self.current_input_index = i
+            inputs = self.get_inputs(i)
             if self.target_function:
-                target = self.target_function(self.inputs[i])
-                inputs = self.inputs[i]
+                target = self.target_function(inputs)
             else:
                 # inputs is input and target
-                target = self.inputs[i][1]
-                inputs = self.inputs[i][0]
+                target = inputs[1]
+                inputs = inputs[0]
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
             if all(map(lambda v: v <= self.settings["tolerance"],
@@ -453,16 +463,16 @@ class Network(object):
                 total = 0
                 if self.settings["batch"]:
                     self.save_weights()
-                if self.settings["shuffle"]:
-                    self.shuffle_inputs()
-                for i in range(len(self.inputs)):
+                self.initialize_inputs()
+                for i in range(self.inputs_size()):
+                    self.current_input_index = i
+                    inputs = self.get_inputs(i)
                     if self.target_function:
-                        target = self.target_function(self.inputs[i])
-                        inputs = self.inputs[i]
+                        target = self.target_function(inputs)
                     else:
                         # inputs is input and target
-                        target = self.inputs[i][1]
-                        inputs = self.inputs[i][0]
+                        target = inputs[1]
+                        inputs = inputs[0]
                     error += self.train_one(inputs, target)
                     total += 1
                     output = self.propagate(inputs)
@@ -497,15 +507,16 @@ class Network(object):
         Method to test network.
         """
         if stop is None:
-            stop = len(self.inputs)
+            stop = self.inputs_size()
         error = 0
         total = 0
         correct = 0
         print("-" * 50)
         print("Test:")
-        if self.settings["shuffle"]:
-            self.shuffle_inputs()
-        for inputs in self.inputs[start:stop]:
+        self.initialize_inputs()
+        for i in range(start, stop):
+            self.current_input_index = i
+            inputs = self.get_inputs(i)
             if self.target_function:
                 target = self.target_function(inputs)
             else:
