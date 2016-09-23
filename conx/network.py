@@ -165,6 +165,20 @@ class Layer(object):
         self.weights.set_value(self.make_weights(ins, outs))
         self.biases.set_value(np.ones(outs, dtype=theano.config.floatX))
 
+    def save(self, fp):
+        """
+        Save the weights to a file.
+        """
+        np.save(fp, self.weights.get_value())
+        np.save(fp, self.biases.get_value())
+
+    def load(self, fp):
+        """
+        Load the weights from a file.
+        """
+        self.weights.set_value(np.load(fp))
+        self.biases.set_value(np.load(fp))
+
 class Network(object):
     def __init__(self, *sizes, **kwargs):
         '''
@@ -327,6 +341,22 @@ class Network(object):
         """
         for layer in self.layer:
             layer.save_weights()
+
+    def save(self, filename):
+        """
+        Save network weights and biases to a file.
+        """
+        with open(filename, "wb") as fp:
+            for layer in self.layer:
+                layer.save(fp)
+
+    def load(self, filename):
+        """
+        Load network weights and biases from a file.
+        """
+        with open(filename, "rb") as fp:
+            for layer in self.layer:
+                layer.load(fp)
 
     def update_weights_from_deltas(self):
         """
