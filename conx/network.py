@@ -142,7 +142,9 @@ class Layer(object):
         """
         Makes a 2D matrix of random weights centered around 0.0.
         """
-        return np.array(2 * np.random.rand(outs, ins) - 1,
+        min, max = -0.5, 0.5
+        range = (max - min)
+        return np.array(range * np.random.rand(outs, ins) - range/2.0,
                         dtype=theano.config.floatX)
 
     def reset(self):
@@ -394,7 +396,7 @@ class Network(object):
             # Note that we don't need to derive backpropagation to compute updates - just use T.grad!
             updates.append((param_update,
                             T.cast((self._momentum * param_update) +
-                                   (1. - self._momentum) * T.grad(error, param),
+                                   T.grad(error, param),
                                    theano.config.floatX)))
         return updates
 
