@@ -22,7 +22,6 @@ from __future__ import print_function, division
 import theano
 import theano.tensor as T
 from theano import function, pp
-import theano.tensor.nnet as nnet
 import numpy as np
 import random
 import copy
