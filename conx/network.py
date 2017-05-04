@@ -169,7 +169,7 @@ class Layer(object):
         self.weights.set_value(self.make_weights(ins, outs))
         self.biases.set_value(np.ones(outs, dtype=theano.config.floatX))
 
-    def save(self):
+    def save(self, fp):
         """
         Save the weights to a file.
         """
