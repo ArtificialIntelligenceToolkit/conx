@@ -351,9 +351,9 @@ class Network(object):
         Save network weights and biases to a file.
         """
         if filename is None:
-            with io.BytesIO() as fp:
-                for layer in self.layer:
-                    layer.save(fp)
+            fp = io.BytesIO()
+            for layer in self.layer:
+                layer.save(fp)
             return fp
         else:
             with open(filename, "wb") as fp:
