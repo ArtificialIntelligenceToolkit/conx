@@ -184,7 +184,16 @@ class Layer(object):
         self.biases.set_value(np.load(fp))
 
 class Network(object):
-    def __init__(self, *sizes, **kwargs):
+    def __init__(self, *sizes,
+                 epsilon=0.1,
+                 momentum=0.9,
+                 activation_function=T.nnet.sigmoid,
+                 max_training_epochs=5000,
+                 stop_percentage=1.0,
+                 tolerance=0.1,
+                 report_rate=500,
+                 batch=False,
+                 shuffle=True):
         '''
         Multi-layer perceptron class, computes the composition of a
         sequence of Layers
@@ -199,43 +208,30 @@ class Network(object):
                 Activation function for layer output for each layer
 
         '''
-        self.settings = {
-            "max_training_epochs": 5000,  # train
-            "stop_percentage": 1.0,  #train
-            "tolerance": 0.1, # train
-            "report_rate": 500,# train
-            "activation_function": T.nnet.sigmoid, # init
-            "epsilon": 0.1, # train
-            "momentum": 0.9, # train
-            "batch": False, # train
-            "shuffle": True, # train
-        }
-        self.defaults = copy.copy(self.settings)
-        settings = self.settings
-        for key in kwargs:
-            if key == "activation_function":
-                settings["activation_function"] = kwargs[key]
-            elif key == "epsilon":
-                settings["epsilon"] = kwargs[key]
-            elif key == "momentum":
-                settings["momentum"] = kwargs[key]
-            else:
-                raise Exception("unknown argument: '%s'" % key)
-        self._epsilon = theano.shared(settings["epsilon"], name='self.epsilon')
-        self._momentum = theano.shared(settings["momentum"], name='self.momentum')
-        self._set_momentum(settings["momentum"])
-        self._set_epsilon(settings["epsilon"])
+        # Construct theano variables:
+        self._epsilon = theano.shared(0.0, name='self.epsilon')
+        self._momentum = theano.shared(0.0, name='self.momentum')
+        # Create Theano variables for the input
+        self.th_inputs = T.vector('self.th_inputs', dtype=theano.config.floatX)
+        # ... and the desired output
+        self.th_targets = T.vector('self.th_targets', dtype=theano.config.floatX)
+        # Set defaults:
+        self.max_training_epochs = max_training_epochs
+        self.stop_percentage = stop_percentage
+        self.tolerance = tolerance
+        self.report_rate = report_rate
+        self._activation_function = activation_function # don't use property yet, layers not made
+        self.epsilon = epsilon
+        self.momentum = momentum
+        self.batch = batch
+        self.shuffle = shuffle
+        # Make the layers:
         self.make_layers(sizes)
         # Combine parameters from all layers
         self.params = []
         for layer in self.layer:
             self.params += layer.params # [weights, biases]
-
-        # Create Theano variables for the input
-        self.th_inputs = T.vector('self.th_inputs', dtype=theano.config.floatX)
-        # ... and the desired output
-        self.th_targets = T.vector('self.th_targets', dtype=theano.config.floatX)
-
+        # Theano expressions:
         error = self._tss_error(self.th_inputs, self.th_targets)
         # Dynamic Python methods:
         self._pytrain_one = function(
@@ -260,19 +256,12 @@ class Network(object):
         self.layer = []
         for n_input, n_output in zip(sizes[:-1], sizes[1:]):
             self.layer.append(Layer(n_input, n_output,
-                                    self.settings["activation_function"]))
-
-    def _get_report_rate(self):
-        return self.settings["report_rate"]
-
-    def _set_report_rate(self, value):
-        self.settings["report_rate"] = value
+                                    self.activation_function))
 
     def _set_epsilon(self, epsilon):
         """
         Method to set epsilon (learning rate).
         """
-        self.settings["epsilon"] = epsilon
         self._epsilon.set_value(epsilon)
 
     def _get_epsilon(self):
@@ -281,11 +270,24 @@ class Network(object):
         """
         return self._epsilon.get_value()
 
+    def _set_batch(self, batch):
+        """
+        Method to set batch.
+        """
+        self._batch = batch
+        if self._batch:
+            self.save_weights()
+
+    def _get_batch(self):
+        """
+        Method to get batch.
+        """
+        return self._batch
+
     def _set_momentum(self, momentum):
         """
         Method to set momentum.
         """
-        self.settings["momentum"] = momentum
         self._momentum.set_value(momentum)
 
     def _get_momentum(self):
@@ -294,44 +296,28 @@ class Network(object):
         """
         return self._momentum.get_value()
 
-    def _get_max_training_epochs(self):
-        return self.settings["max_training_epochs"]
-
-    def _set_max_training_epochs(self, value):
-        self.settings["max_training_epochs"] = value
-
-    def _get_stop_percentage(self):
-        return self.settings["stop_percentage"]
-
-    def _set_stop_percentage(self, value):
-        self.settings["stop_percentage"] = value
-
-    def _get_tolerance(self):
-        return self.settings["tolerance"]
-
-    def _set_tolerance(self, value):
-        self.settings["tolerance"] = value
-
     def _get_activation_function(self):
-        return self.settings["activation_function"]
+        return self._activation_function
 
     def _set_activation_function(self, value):
-        self.settings["activation_function"] = value
+        self._activation_function = value
         for i in range(len(self.layer)):
             self.layer[i].activation_function = value
 
     epsilon = property(_get_epsilon, _set_epsilon)
     momentum = property(_get_momentum, _set_momentum)
-    report_rate = property(_get_report_rate, _set_report_rate)
-    max_training_epochs = property(_get_max_training_epochs, _set_max_training_epochs)
-    stop_percentage = property(_get_stop_percentage, _set_stop_percentage)
-    tolerance = property(_get_tolerance, _set_tolerance)
     activation_function = property(_get_activation_function, _set_activation_function)
+    batch = property(_get_batch, _set_batch)
 
     def train_one(self, inputs, targets):
+        """
+        Given an input vector and a target vector, update the weights (if
+        not batch) and return error.
+        """
         retval = self._pytrain_one(inputs, targets)
-        if self.settings["batch"]:
+        if self.batch:
             self.save_deltas_and_reset_weights()
+        self.epoch += 1
         return retval
 
     def save_deltas_and_reset_weights(self):
@@ -448,20 +434,8 @@ class Network(object):
         return T.sum((self._propagate(inputs) - targets)**2,
                      dtype=theano.config.floatX)
 
-    def set(self, item, value):
-        if item in self.setting:
-            self.settings[item] = value
-        else:
-            raise AttributeError("Invalid setting: '%s'" % item)
-
-    def get(self, item):
-        if item in self.setting:
-            return self.settings[item]
-        else:
-            raise AttributeError("Invalid setting: '%s'" % item)
-
     def initialize_inputs(self):
-        if self.settings["shuffle"]:
+        if self.shuffle:
             self.shuffle_inputs()
 
     def inputs_size(self):
@@ -474,13 +448,19 @@ class Network(object):
         """
         Method to train network.
         """
-        self.config(kwargs)
         # Get initial error, before training:
+        for key in kwargs:
+            if key in ["epsilon", "momentum", "activation_function",
+                       "max_training_epochs", "stop_percentage",
+                       "tolerance", "report_rate", "batch", "shuffle"]:
+                setattr(self, key, kwargs[key])
+            else:
+                raise AttributeError("Invalid option: '%s'" % key)
         error = 0
         correct = 0
         total = 0
         print("-" * 50)
-        print("Training for max trails:", self.settings["max_training_epochs"], "...")
+        print("Training for max trails:", self.max_training_epochs, "...")
         self.initialize_inputs()
         for i in range(self.inputs_size()):
             self.current_input_index = i
@@ -493,7 +473,7 @@ class Network(object):
                 inputs = inputs[0]
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
-            if all(map(lambda v: v <= self.settings["tolerance"],
+            if all(map(lambda v: v <= self.tolerance,
                        np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
             total += 1
@@ -501,12 +481,12 @@ class Network(object):
               'TSS error:', error,
               '%correct:', correct/total)
         self.history[self.epoch] = [error, correct/total]
-        if correct/total < self.settings["stop_percentage"]:
-            for e in range(self.settings["max_training_epochs"]):
+        if correct/total < self.stop_percentage:
+            for e in range(self.max_training_epochs):
                 error = 0
                 correct = 0
                 total = 0
-                if self.settings["batch"]:
+                if self.batch:
                     self.save_weights()
                 self.initialize_inputs()
                 for i in range(self.inputs_size()):
@@ -521,19 +501,18 @@ class Network(object):
                     error += self.train_one(inputs, target)
                     total += 1
                     output = self.propagate(inputs)
-                    if all(map(lambda v: v <= self.settings["tolerance"],
+                    if all(map(lambda v: v <= self.tolerance,
                                np.abs(output - target, dtype=theano.config.floatX))):
                         correct += 1
-                if self.settings["batch"]:
+                if self.batch:
                     self.update_weights_from_deltas()
-                self.epoch += 1
-                if self.epoch % self.settings["report_rate"] == 0:
+                if e > 0 and e % self.report_rate == 0:
                     self.history[self.epoch] = [error, correct/total]
                     print('Epoch:', self.epoch,
                           'TSS error:', error,
                           '%correct:', correct/total)
-                if self.settings["stop_percentage"] is not None:
-                    if correct/total >= self.settings["stop_percentage"]:
+                if self.stop_percentage is not None:
+                    if correct/total >= self.stop_percentage:
                         break
         self.history[self.epoch] = [error, correct/total]
         print("-" * 50)
@@ -571,7 +550,7 @@ class Network(object):
             output = self.propagate(inputs)
             error += self.tss_error(inputs, target)
             answer = "Incorrect"
-            if all(map(lambda v: v <= self.settings["tolerance"],
+            if all(map(lambda v: v <= self.tolerance,
                        np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
                 answer = "Correct"
@@ -579,7 +558,7 @@ class Network(object):
             print("*" * 30)
             self.display_test_input(inputs)
             self.display_test_output(output)
-            self.display_test_output(target, result=answer, label='Target')
+            self.display_test_output(target, result=answer, label='Target: ')
         print("-" * 50)
         print('Epoch:', self.epoch,
               'TSS error:', error,
@@ -594,17 +573,11 @@ class Network(object):
         for i in range(len(self.layer)):
             self.layer[i].reset()
 
-    def config(self, kwargs):
-        self.settings.update(kwargs)
-        self._set_momentum(self.settings["momentum"])
-        self._set_epsilon(self.settings["epsilon"])
-
     def reinit(self):
         """
         Restore network to inital state.
         """
         self.reset()
-        self.config(copy.copy(self.defaults))
         self.target_function = None
         self.inputs = None
 
@@ -639,17 +612,23 @@ class Network(object):
         """
         self.sizes[layer] = size
 
+    def pp(self, label, vector, result=''):
+        """
+        Pretty printer for a label, vector and optional result
+        """
+        print(label + (",".join(["% .1f" % v for v in vector])) + " " + result)
+                
     def display_test_input(self, v):
         """
         Method to display input pattern.
         """
-        print("Input :", v)
+        self.pp("Input : ", v)
 
-    def display_test_output(self, v, result='', label='Output'):
+    def display_test_output(self, v, result='', label='Output: '):
         """
         Method to display output pattern.
         """
-        print("%s:" % label, v, result)
+        self.pp(label, v, result)
 
     def __repr__(self):
         retval = "Network:"

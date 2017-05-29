@@ -1,6 +1,6 @@
 # conx - a neural network library
 #
-# Copyright (c) 2016 Douglas S. Blank <dblank@cs.brynmawr.edu>
+# Copyright (c) 2016-2017 Douglas S. Blank <dblank@cs.brynmawr.edu>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 from .network import Network
 from .srn import SRN

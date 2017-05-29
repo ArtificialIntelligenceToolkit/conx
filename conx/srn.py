@@ -51,8 +51,8 @@ class SRNLayer(Layer):
         )
         super(SRNLayer, self).__init__(n_input, n_output, activation_function)
         self.params += [self.cweights]
-        inputs = T.vector(dtype=theano.config.floatX)
         # Replaces Layer's _pypropagate:
+        inputs = T.vector(dtype=theano.config.floatX)
         self._pypropagate = function([inputs], self._propagate(inputs),
                                      allow_input_downcast=True)
 
@@ -115,7 +115,7 @@ class SRN(Network):
         """
         self.layer = [] # [0, 1, 2], [1, 2, 3] for 4 layers
         for n_input, n_output in zip(sizes[:-1], sizes[1:]):
-            self.layer.append(SRNLayer(n_input, n_output, self.settings["activation_function"]))
+            self.layer.append(SRNLayer(n_input, n_output, self.activation_function))
 
     def propagate(self, inputs, copy_context=True):
         """
