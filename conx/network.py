@@ -184,16 +184,8 @@ class Layer(object):
         self.biases.set_value(np.load(fp))
 
 class Network(object):
-    def __init__(self, *sizes,
-                 epsilon=0.1,
-                 momentum=0.9,
-                 activation_function=T.nnet.sigmoid,
-                 max_training_epochs=5000,
-                 stop_percentage=1.0,
-                 tolerance=0.1,
-                 report_rate=500,
-                 batch=False,
-                 shuffle=True):
+    def __init__(self, *sizes, **kwargs):
+        ## args in old style because Python2 limitations
         '''
         Multi-layer perceptron class, computes the composition of a
         sequence of Layers
@@ -216,15 +208,31 @@ class Network(object):
         # ... and the desired output
         self.th_targets = T.vector('self.th_targets', dtype=theano.config.floatX)
         # Set defaults:
-        self.max_training_epochs = max_training_epochs
-        self.stop_percentage = stop_percentage
-        self.tolerance = tolerance
-        self.report_rate = report_rate
-        self._activation_function = activation_function # don't use property yet, layers not made
-        self.epsilon = epsilon
-        self.momentum = momentum
-        self.batch = batch
-        self.shuffle = shuffle
+        self.defaults = {"epsilon": 0.1,
+                         "momentum": 0.9,
+                         "activation_function": T.nnet.sigmoid,
+                         "max_training_epochs": 5000,
+                         "stop_percentage": 1.0,
+                         "tolerance": 0.1,
+                         "report_rate": 500,
+                         "batch": False,
+                         "shuffle": True}
+        # First, set defaults from self.defaults:
+        for key in self.defaults:
+            if key == "activation_function": # don't use property yet, layers not made
+                self._activation_function = self.defaults[key]
+            else:
+                setattr(self, key, self.defaults[key])
+        # Then, set args:
+        for key in kwargs:
+            if key in self.defaults:
+                if key == "activation_function": # don't use property yet, layers not made
+                    self._activation_function = kwargs[key]
+                else:
+                    setattr(self, key, kwargs[key])
+                self.defaults[key] = kwargs[key]
+            else:
+                raise Exception("invalid keyword argument '%s'" % key)
         # Make the layers:
         self.make_layers(sizes)
         # Combine parameters from all layers
@@ -317,7 +325,6 @@ class Network(object):
         retval = self._pytrain_one(inputs, targets)
         if self.batch:
             self.save_deltas_and_reset_weights()
-        self.epoch += 1
         return retval
 
     def save_deltas_and_reset_weights(self):
@@ -506,7 +513,8 @@ class Network(object):
                         correct += 1
                 if self.batch:
                     self.update_weights_from_deltas()
-                if e > 0 and e % self.report_rate == 0:
+                self.epoch += 1
+                if self.epoch % self.report_rate == 0:
                     self.history[self.epoch] = [error, correct/total]
                     print('Epoch:', self.epoch,
                           'TSS error:', error,
