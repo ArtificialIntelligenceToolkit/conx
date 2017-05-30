@@ -451,24 +451,13 @@ class Network(object):
     def get_inputs(self, i):
         return self.inputs[i]
 
-    def train(self, **kwargs):
+    def cross_validate(self):
         """
-        Method to train network.
+        Run through all, computing error, correct, total
         """
-        # Get initial error, before training:
-        for key in kwargs:
-            if key in ["epsilon", "momentum", "activation_function",
-                       "max_training_epochs", "stop_percentage",
-                       "tolerance", "report_rate", "batch", "shuffle"]:
-                setattr(self, key, kwargs[key])
-            else:
-                raise AttributeError("Invalid option: '%s'" % key)
         error = 0
         correct = 0
         total = 0
-        print("-" * 50)
-        print("Training for max trails:", self.max_training_epochs, "...")
-        self.initialize_inputs()
         for i in range(self.inputs_size()):
             self.current_input_index = i
             inputs = self.get_inputs(i)
@@ -484,15 +473,30 @@ class Network(object):
                        np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
             total += 1
+        return error, correct, total
+    
+    def train(self, **kwargs):
+        """
+        Method to train network.
+        """
+        # Get initial error, before training:
+        for key in kwargs:
+            if key in ["epsilon", "momentum", "activation_function",
+                       "max_training_epochs", "stop_percentage",
+                       "tolerance", "report_rate", "batch", "shuffle"]:
+                setattr(self, key, kwargs[key])
+            else:
+                raise AttributeError("Invalid option: '%s'" % key)
+        print("-" * 50)
+        print("Training for max trails:", self.max_training_epochs, "...")
+        self.initialize_inputs()
+        error, correct, total = self.cross_validate()
         print('Epoch:', self.epoch,
               'TSS error:', error,
               '%correct:', correct/total)
         self.history[self.epoch] = [error, correct/total]
         if correct/total < self.stop_percentage:
             for e in range(self.max_training_epochs):
-                error = 0
-                correct = 0
-                total = 0
                 if self.batch:
                     self.save_weights()
                 self.initialize_inputs()
@@ -505,15 +509,12 @@ class Network(object):
                         # inputs is input and target
                         target = inputs[1]
                         inputs = inputs[0]
-                    error += self.train_one(inputs, target)
-                    total += 1
+                    self.train_one(inputs, target)
                     output = self.propagate(inputs)
-                    if all(map(lambda v: v <= self.tolerance,
-                               np.abs(output - target, dtype=theano.config.floatX))):
-                        correct += 1
                 if self.batch:
                     self.update_weights_from_deltas()
                 self.epoch += 1
+                error, correct, total = self.cross_validate()
                 if self.epoch % self.report_rate == 0:
                     self.history[self.epoch] = [error, correct/total]
                     print('Epoch:', self.epoch,
