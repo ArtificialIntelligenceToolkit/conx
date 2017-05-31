@@ -254,8 +254,10 @@ class Network(object):
                                   self._tss_error(self.th_inputs, self.th_targets),
                                   allow_input_downcast=True)
         self.target_function = None
+        # Reset:
         self.epoch = 0
         self.history = {}
+        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
 
     def make_layers(self, sizes):
         """
@@ -578,6 +580,7 @@ class Network(object):
         """
         Resets a network's learned values.
         """
+        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
         self.epoch = 0
         self.history = {}
         for i in range(len(self.layer)):
