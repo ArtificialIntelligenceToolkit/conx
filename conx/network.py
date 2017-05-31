@@ -258,6 +258,7 @@ class Network(object):
         self.epoch = 0
         self.history = {}
         self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
+        self.last_cv_percent = 0
 
     def make_layers(self, sizes):
         """
@@ -476,6 +477,10 @@ class Network(object):
                 correct += 1
             total += 1
         self.last_cv_error, self.last_cv_correct, self.last_cv_total = error, correct, total
+        if total > 0:
+            self.last_cv_percent = correct/total
+        else:
+            self.last_cv_percent = 0
         return error, correct, total
     
     def train(self, **kwargs):
@@ -581,6 +586,7 @@ class Network(object):
         Resets a network's learned values.
         """
         self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
+        self.last_cv_percent = 0
         self.epoch = 0
         self.history = {}
         for i in range(len(self.layer)):
