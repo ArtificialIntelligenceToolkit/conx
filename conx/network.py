@@ -473,6 +473,7 @@ class Network(object):
                        np.abs(output - target, dtype=theano.config.floatX))):
                 correct += 1
             total += 1
+        self.last_cv_error, self.last_cv_correct, self.last_cv_total = error, correct, total
         return error, correct, total
     
     def train(self, **kwargs):
