@@ -1,4 +1,5 @@
 from conx import Network, SRN
+import theano.tensor as T
 
 class DynamicInputsNetwork(Network):
     def initialize_inputs(self):
@@ -20,7 +21,7 @@ class DynamicInputsNetwork(Network):
                 [1, 1]]
         return temp[i]
 
-net = DynamicInputsNetwork(2, 3, 1)
+net = DynamicInputsNetwork(2, 3, 1, activation_function=lambda inputs: T.nnet.sigmoid(inputs - 0.5))
 
 def target_function(inputs):
     return [int(bool(inputs[0]) != bool(inputs[1]))]
@@ -55,7 +56,7 @@ class DynamicInputsSRN(SRN):
                 1, 1]
         return [temp[i]]
 
-net = DynamicInputsSRN(1, 5, 1)
+net = DynamicInputsSRN(1, 5, 1, activation_function=lambda inputs: T.nnet.sigmoid(inputs - 0.5))
 
 last = 0
 def target_function(inputs):
@@ -108,7 +109,7 @@ class Predict(SRN):
         letter = text[i]
         return patterns[letter]
 
-net = Predict(len(encode("T")), 5, len(encode("T")))
+net = Predict(len(encode("T")), 5, len(encode("T")), activation_function=lambda inputs: T.nnet.sigmoid(inputs - 0.5))
 
 def target_function(inputs):
     index = net.current_input_index

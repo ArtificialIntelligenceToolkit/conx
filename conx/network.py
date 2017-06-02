@@ -28,6 +28,7 @@ import functools
 import numpy as np
 import random
 import copy
+import signal
 
 # Based on code from:
 # http://colinraffel.com/talks/next2015theano.pdf
@@ -235,7 +236,20 @@ class Network(object):
                 raise Exception("invalid keyword argument '%s'" % key)
         # Make the layers:
         self.make_layers(sizes)
-        # Combine parameters from all layers
+        # Combine parameters from all layers:
+        self.compile()
+        # Reset:
+        self.target_function = None
+        self.epoch = 0
+        self.history = {}
+        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
+        self.last_cv_percent = 0
+
+    def compile(self):
+        """
+        Given the network architecture, create the Theano equations
+        to propagate and backpropagate.
+        """
         self.params = []
         for layer in self.layer:
             self.params += layer.params # [weights, biases]
@@ -253,13 +267,7 @@ class Network(object):
         self.tss_error = function([self.th_inputs, self.th_targets],
                                   self._tss_error(self.th_inputs, self.th_targets),
                                   allow_input_downcast=True)
-        self.target_function = None
-        # Reset:
-        self.epoch = 0
-        self.history = {}
-        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
-        self.last_cv_percent = 0
-
+        
     def make_layers(self, sizes):
         """
         Create the layers for the network.
@@ -422,6 +430,7 @@ class Network(object):
                 inputs passed through the network
         '''
         # Recursively compute output
+        # FIXME: This is the network graph
         activations = inputs
         for layer in self.layer:
             activations = layer._propagate(activations)
@@ -503,33 +512,37 @@ class Network(object):
               'TSS error:', error,
               '%correct:', correct/total)
         self.history[self.epoch] = [error, correct/total]
-        if correct/total < self.stop_percentage:
-            for e in range(self.max_training_epochs):
-                if self.batch:
-                    self.save_weights()
-                self.initialize_inputs()
-                for i in range(self.inputs_size()):
-                    self.current_input_index = i
-                    inputs = self.get_inputs(i)
-                    if self.target_function:
-                        target = self.target_function(inputs)
-                    else:
-                        # inputs is input and target
-                        target = inputs[1]
-                        inputs = inputs[0]
-                    self.train_one(inputs, target)
-                    output = self.propagate(inputs)
-                if self.batch:
-                    self.update_weights_from_deltas()
-                self.epoch += 1
-                error, correct, total = self.cross_validate()
-                if self.epoch % self.report_rate == 0:
-                    self.history[self.epoch] = [error, correct/total]
-                    print('Epoch:', self.epoch,
-                          'TSS error:', error,
-                          '%correct:', correct/total)
-                if self.stop_percentage is not None:
-                    if correct/total >= self.stop_percentage:
+        with InterruptHandler() as handler:
+            if correct/total < self.stop_percentage:
+                for e in range(self.max_training_epochs):
+                    if self.batch:
+                        self.save_weights()
+                    self.initialize_inputs()
+                    for i in range(self.inputs_size()):
+                        self.current_input_index = i
+                        inputs = self.get_inputs(i)
+                        if self.target_function:
+                            target = self.target_function(inputs)
+                        else:
+                            # inputs is input and target
+                            target = inputs[1]
+                            inputs = inputs[0]
+                        self.train_one(inputs, target)
+                        output = self.propagate(inputs)
+                    if self.batch:
+                        self.update_weights_from_deltas()
+                    self.epoch += 1
+                    error, correct, total = self.cross_validate()
+                    if self.epoch % self.report_rate == 0:
+                        self.history[self.epoch] = [error, correct/total]
+                        print('Epoch:', self.epoch,
+                              'TSS error:', error,
+                              '%correct:', correct/total)
+                    if self.stop_percentage is not None:
+                        if correct/total >= self.stop_percentage:
+                            break
+                    if handler.interrupted:
+                        print("\nInterrupted by user; stopping...")
                         break
         self.history[self.epoch] = [error, correct/total]
         print("-" * 50)
@@ -704,3 +717,30 @@ class Network(object):
             assert layer.biases.get_value().shape == biases.shape
             layer.biases.set_value(biases)
             current += b
+
+
+class InterruptHandler():
+    def __init__(self, sig=signal.SIGINT):
+        self.sig = sig
+
+    def __enter__(self):
+        self.interrupted = False
+        self.released = False
+        self.original_handler = signal.getsignal(self.sig)
+
+        def handler(signum, frame):
+            self.release()
+            self.interrupted = True
+
+        signal.signal(self.sig, handler)
+        return self
+
+    def __exit__(self, type, value, tb):
+        self.release()
+
+    def release(self):
+        if self.released:
+            return False
+        signal.signal(self.sig, self.original_handler)
+        self.released = True
+        return True

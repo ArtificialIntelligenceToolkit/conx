@@ -111,11 +111,12 @@ class SRN(Network):
     """
     def make_layers(self, sizes):
         """
-        Puts a context layer on hidden layers.
+        Puts a context layer on hidden layers (all but last).
         """
         self.layer = [] # [0, 1, 2], [1, 2, 3] for 4 layers
-        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
+        for n_input, n_output in zip(sizes[:-2], sizes[1:-1]):
             self.layer.append(SRNLayer(n_input, n_output, self.activation_function))
+        self.layer.append(Layer(sizes[-2], sizes[-1], self.activation_function))
 
     def propagate(self, inputs, copy_context=True):
         """
