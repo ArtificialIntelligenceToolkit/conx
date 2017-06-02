@@ -510,7 +510,7 @@ class Network(object):
         error, correct, total = self.cross_validate()
         print('Epoch:', self.epoch,
               'TSS error:', error,
-              '%correct:', correct/total)
+              '%correct:', correct/total * 100)
         self.history[self.epoch] = [error, correct/total]
         with InterruptHandler() as handler:
             if correct/total < self.stop_percentage:
@@ -537,7 +537,7 @@ class Network(object):
                         self.history[self.epoch] = [error, correct/total]
                         print('Epoch:', self.epoch,
                               'TSS error:', error,
-                              '%correct:', correct/total)
+                              '%correct:', correct/total * 100)
                     if self.stop_percentage is not None:
                         if correct/total >= self.stop_percentage:
                             break
@@ -548,7 +548,7 @@ class Network(object):
         print("-" * 50)
         print('Epoch:', self.epoch,
               'TSS error:', error,
-              '%correct:', correct/total)
+              '%correct:', correct/total * 100)
 
     def shuffle_inputs(self):
         """
