@@ -513,7 +513,7 @@ class Network(object):
               '%correct:', correct/total * 100)
         self.history[self.epoch] = [error, correct/total]
         with InterruptHandler() as handler:
-            if correct/total < self.stop_percentage:
+            if correct/total < self.stop_percentage and not handler.interrupted:
                 for e in range(self.max_training_epochs):
                     if self.batch:
                         self.save_weights()
@@ -533,7 +533,7 @@ class Network(object):
                         self.update_weights_from_deltas()
                     self.epoch += 1
                     error, correct, total = self.cross_validate()
-                    if self.epoch % self.report_rate == 0:
+                    if self.epoch % self.report_rate == 0 or handler.interrupted:
                         self.history[self.epoch] = [error, correct/total]
                         print('Epoch:', self.epoch,
                               'TSS error:', error,
@@ -544,6 +544,8 @@ class Network(object):
                     if handler.interrupted:
                         print("\nInterrupted by user; stopping...")
                         break
+            if handler.interrupted:
+                raise KeyboardInterrupt
         self.history[self.epoch] = [error, correct/total]
         print("-" * 50)
         print('Epoch:', self.epoch,
