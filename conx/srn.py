@@ -130,3 +130,8 @@ class SRN(Network):
         else:
             activations = self._pypropagate(inputs)
         return activations
+
+    def clear_contexts(self, value):
+        for layer in self.layer[0:-1]:
+            size = len(layer.last_outputs.get_value())
+            layer.last_outputs.set_value(np.array([value for i in range(size)]))
