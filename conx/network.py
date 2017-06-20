@@ -50,7 +50,7 @@ class Layer(object):
                 Activation function for layer output
         '''
         weights = self.make_weights(n_input, n_output)
-        biases = np.ones(n_output, dtype=theano.config.floatX)
+        biases = np.random.uniform(-0.5, 0.5, size=(n_output, 1))
 
         # Make sure b is n_output in size
         assert biases.shape == (n_output,)
@@ -159,7 +159,7 @@ class Layer(object):
             self.make_weights(in_size, out_size)
         )
         self.biases.set_value(
-            np.ones(out_size, dtype=theano.config.floatX)
+            np.random.uniform(-0.5, 0.5, size=(n_output, 1))
         )
 
     def change_size(self, ins, outs):
@@ -168,7 +168,9 @@ class Layer(object):
         """
         self.n_output, self.n_input = (outs, ins)
         self.weights.set_value(self.make_weights(ins, outs))
-        self.biases.set_value(np.ones(outs, dtype=theano.config.floatX))
+        self.biases.set_value(
+            np.random.uniform(-0.5, 0.5, size=(outs, 1))
+            )
 
     def save(self, fp):
         """
@@ -267,7 +269,7 @@ class Network(object):
         self.tss_error = function([self.th_inputs, self.th_targets],
                                   self._tss_error(self.th_inputs, self.th_targets),
                                   allow_input_downcast=True)
-        
+
     def make_layers(self, sizes):
         """
         Create the layers for the network.
@@ -491,7 +493,7 @@ class Network(object):
         else:
             self.last_cv_percent = 0
         return error, correct, total
-    
+
     def train(self, **kwargs):
         """
         Method to train network.
@@ -651,7 +653,7 @@ class Network(object):
         Pretty printer for a label, vector and optional result
         """
         print(label + (",".join(["% .1f" % v for v in vector])) + " " + result)
-                
+
     def display_test_input(self, v):
         """
         Method to display input pattern.
