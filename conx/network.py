@@ -50,7 +50,8 @@ class Layer(object):
                 Activation function for layer output
         '''
         weights = self.make_weights(n_input, n_output)
-        biases = np.random.uniform(-0.5, 0.5, size=(n_output,))
+        #np.random.uniform(-0.5, 0.5, size=(outs,))
+        biases = np.random.randn(n_output)
 
         # Make sure b is n_output in size
         assert biases.shape == (n_output,)
@@ -159,7 +160,8 @@ class Layer(object):
             self.make_weights(in_size, out_size)
         )
         self.biases.set_value(
-            np.random.uniform(-0.5, 0.5, size=(n_output,))
+            np.random.randn(n_output)
+            #np.random.uniform(-0.5, 0.5, size=(n_output,))
         )
 
     def change_size(self, ins, outs):
@@ -169,7 +171,8 @@ class Layer(object):
         self.n_output, self.n_input = (outs, ins)
         self.weights.set_value(self.make_weights(ins, outs))
         self.biases.set_value(
-            np.random.uniform(-0.5, 0.5, size=(outs,))
+            np.random.randn(outs)
+            #np.random.uniform(-0.5, 0.5, size=(outs,))
             )
 
     def save(self, fp):
