@@ -83,7 +83,7 @@ def valid_vshape(x):
 
 class Layer:
 
-    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear')
+    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax')
             
     def __repr__(self):
         return self.name
@@ -217,7 +217,7 @@ net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9),
             metrics=['accuracy'])
 
-x = np.array([[0,0], [0,1], [1,0], [1,1]], 'float32')
-y = np.array([[0], [1], [1], [0]], 'float32')
+XOR_inputs = np.array([[0,0], [0,1], [1,0], [1,1]], 'float32')
+XOR_targets = np.array([[0], [1], [1], [0]], 'float32')
 
 
