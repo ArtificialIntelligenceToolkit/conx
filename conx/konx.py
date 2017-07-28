@@ -1,3 +1,6 @@
+from __future__ import print_function, division
+
+#------------------------------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -143,10 +146,10 @@ class Layer:
         return output
 
     def show(self):
-        print "Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" % \
-            (self.name, self.kind(), self.shape, self.size, self.vshape, self.activation, self.dropout)
+        print("Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" %
+              (self.name, self.kind(), self.shape, self.size, self.vshape, self.activation, self.dropout))
         if len(self.outgoing_connections) > 0:
-            print "Connected to:", [layer.name for layer in self.outgoing_connections]
+            print("Connected to:", [layer.name for layer in self.outgoing_connections])
 
     def kind(self):
         if len(self.incoming_connections) == 0 and len(self.outgoing_connections) == 0:
