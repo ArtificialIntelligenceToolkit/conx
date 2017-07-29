@@ -407,24 +407,43 @@ class Network:
         for layer in sequence:
             if layer.kind() == 'input':
                 layer.k = Input(shape=layer.shape)
-                #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
+                layer.input_names = [layer.name]
+                layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
             else:
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
                 kfuncs = layer.make_keras_functions()
                 if len(layer.incoming_connections) == 1:
                     f = layer.incoming_connections[0].k
+                    layer.input_names = layer.incoming_connections[0].input_names
                 else: # multiple inputs, need to merge
                     f = Concatenate()([incoming.k for incoming in layer.incoming_connections])
+                    # flatten:
+                    layer.input_names = [item for sublist in
+                                         [incoming.input_names for incoming in layer.incoming_connections]
+                                         for item in sublist]
                 for k in kfuncs:
                     f = k(f)
                 layer.k = f
-                #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
+                ## get the inputs to this branch, in order:
+                input_ks = self.get_input_ks_in_order(layer.input_names)
+                layer.model = Model(inputs=input_ks, outputs=layer.k)
         output_k_layers = self.get_ordered_output_layers()
         input_k_layers = self.get_ordered_input_layers()
         self.model = Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
         self.model.compile(**kwargs)
+
+    def get_input_ks_in_order(self, layer_names):
+        if self.input_layer_order:
+            result = []
+            for name in self.input_layer_order:
+                if name in layer_names:
+                    result.append(self[name].k)
+            return result
+        else:
+            # the one input name:
+            return self[layer_names[0]].k
 
     def get_ordered_output_layers(self):
         if self.output_layer_order:
