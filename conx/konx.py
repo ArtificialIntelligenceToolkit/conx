@@ -22,6 +22,14 @@ class Network:
     def __init__(self, *layers):
         self.layers = layers
         self.layer_dict = {layer.name:layer for layer in self.layers}
+        self.inputs = None
+        self.labels = None
+        self.targets = None
+        self.epoch_count = 0
+        self.acc_history = []
+        self.loss_history = []
+        self.val_acc_history = []
+        self.val_loss_history = []
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -43,21 +51,36 @@ class Network:
         for layer in self.layers:
             layer.show()
 
+    def set_dataset(self, pairs, verbose=True):
+        self.inputs = np.array([x for (x, y) in pairs]).astype('float32')
+        self.targets = np.array([y for (x, y) in pairs]).astype('float32')
+        self.labels = None
+        self.num_inputs = self.inputs.shape[0]
+        self.split_dataset(self.num_inputs, verbose=False)
+        self.inputs_range = (self.inputs.min(), self.inputs.max())
+        if verbose:
+            print('Set %d inputs and targets' % (self.num_inputs,))
+            print('Input data shape: %s, range: %s, type: %s' %
+                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+
     def load_keras_dataset(self, name, verbose=True):
-        available_datasets = [x for x in dir(keras.datasets) if '__' not in x]
+        available_datasets = [x for x in dir(keras.datasets) if '__' not in x and x != 'absolute_import']
         if name not in available_datasets:
-            raise Exception("unknown keras dataset: %s" % name)
+            s = "unknown keras dataset: %s" % name
+            s += "\navailable datasets: %s" % ','.join(available_datasets)
+            raise Exception(s)
         if verbose:
             print('Loading %s dataset...' % name)
         load_data = importlib.import_module('keras.datasets.' + name).load_data
         (x_train,y_train), (x_test,y_test) = load_data()
         self.inputs = np.concatenate((x_train,x_test))
         self.labels = np.concatenate((y_train,y_test))
-        self.dataset_size = self.inputs.shape[0]
+        self.targets = None
+        self.num_inputs = self.inputs.shape[0]
         self.inputs_range = (self.inputs.min(), self.inputs.max())
-        self.split_dataset(self.dataset_size, verbose=False)
+        self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
-            print('Loaded %d inputs and labels' % (self.dataset_size,))
+            print('Loaded %d inputs and labels' % (self.num_inputs,))
             print('Input data shape: %s, range: %s, type: %s' %
                   (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
 
@@ -73,26 +96,48 @@ class Network:
                 raise Exception("Dataset contains different numbers of inputs and labels")
             if len(self.inputs) == 0:
                 raise Exception("Dataset is empty")
-            self.dataset_size = self.inputs.shape[0]
+            self.num_inputs = self.inputs.shape[0]
             self.inputs_range = (self.inputs.min(), self.inputs.max())
-            self.split_dataset(self.dataset_size, verbose=False)
+            self.split_dataset(self.num_inputs, verbose=False)
             if verbose:
-                print('Loaded %d inputs and labels into network' % self.dataset_size)
+                print('Loaded %d inputs and labels into network' % self.num_inputs)
                 print('Input data shape: %s, range: %s, type: %s' %
                       (self.inputs[0].shape[1:], self.inputs_range, self.inputs.dtype))
         except:
             raise Exception("couldn't load .npz dataset %s" % filename)
 
-    def reshape_inputs(self, new_shape):
-        # do some error checking here
-        self.inputs = self.inputs.reshape((self.dataset_size,) + new_shape)
-        # resplit
+    def reshape_inputs(self, new_shape, verbose=True):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        if not valid_shape(new_shape):
+            raise Exception("bad shape: %s" % (new_shape,))
+        if isinstance(new_shape, int):
+            new_size = self.num_inputs * new_shape
+        else:
+            new_size = self.num_inputs * reduce(operator.mul, new_shape)
+        if new_size != self.inputs.size:
+            raise Exception("shape %s is incompatible with inputs" % (new_shape,))
+        if isinstance(new_shape, int):
+            new_shape = (new_shape,)
+        self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
         self.split_dataset(self.split, verbose=False)
-        print("ok")
+        if verbose:
+            print('Input data shape: %s, range: %s, type: %s' %
+                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+
+    def set_targets(self, num_classes):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        if not isinstance(num_classes, int) or num_classes <= 0:
+            raise Exception("number of classes must be a positive integer")
+        self.targets = to_categorical(self.labels, num_classes).astype('uint8')
+        self.train_targets = self.targets[:self.split]
+        self.test_targets = self.targets[self.split:]
+        print('Generated %d target vectors from labels' % self.num_inputs)
 
     def show_dataset(self):
-        if self.dataset_size == 0:
-            print("No dataset loaded")
+        if self.num_inputs == 0:
+            print("no dataset loaded")
             return
         print('%d train inputs, %d test inputs' %
               (len(self.train_inputs), len(self.test_inputs)))
@@ -114,36 +159,85 @@ class Network:
               (self.inputs.dtype, new_min, new_max))
 
     def shuffle_dataset(self, verbose=True):
-        if self.dataset_size == 0:
+        if self.num_inputs == 0:
             raise Exception("no dataset loaded")
-        indices = np.random.permutation(self.dataset_size)
+        indices = np.random.permutation(self.num_inputs)
         self.inputs = self.inputs[indices]
-        self.labels = self.labels[indices]
+        if self.labels is not None:
+            self.labels = self.labels[indices]
+        if self.targets is not None:
+            self.targets = self.targets[indices]
         self.split_dataset(self.split, verbose=False)
         if verbose:
-            print('Shuffled all %d inputs and labels' % self.dataset_size)
+            print('Shuffled all %d inputs' % self.num_inputs)
 
     def split_dataset(self, split=0.50, verbose=True):
-        # possibly need to deal with self.targets
-        if self.dataset_size == 0:
+        if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         if isinstance(split, float):
             if not 0 <= split <= 1:
                 raise Exception("split is not in the range 0-1: %s" % split)
-            self.split = int(self.dataset_size * split)
+            self.split = int(self.num_inputs * split)
         elif isinstance(split, int):
-            if not 0 <= split <= self.dataset_size:
+            if not 0 <= split <= self.num_inputs:
                 raise Exception("split out of range: %d" % split)
             self.split = split
         else:
             raise Exception("invalid split: %s" % split)
         self.train_inputs = self.inputs[:self.split]
         self.test_inputs = self.inputs[self.split:]
-        self.train_labels = self.labels[:self.split]
-        self.test_labels = self.labels[self.split:]
+        if self.labels is not None:
+            self.train_labels = self.labels[:self.split]
+            self.test_labels = self.labels[self.split:]
+        if self.targets is not None:
+            self.train_targets = self.targets[:self.split]
+            self.test_targets = self.targets[self.split:]
         if verbose:
             print('Split dataset into %d train inputs, %d test inputs' %
                   (len(self.train_inputs), len(self.test_inputs)))
+
+    def train(self, epochs=1, accuracy=None, batch_size=None, report_rate=1):
+        if batch_size is None:
+            batch_size = self.train_inputs.shape[0]
+        if not isinstance(batch_size, int):
+            raise Exception("bad batch size: %s" % (batch_size,))
+        if self.split == self.num_inputs:
+            validation_inputs = self.train_inputs
+            validation_targets = self.train_targets
+        else:
+            validation_inputs = self.test_inputs
+            validation_targets = self.test_targets
+        for e in range(1, epochs+1):
+            result = self.model.fit(self.train_inputs, self.train_targets,
+                                    validation_data=(validation_inputs, validation_targets),
+                                    batch_size=batch_size,
+                                    epochs=1,
+                                    verbose=0)
+            self.epoch_count += 1
+            acc = result.history['acc'][0]
+            self.acc_history.append(acc)
+            loss = result.history['loss'][0]
+            self.loss_history.append(loss)
+            val_acc = result.history['val_acc'][0]
+            self.val_acc_history.append(val_acc)
+            val_loss = result.history['val_loss'][0]
+            self.val_loss_history.append(val_loss)
+            if self.epoch_count % report_rate == 0:
+                print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
+                      (self.epoch_count, loss, acc, val_loss, val_acc))
+            if accuracy is not None and val_acc >= accuracy:
+                break
+        print("=" * 72)
+        print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
+              (self.epoch_count, loss, acc, val_loss, val_acc))
+
+        # # evaluate the model
+        # print('Evaluating performance...')
+        # loss, accuracy = self.model.evaluate(self.test_inputs, self.test_targets, verbose=0)
+        # print('Test loss:', loss)
+        # print('Test accuracy:', accuracy)
+        # #print('Most recent weights saved in model.weights')
+        # #self.model.save_weights('model.weights')
 
     def propagate(self, input):
         return list(self.model.predict(np.array([input]))[0])
@@ -176,6 +270,7 @@ class Network:
         if len(output_layers) == 1:
             output_layers = output_layers[0]
         self.model = Model(inputs=input_layers, outputs=output_layers)
+        kwargs['metrics'] = ['accuracy']
         self.model.compile(**kwargs)
 
     def scale_output_for_image(self, activation, vector):
@@ -371,3 +466,41 @@ class Layer:
     #                 results.append(chain)
     #         return results
 
+
+
+
+
+'''
+
+def evaluate(model, test_inputs, test_targets, threshold=0.50, indices=None, show=False):
+    assert len(test_targets) == len(test_inputs), "number of inputs and targets must be the same"
+    if type(indices) not in (list, tuple) or len(indices) == 0:
+        indices = range(len(test_inputs))
+    # outputs = [np.argmax(t) for t in model.predict(test_inputs[indices]).round()]
+    # targets = list(test_labels[indices])
+    wrong = 0
+    for i in indices:
+        target_vector = test_targets[i]
+        target_class = np.argmax(target_vector)
+        output_vector = model.predict(test_inputs[i:i+1])[0]
+        output_class = np.argmax(output_vector)  # index of highest probability in output_vector
+        probability = output_vector[output_class]
+        if probability < threshold or output_class != target_class:
+            if probability < threshold:
+                output_class = '???'
+            print('image #%d (%s) misclassified as %s' % (i, target_class, output_class))
+            wrong += 1
+            if show:
+                plt.imshow(test_images[i], cmap='binary', interpolation='nearest')
+                plt.draw()
+                answer = raw_input('RETURN to continue, q to quit...')
+                if answer in ('q', 'Q'):
+                    return
+    total = len(indices)
+    correct = total - wrong
+    correct_percent = 100.0*correct/total
+    wrong_percent = 100.0*wrong/total
+    print('%d test images: %d correct (%.1f%%), %d wrong (%.1f%%)' %
+          (total, correct, correct_percent, wrong, wrong_percent))
+
+'''
