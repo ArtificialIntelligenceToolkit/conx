@@ -106,7 +106,7 @@ net = Network(
     Layer("input", shape=784, vshape=(28, 28)),
     Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
     Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
-    Layer("output", shape=10, activation='softmax')
+    Layer("output", shape=10, activation='softmax'),
     )
 
 net.connect('input', 'hidden1')
@@ -126,4 +126,3 @@ net.show_dataset()
 
 net.train(10, report_rate=1)
 net.test()
-

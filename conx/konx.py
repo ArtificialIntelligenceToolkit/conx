@@ -552,6 +552,22 @@ class Layer:
     #         return results
 
 
+def topological_sort(net):
+    for layer in net.layers:
+        layer.visited = False
+    stack = []
+    for layer in net.layers:
+        if not layer.visited:
+            depth_first_search(layer, stack)
+    stack.reverse()
+    return stack
+
+def depth_first_search(layer, stack):
+    layer.visited = True
+    for outgoing_layer in layer.outgoing_connections:
+        if not outgoing_layer.visited:
+            depth_first_search(outgoing_layer, stack)
+    stack.append(layer)
 
 
 
