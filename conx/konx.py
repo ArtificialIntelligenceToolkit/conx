@@ -29,6 +29,9 @@ class InterruptHandler():
 
         def handler(signum, frame):
             self.release()
+            if self.interrupted:
+                raise KeyboardInterrupt
+            print("\nStoppping at end of epoch... (^C again to quit now)...")
             self.interrupted = True
 
         signal.signal(self.sig, handler)
