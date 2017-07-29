@@ -105,10 +105,9 @@ def view(images, start=0, cmap=None, interpolation=None):
 # to save:
 #np.savez_compressed('mydataset.npz', images=images, labels=labels)
 
-#---------------------------------------------------------------------------
 plt.ion()
+#---------------------------------------------------------------------------
 
-# set up the model
 net = Network(
     Layer("input", shape=784),
     Layer("hidden1", shape=512, activation='relu', dropout=0.2),
@@ -120,77 +119,16 @@ net.connect('input', 'hidden1')
 net.connect('hidden1', 'hidden2')
 net.connect('hidden2', 'output')
 
+net.compile(loss='mean_squared_error',
+            optimizer='sgd')
 
-net.compile(loss='categorical_crossentropy',
-            optimizer='rmsprop',
-            metrics=['accuracy'])
+# net.load_keras_dataset('mnist')
+# net.rescale_inputs((0,255), (0,1), 'float32')
+# net.shuffle_dataset()
+# net.reshape_inputs(784)
+# net.split_dataset(100)
+# net.set_targets(10)
+# net.show_dataset()
 
+#-------------------------------------------------------------------------
 
-# load the data
-
-net.load_keras_dataset('mnist')
-
-net.rescale_inputs((0,255), (0,1), 'float32')
-
-net.shuffle_dataset()
-
-net.reshape_inputs((784,))
-
-net.split_dataset(100)
-
-net.targets = to_categorical(net.labels, 10)
-net.train_targets = net.targets[:net.split]
-net.test_targets = net.targets[net.split:]
-
-net.show_dataset()
-
-'''
-
-# train the model
-def train(model, epochs=1, batch_size=100):
-    history = model.fit(train_inputs, train_targets,
-                        batch_size=batch_size,
-                        epochs=epochs,
-                        verbose=1,
-                        validation_data=(test_inputs, test_targets))
-    # evaluate the model
-    print('Evaluating model...')
-    loss, accuracy = score = model.evaluate(test_inputs, test_targets, verbose=0)
-    print('Test loss:', loss)
-    print('Test accuracy:', accuracy)
-    print('Most recent weights saved in model.weights')
-    model.save_weights('model.weights')
-
-def evaluate(model, test_inputs, test_targets, threshold=0.50, indices=None, show=False):
-    assert len(test_targets) == len(test_inputs), "number of inputs and targets must be the same"
-    if type(indices) not in (list, tuple) or len(indices) == 0:
-        indices = range(len(test_inputs))
-    # outputs = [np.argmax(t) for t in model.predict(test_inputs[indices]).round()]
-    # targets = list(test_labels[indices])
-    wrong = 0
-    for i in indices:
-        target_vector = test_targets[i]
-        target_class = np.argmax(target_vector)
-        output_vector = model.predict(test_inputs[i:i+1])[0]
-        output_class = np.argmax(output_vector)  # index of highest probability in output_vector
-        probability = output_vector[output_class]
-        if probability < threshold or output_class != target_class:
-            if probability < threshold:
-                output_class = '???'
-            print('image #%d (%s) misclassified as %s' % (i, target_class, output_class))
-            wrong += 1
-            if show:
-                plt.imshow(test_images[i], cmap='binary', interpolation='nearest')
-                plt.draw()
-                answer = raw_input('RETURN to continue, q to quit...')
-                if answer in ('q', 'Q'):
-                    return
-    total = len(indices)
-    correct = total - wrong
-    correct_percent = 100.0*correct/total
-    wrong_percent = 100.0*wrong/total
-    print('%d test images: %d correct (%.1f%%), %d wrong (%.1f%%)' %
-          (total, correct, correct_percent, wrong, wrong_percent))
-
-
-'''
