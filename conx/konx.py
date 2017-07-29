@@ -56,7 +56,6 @@ class Network:
         self.acc_history = []
         self.loss_history = []
         self.val_acc_history = []
-        self.val_loss_history = []
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -185,6 +184,29 @@ class Network:
         print('Inputs rescaled to %s values in the range %s - %s' %
               (self.inputs.dtype, new_min, new_max))
 
+    def make_weights(self, shape):
+        """
+        Makes a vector/matrix of random weights centered around 0.0.
+        """
+        size = reduce(operator.mul, shape) # (in, out)
+        magnitude = max(min(1/shape[0] * 50, 1.16), 0.06)
+        rmin, rmax = -magnitude, magnitude
+        range = (rmax - rmin)
+        return np.array(range * np.random.rand(size) - range/2.0,
+                        dtype='float32').reshape(shape)
+
+    def reset(self):
+        """
+        Reset all of the weights/biases in a network.
+        The magnitude is based on the size of the network.
+        """
+        for layer in self.model.layers:
+            weights = layer.get_weights()
+            new_weights = []
+            for weight in weights:
+                new_weights.append(self.make_weights(weight.shape))
+            layer.set_weights(new_weights)
+        
     def shuffle_dataset(self, verbose=True):
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
@@ -223,7 +245,19 @@ class Network:
             print('Split dataset into %d train inputs, %d test inputs' %
                   (len(self.train_inputs), len(self.test_inputs)))
 
-    def train(self, epochs=1, accuracy=None, batch_size=None, report_rate=1):
+    def test(self, dataset=None):
+        if dataset is None:
+            if self.split == self.num_inputs:
+                dataset = self.train_inputs
+            else:
+                dataset = self.test_inputs
+        print("Testing...")
+        outputs = self.model.predict(dataset)
+        for output in outputs:
+            print(output)
+    
+    def train(self, epochs=1, accuracy=None, batch_size=None,
+              report_rate=1, tolerance=0.1):
         if batch_size is None:
             batch_size = self.train_inputs.shape[0]
         if not isinstance(batch_size, int):
@@ -241,28 +275,29 @@ class Network:
                                         batch_size=batch_size,
                                         epochs=1,
                                         verbose=0)
+                outputs = self.model.predict(validation_inputs)
+                correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                               np.abs(outputs - validation_targets))].count(True)
                 self.epoch_count += 1
                 acc = result.history['acc'][0]
                 self.acc_history.append(acc)
                 loss = result.history['loss'][0]
                 self.loss_history.append(loss)
-                val_acc = result.history['val_acc'][0]
+                val_acc = correct/len(validation_targets)
                 self.val_acc_history.append(val_acc)
-                val_loss = result.history['val_loss'][0]
-                self.val_loss_history.append(val_loss)
                 if self.epoch_count % report_rate == 0:
-                    print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
-                          (self.epoch_count, loss, acc, val_loss, val_acc))
+                    print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+                          (self.epoch_count, loss, acc, val_acc))
                 if accuracy is not None and val_acc >= accuracy or handler.interrupted:
                     break
             if handler.interrupted:
                 print("=" * 72)
-                print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
-                      (self.epoch_count, loss, acc, val_loss, val_acc))
+                print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+                      (self.epoch_count, loss, acc, val_acc))
                 raise KeyboardInterrupt
         print("=" * 72)
-        print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
-              (self.epoch_count, loss, acc, val_loss, val_acc))
+        print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+              (self.epoch_count, loss, acc, val_acc))
 
         # # evaluate the model
         # print('Evaluating performance...')

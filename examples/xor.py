@@ -19,5 +19,5 @@ net.set_dataset([
     ([1,1], [0])
 ])
 
-#net.train(2000, report_rate=10, accuracy=1, batch_size=1)
-#net.model.predict(net.train_inputs)
+net.train(2000, report_rate=10, accuracy=1)
+net.test(net.train_inputs)

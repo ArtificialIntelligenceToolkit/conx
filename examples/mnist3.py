@@ -2,12 +2,6 @@ from konx import *
 
 import numpy as np
 import matplotlib.pyplot as plt
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation
-from keras.datasets import mnist
-from keras.optimizers import RMSprop
-from keras.utils import to_categorical
 from scipy import misc
 import glob, random
 
@@ -122,13 +116,14 @@ net.connect('hidden2', 'output')
 net.compile(loss='mean_squared_error',
             optimizer='sgd')
 
-# net.load_keras_dataset('mnist')
-# net.rescale_inputs((0,255), (0,1), 'float32')
-# net.shuffle_dataset()
-# net.reshape_inputs(784)
-# net.split_dataset(100)
-# net.set_targets(10)
-# net.show_dataset()
+net.load_keras_dataset('mnist')
+net.rescale_inputs((0,255), (0,1), 'float32')
+net.shuffle_dataset()
+net.reshape_inputs(784)
+net.split_dataset(100)
+net.set_targets(10)
+net.show_dataset()
 
-#-------------------------------------------------------------------------
+net.train(10, report_rate=1)
+net.test()
 
