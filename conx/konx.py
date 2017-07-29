@@ -14,8 +14,35 @@ from keras.utils import to_categorical
 from scipy import misc
 import glob, random, operator, importlib
 from functools import reduce
+import signal
 
 #------------------------------------------------------------------------
+
+class InterruptHandler():
+    def __init__(self, sig=signal.SIGINT):
+        self.sig = sig
+
+    def __enter__(self):
+        self.interrupted = False
+        self.released = False
+        self.original_handler = signal.getsignal(self.sig)
+
+        def handler(signum, frame):
+            self.release()
+            self.interrupted = True
+
+        signal.signal(self.sig, handler)
+        return self
+
+    def __exit__(self, type, value, tb):
+        self.release()
+
+    def release(self):
+        if self.released:
+            return False
+        signal.signal(self.sig, self.original_handler)
+        self.released = True
+        return True
 
 class Network:
 
@@ -207,26 +234,32 @@ class Network:
         else:
             validation_inputs = self.test_inputs
             validation_targets = self.test_targets
-        for e in range(1, epochs+1):
-            result = self.model.fit(self.train_inputs, self.train_targets,
-                                    validation_data=(validation_inputs, validation_targets),
-                                    batch_size=batch_size,
-                                    epochs=1,
-                                    verbose=0)
-            self.epoch_count += 1
-            acc = result.history['acc'][0]
-            self.acc_history.append(acc)
-            loss = result.history['loss'][0]
-            self.loss_history.append(loss)
-            val_acc = result.history['val_acc'][0]
-            self.val_acc_history.append(val_acc)
-            val_loss = result.history['val_loss'][0]
-            self.val_loss_history.append(val_loss)
-            if self.epoch_count % report_rate == 0:
+        with InterruptHandler() as handler:
+            for e in range(1, epochs+1):
+                result = self.model.fit(self.train_inputs, self.train_targets,
+                                        validation_data=(validation_inputs, validation_targets),
+                                        batch_size=batch_size,
+                                        epochs=1,
+                                        verbose=0)
+                self.epoch_count += 1
+                acc = result.history['acc'][0]
+                self.acc_history.append(acc)
+                loss = result.history['loss'][0]
+                self.loss_history.append(loss)
+                val_acc = result.history['val_acc'][0]
+                self.val_acc_history.append(val_acc)
+                val_loss = result.history['val_loss'][0]
+                self.val_loss_history.append(val_loss)
+                if self.epoch_count % report_rate == 0:
+                    print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
+                          (self.epoch_count, loss, acc, val_loss, val_acc))
+                if accuracy is not None and val_acc >= accuracy or handler.interrupted:
+                    break
+            if handler.interrupted:
+                print("=" * 72)
                 print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
                       (self.epoch_count, loss, acc, val_loss, val_acc))
-            if accuracy is not None and val_acc >= accuracy:
-                break
+                raise KeyboardInterrupt
         print("=" * 72)
         print("Epoch #%5d | loss %7.5f | acc %7.5f | vloss %7.5f | vacc %7.5f" %
               (self.epoch_count, loss, acc, val_loss, val_acc))
@@ -280,30 +313,44 @@ class Network:
         """
         # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
         if activation in ["tanh"]:
-            return rescale_numpy_array(vector, (-1,+1), (0,255)).astype('uint8')
+            return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
         elif activation in ["sigmoid", "softmax"]:
-            return rescale_numpy_array(vector, (0,+1), (0,255)).astype('uint8')
+            return rescale_numpy_array(vector, (0,+1), (0,255), 'uint8')
         elif activation in ["relu"]:
-            return rescale_numpy_array(vector, (0,vector.max()), (0,255)).astype('uint8')
+            return rescale_numpy_array(vector, (0,vector.max()), (0,255), 'uint8')
         else: # activation in ["linear"] or otherwise
-            return rescale_numpy_array(vector, (-1,+1), (0,255)).astype('uint8')
+            return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
         
-    def make_image_widget(self, activation, vector, size=25, transpose=False):
+    def make_image_widget(self, layer, vector, size=25, transpose=False, colormap="hot"):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
         import ipywidgets
+        import matplotlib as mpl
         import PIL
         import io
+        activation = layer.activation
+        if layer.vshape != layer.shape:
+            vector = vector.reshape(layer.vshape)
         vector = self.scale_output_for_image(activation, vector)
-        # FIXME: only needed if missing 1D second dim:
-        vector = vector.reshape((1, vector.shape[0]))
+        if len(vector.shape) == 1:
+            vector = vector.reshape((1, vector.shape[0]))
         image = PIL.Image.fromarray(vector, 'P')
         width = vector.shape[0] * size # in, pixels
-        wpercent = (width/float(image.size[0]))
-        hsize = int((float(image.size[1])*float(wpercent)))
-        im = image.resize((width,hsize), PIL.Image.ANTIALIAS)
+        # Fixed size:
+        hsize = vector.shape[1] * size # in, pixels
+        #wpercent = (width/float(image.size[0]))
+        #hsize = int((float(image.size[1])*float(wpercent)))
+        #img_src = image.resize((width, hsize), PIL.Image.ANTIALIAS)
+        img_src = image.resize((hsize, width), PIL.Image.ANTIALIAS)
+        # colorize:
+        cm_hot = mpl.cm.get_cmap(colormap)
+        im = np.array(img_src)
+        im = cm_hot(im)
+        im = np.uint8(im * 255)
+        im = PIL.Image.fromarray(im)
+        # Convert to png binary data:
         b = io.BytesIO()
         im.save(b, format='png')
         data = b.getvalue()
@@ -311,7 +358,7 @@ class Network:
         widget = ipywidgets.Image(value=data, format='png', layout=layout)
         return widget
 
-    def visualize(self, inputs):
+    def visualize(self, inputs, colormap="hot"):
         import ipywidgets
         from IPython.display import display
         self.widgets = {}
@@ -323,7 +370,7 @@ class Network:
                         output = np.array(lay._output(inputs))
                     else:
                         continue
-                    accordion = ipywidgets.Accordion((self.make_image_widget(lay.activation, output),))
+                    accordion = ipywidgets.Accordion((self.make_image_widget(lay, output, colormap=colormap),))
                     accordion.set_title(0, lay.name)
                     display(accordion)
         display(ipywidgets.Button(description="Next"))
@@ -439,7 +486,7 @@ class Layer:
         if self.kind() == 'input':
             klayer = []
         else:
-            klayer = [Dense(self.size, activation=self.activation)]
+            klayer = [Dense(self.size, activation=self.activation, name=self.name)]
         if self.dropout > 0:
             return klayer + [Dropout(self.dropout)]
         else:

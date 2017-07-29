@@ -109,9 +109,9 @@ plt.ion()
 #---------------------------------------------------------------------------
 
 net = Network(
-    Layer("input", shape=784),
-    Layer("hidden1", shape=512, activation='relu', dropout=0.2),
-    Layer("hidden2", shape=512, activation='relu', dropout=0.2),
+    Layer("input", shape=784, vshape=(28, 28)),
+    Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
+    Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
     Layer("output", shape=10, activation='softmax')
     )
 
