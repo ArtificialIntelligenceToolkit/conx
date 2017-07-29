@@ -12,7 +12,8 @@ from keras.optimizers import RMSprop, SGD
 from keras.utils import to_categorical
 
 from scipy import misc
-import glob, random, operator
+import glob, random, operator, importlib
+from functools import reduce
 
 #------------------------------------------------------------------------
 
@@ -42,7 +43,25 @@ class Network:
         for layer in self.layers:
             layer.show()
 
-    def load_dataset(self, filename, verbose=True):
+    def load_keras_dataset(self, name, verbose=True):
+        available_datasets = [x for x in dir(keras.datasets) if '__' not in x]
+        if name not in available_datasets:
+            raise Exception("unknown keras dataset: %s" % name)
+        if verbose:
+            print('Loading %s dataset...' % name)
+        load_data = importlib.import_module('keras.datasets.' + name).load_data
+        (x_train,y_train), (x_test,y_test) = load_data()
+        self.inputs = np.concatenate((x_train,x_test))
+        self.labels = np.concatenate((y_train,y_test))
+        self.dataset_size = self.inputs.shape[0]
+        self.inputs_range = (self.inputs.min(), self.inputs.max())
+        self.split_dataset(self.dataset_size, verbose=False)
+        if verbose:
+            print('Loaded %d inputs and labels' % (self.dataset_size,))
+            print('Input data shape: %s, range: %s, type: %s' %
+                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+
+    def load_npz_dataset(self, filename, verbose=True):
         """loads a dataset from an .npz file and returns data, labels"""
         if filename[-4:] != '.npz':
             raise Exception("filename must end in .npz")
@@ -55,7 +74,7 @@ class Network:
             if len(self.inputs) == 0:
                 raise Exception("Dataset is empty")
             self.dataset_size = self.inputs.shape[0]
-            self.inputs_range = (np.min(self.inputs), np.max(self.inputs))
+            self.inputs_range = (self.inputs.min(), self.inputs.max())
             self.split_dataset(self.dataset_size, verbose=False)
             if verbose:
                 print('Loaded %d inputs and labels into network' % self.dataset_size)
@@ -64,6 +83,13 @@ class Network:
         except:
             raise Exception("couldn't load .npz dataset %s" % filename)
 
+    def reshape_inputs(self, new_shape):
+        # do some error checking here
+        self.inputs = self.inputs.reshape((self.dataset_size,) + new_shape)
+        # resplit
+        self.split_dataset(self.split, verbose=False)
+        print("ok")
+
     def show_dataset(self):
         if self.dataset_size == 0:
             print("No dataset loaded")
@@ -71,23 +97,23 @@ class Network:
         print('%d train inputs, %d test inputs' %
               (len(self.train_inputs), len(self.test_inputs)))
         print('Input data shape: %s, range: %s, type: %s' %
-              (self.inputs[0].shape[1:], self.inputs_range, self.inputs.dtype))
+              (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
 
-    def rescale_inputs(self, old_range, new_range, new_dtype=None):
-        if new_dtype is not None:
-            self.inputs = self.inputs.astype(new_dtype)
+    def rescale_inputs(self, old_range, new_range, new_dtype):
         old_min, old_max = old_range
         new_min, new_max = new_range
-        if np.min(self.inputs) < old_min or np.max(self.inputs) > old_max:
-            raise Exception('old_range values are wrong')
-        if new_min >= new_max:
-            raise Exception('new_range values are wrong')
-        self.inputs = rescale_numpy_array(self.inputs, old_range, new_range)
-        self.inputs_range = (np.min(self.inputs), np.max(self.inputs))
+        if self.inputs.min() < old_min or self.inputs.max() > old_max:
+            raise Exception('range %s is incompatible with inputs' % (old_range,))
+        if old_min > old_max:
+            raise Exception('range %s is out of order' % (old_range,))
+        if new_min > new_max:
+            raise Exception('range %s is out of order' % (new_range,))
+        self.inputs = rescale_numpy_array(self.inputs, old_range, new_range, new_dtype)
+        self.inputs_range = (self.inputs.min(), self.inputs.max())
         print('Inputs rescaled to %s values in the range %s - %s' %
               (self.inputs.dtype, new_min, new_max))
 
-    def reshuffle_dataset(self, verbose=True):
+    def shuffle_dataset(self, verbose=True):
         if self.dataset_size == 0:
             raise Exception("no dataset loaded")
         indices = np.random.permutation(self.dataset_size)
@@ -95,9 +121,10 @@ class Network:
         self.labels = self.labels[indices]
         self.split_dataset(self.split, verbose=False)
         if verbose:
-            print('Reshuffled all %d inputs and labels' % self.dataset_size)
+            print('Shuffled all %d inputs and labels' % self.dataset_size)
 
     def split_dataset(self, split=0.50, verbose=True):
+        # possibly need to deal with self.targets
         if self.dataset_size == 0:
             raise Exception("no dataset loaded")
         if isinstance(split, float):
@@ -128,6 +155,11 @@ class Network:
             return self[layer_name]._output(input)
 
     def compile(self, **kwargs):
+        if len(self.layers) == 0:
+            raise Exception("network has no layers")
+        for layer in self.layers:
+            if layer.kind() == 'unconnected':
+                raise Exception("'%s' layer is unconnected" % layer.name)
         input_layers = []
         output_layers = []
         for layer in self.layers:
@@ -157,13 +189,18 @@ def valid_vshape(x):
     # vshape must be a single int or a 2-dimensional tuple
     return valid_shape(x) and (isinstance(x, int) or len(x) == 2)
 
-def rescale_numpy_array(a, old_range, new_range):
+def rescale_numpy_array(a, old_range, new_range, new_dtype):
     assert isinstance(old_range, tuple) and isinstance(new_range, tuple)
     old_min, old_max = old_range
+    if a.min() < old_min or a.max() > old_max:
+        raise Exception('array values are outside range %s' % (old_range,))
     new_min, new_max = new_range
     old_delta = old_max - old_min
     new_delta = new_max - new_min
-    return new_min + (a - old_min)*new_delta/old_delta
+    if old_delta == 0:
+        return ((a - old_min) + (new_min + new_max)/2).astype(new_dtype)
+    else:
+        return (new_min + (a - old_min)*new_delta/old_delta).astype(new_dtype)
 
 #------------------------------------------------------------------------
 
@@ -277,31 +314,4 @@ class Layer:
     #             else:
     #                 results.append(chain)
     #         return results
-
-#------------------------------------------------------------------------
-
-# net = Network(
-#     Layer("input1", shape=64, vshape=(8,8)),
-#     Layer("input2", shape=(2,2,2), activation="relu"),
-#     Layer("hidden", shape=16, activation="relu", dropout=0.5),
-#     Layer("output1", shape=1, activation="sigmoid"),
-#     Layer("output2", shape=1, activation="sigmoid")
-# )
-
-net = Network(
-    Layer("input1", shape=2),
-    Layer("hidden", shape=2, activation="sigmoid"),
-    Layer("output1", shape=1, activation="sigmoid")
-)
-
-net.connect("input1", "hidden")
-net.connect("hidden", "output1")
-
-net.compile(loss='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9),
-            metrics=['accuracy'])
-
-XOR_inputs = np.array([[0,0], [0,1], [1,0], [1,1]], 'float32')
-XOR_targets = np.array([[0], [1], [1], [0]], 'float32')
-
 
