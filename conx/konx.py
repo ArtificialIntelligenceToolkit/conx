@@ -254,17 +254,9 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
     old_delta = old_max - old_min
     new_delta = new_max - new_min
     if old_delta == 0:
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
         return ((a - old_min) + (new_min + new_max)/2).astype(new_dtype)
     else:
         return (new_min + (a - old_min)*new_delta/old_delta).astype(new_dtype)
-=======
-=======
->>>>>>> Stashed changes
-        old_delta = 2 * new_delta
-    return new_min + (a - old_min)*new_delta/old_delta
->>>>>>> Stashed changes
 
 #------------------------------------------------------------------------
 
