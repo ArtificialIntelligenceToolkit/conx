@@ -178,6 +178,62 @@ class Network:
         self.model = Model(inputs=input_layers, outputs=output_layers)
         self.model.compile(**kwargs)
 
+    def scale_output_for_image(self, activation, vector):
+        """
+        Given an activation name (or something else) and an output
+        vector, scale the vector.
+        """
+        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+        if activation in ["tanh"]:
+            return rescale_numpy_array(vector, (-1,+1), (0,255)).astype('uint8')
+        elif activation in ["sigmoid", "softmax"]:
+            return rescale_numpy_array(vector, (0,+1), (0,255)).astype('uint8')
+        elif activation in ["relu"]:
+            return rescale_numpy_array(vector, (0,vector.max()), (0,255)).astype('uint8')
+        else: # activation in ["linear"] or otherwise
+            return rescale_numpy_array(vector, (-1,+1), (0,255)).astype('uint8')
+        
+    def make_image_widget(self, activation, vector, size=25, transpose=False):
+        """
+        Given an activation name (or function), and an output vector, display
+        make and return an image widget.
+        """
+        import ipywidgets
+        import PIL
+        import io
+        vector = self.scale_output_for_image(activation, vector)
+        # FIXME: only needed if missing 1D second dim:
+        vector = vector.reshape((1, vector.shape[0]))
+        image = PIL.Image.fromarray(vector, 'P')
+        width = vector.shape[0] * size # in, pixels
+        wpercent = (width/float(image.size[0]))
+        hsize = int((float(image.size[1])*float(wpercent)))
+        im = image.resize((width,hsize), PIL.Image.ANTIALIAS)
+        b = io.BytesIO()
+        im.save(b, format='png')
+        data = b.getvalue()
+        layout = ipywidgets.Layout(border='2px solid blue')
+        widget = ipywidgets.Image(value=data, format='png', layout=layout)
+        return widget
+
+    def visualize(self, inputs):
+        import ipywidgets
+        from IPython.display import display
+        self.widgets = {}
+        self.index = 0
+        for layer in self.layers:
+            if layer.kind() == 'input':
+                for lay in reversed(layer.chain()):
+                    if hasattr(lay, "model"):
+                        output = np.array(lay._output(inputs))
+                    else:
+                        continue
+                    accordion = ipywidgets.Accordion((self.make_image_widget(lay.activation, output),))
+                    accordion.set_title(0, lay.name)
+                    display(accordion)
+        display(ipywidgets.Button(description="Next"))
+        display(ipywidgets.Button(description="Previous"))
+
 #------------------------------------------------------------------------
 # utility functions
 
@@ -198,15 +254,20 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
     old_delta = old_max - old_min
     new_delta = new_max - new_min
     if old_delta == 0:
+<<<<<<< Updated upstream
         return ((a - old_min) + (new_min + new_max)/2).astype(new_dtype)
     else:
         return (new_min + (a - old_min)*new_delta/old_delta).astype(new_dtype)
+=======
+        old_delta = 2 * new_delta
+    return new_min + (a - old_min)*new_delta/old_delta
+>>>>>>> Stashed changes
 
 #------------------------------------------------------------------------
 
 class Layer:
 
-    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax')
+    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
             
     def __repr__(self):
         return self.name
