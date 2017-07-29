@@ -80,6 +80,8 @@ class Network:
         self.acc_history = []
         self.loss_history = []
         self.val_acc_history = []
+        self.input_layer_order = []
+        self.output_layer_order = []
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -181,6 +183,26 @@ class Network:
             print('Input data shape: %s, range: %s, type: %s' %
                   (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
 
+    def set_input_layer_order(self, *layer_names):
+        if len(layer_names) == 1:
+            raise Exception("set_input_layer_order cannot be a single layer")
+        self.input_layer_order = []
+        for layer_name in layer_names:
+            if layer_name not in self.input_layer_order:
+                self.input_layer_order.append(layer_name)
+            else:
+                raise Exception("duplicate name in set_input_layer_order: '%s'" % layer_name)
+            
+    def set_output_layer_order(self, *layer_names):
+        if len(layer_names) == 1:
+            raise Exception("set_output_layer_order cannot be a single layer")
+        self.output_layer_order = []
+        for layer_name in layer_names:
+            if layer_name not in self.output_layer_order:
+                self.output_layer_order.append(layer_name)
+            else:
+                raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
+            
     def set_targets(self, num_classes):
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
@@ -230,6 +252,10 @@ class Network:
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
         """
+        self.epoch_count = 0
+        self.acc_history = []
+        self.loss_history = []
+        self.val_acc_history = []
         for layer in self.model.layers:
             weights = layer.get_weights()
             new_weights = []
@@ -351,17 +377,36 @@ class Network:
             return self[layer_name]._output(input)
 
     def compile(self, **kwargs):
+        ## Error checking:
         if len(self.layers) == 0:
             raise Exception("network has no layers")
         for layer in self.layers:
             if layer.kind() == 'unconnected':
                 raise Exception("'%s' layer is unconnected" % layer.name)
+        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+        if len(input_layers) == 1 and len(self.input_layer_order) == 0:
+            pass # ok!
+        elif len(input_layers) == len(self.input_layer_order):
+            # check to make names all match
+            for layer in input_layers:
+                if layer.name not in self.input_layer_order:
+                    raise Exception("layer '%s' is not listed in set_input_layer_order()" % layer.name)
+        else:
+            raise Exception("improper set_input_layer_order() names")
+        output_layers = [layer for layer in self.layers if layer.kind() == "output"]
+        if len(output_layers) == 1 and len(self.output_layer_order) == 0:
+            pass # ok!
+        elif len(output_layers) == len(self.output_layer_order):
+            # check to make names all match
+            for layer in output_layers:
+                if layer.name not in self.output_layer_order:
+                    raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
+        else:
+            raise Exception("improper set_output_layer_order() names")
         sequence = topological_sort(self)
-        input_layers = []
         for layer in sequence:
             if layer.kind() == 'input':
                 layer.k = Input(shape=layer.shape)
-                input_layers.append(layer.k)
                 #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
             else:
                 if len(layer.incoming_connections) == 0:
@@ -375,15 +420,30 @@ class Network:
                     f = k(f)
                 layer.k = f
                 #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
-        output_layers = [layer.k for layer in self.layers if layer.kind() == "output"]
-        if len(input_layers) == 1:
-            input_layers = input_layers[0]
-        if len(output_layers) == 1:
-            output_layers = output_layers[0]
-        self.model = Model(inputs=input_layers, outputs=output_layers)
+        output_k_layers = self.get_ordered_output_layers()
+        input_k_layers = self.get_ordered_input_layers()
+        self.model = Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
         self.model.compile(**kwargs)
 
+    def get_ordered_output_layers(self):
+        if self.output_layer_order:
+            layers = []
+            for layer_name in self.output_layer_order:
+                layers.append(self[layer_name].k)
+        else:
+            layers = [layer.k for layer in self.layers if layer.kind() == "output"][0]
+        return layers
+
+    def get_ordered_input_layers(self):
+        if self.input_layer_order:
+            layers = []
+            for layer_name in self.input_layer_order:
+                layers.append(self[layer_name].k)
+        else:
+            layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
+        return layers
+        
     def scale_output_for_image(self, activation, vector):
         """
         Given an activation name (or something else) and an output
