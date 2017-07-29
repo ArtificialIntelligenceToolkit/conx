@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 import keras
 from keras.models import Sequential, Model
-from keras.layers import Input, Dense, Dropout
+from keras.layers import Input, Dense, Dropout, Add, Concatenate
 from keras.datasets import mnist
 from keras.optimizers import RMSprop, SGD
 from keras.utils import to_categorical
@@ -17,6 +17,23 @@ from functools import reduce
 import signal
 
 #------------------------------------------------------------------------
+
+def topological_sort(net):
+    for layer in net.layers:
+        layer.visited = False
+    stack = []
+    for layer in net.layers:
+        if not layer.visited:
+            visit(layer, stack)
+    stack.reverse()
+    return stack
+
+def visit(layer, stack):
+    layer.visited = True
+    for outgoing_layer in layer.outgoing_connections:
+        if not outgoing_layer.visited:
+            visit(outgoing_layer, stack)
+    stack.append(layer)
 
 class InterruptHandler():
     def __init__(self, sig=signal.SIGINT):
@@ -50,8 +67,12 @@ class InterruptHandler():
 class Network:
 
     def __init__(self, *layers):
-        self.layers = layers
-        self.layer_dict = {layer.name:layer for layer in self.layers}
+        layer_names = [layer.name for layer in layers]
+        for name in layer_names:
+            if layer_names.count(name) > 1:
+                raise Exception("duplicate layer name '%s'" % name)
+        self.layers = list(layers)
+        self.layer_dict = {layer.name:layer for layer in layers}
         self.inputs = None
         self.labels = None
         self.targets = None
@@ -65,6 +86,12 @@ class Network:
             return None
         else:
             return self.layer_dict[layer_name]
+
+    def add(self, layer):
+        if layer.name in self.layer_dict:
+            raise Exception("duplicate layer name '%s'" % layer.name)
+        self.layers.append(layer)
+        self.layer_dict[layer.name] = layer
 
     def connect(self, from_layer_name, to_layer_name):
         if from_layer_name not in self.layer_dict:
@@ -311,9 +338,13 @@ class Network:
         # #self.model.save_weights('model.weights')
 
     def propagate(self, input):
+        # FIXME: assumes one input: net.model.predict([np.array([[0]]), np.array([[0]])])
+        # take all inputs, but only use those needed
         return list(self.model.predict(np.array([input]))[0])
 
     def propagate_to(self, layer_name, input):
+        # FIXME: assumes one input: net.model.predict([np.array([[0]]), np.array([[0]])])
+        # take all inputs, but only use those needed
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         else:
@@ -325,17 +356,26 @@ class Network:
         for layer in self.layers:
             if layer.kind() == 'unconnected':
                 raise Exception("'%s' layer is unconnected" % layer.name)
+        sequence = topological_sort(self)
         input_layers = []
-        output_layers = []
-        for layer in self.layers:
+        for layer in sequence:
             if layer.kind() == 'input':
-                f = Input(shape=layer.shape)
-                input_layers.append(f)
-                for c in layer.chain():
-                    for k in c.make_keras_layers():
-                        f = k(f)
-                    c.model = Model(inputs=input_layers[-1], outputs=f)
-                output_layers.append(f)
+                layer.k = Input(shape=layer.shape)
+                input_layers.append(layer.k)
+                #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
+            else:
+                if len(layer.incoming_connections) == 0:
+                    raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
+                kfuncs = layer.make_keras_functions()
+                if len(layer.incoming_connections) == 1:
+                    f = layer.incoming_connections[0].k
+                else: # multiple inputs, need to merge
+                    f = Concatenate()([incoming.k for incoming in layer.incoming_connections])
+                for k in kfuncs:
+                    f = k(f)
+                layer.k = f
+                #layer.model = Model(inputs=input_layers[-1], outputs=layer.k)
+        output_layers = [layer.k for layer in self.layers if layer.kind() == "output"]
         if len(input_layers) == 1:
             input_layers = input_layers[0]
         if len(output_layers) == 1:
@@ -520,56 +560,14 @@ class Layer:
         else:
             return 'input'
         
-    def make_keras_layers(self):
+    def make_keras_functions(self):
         if self.kind() == 'input':
-            klayer = []
-        else:
-            klayer = [Dense(self.size, activation=self.activation, name=self.name)]
+            raise Exception("")
+        k = Dense(self.size, activation=self.activation, name=self.name)
         if self.dropout > 0:
-            return klayer + [Dropout(self.dropout)]
+            return [k, Dropout(self.dropout)]
         else:
-            return klayer
-
-    def chain(self):
-        if len(self.outgoing_connections) == 0:
-            return [self]
-        else:
-            return [self] + self.outgoing_connections[0].chain()
-
-
-    # def chain(self):
-    #     if len(self.outgoing_connections) == 0:
-    #         return [self]
-    #     else:
-    #         results = [self]
-    #         for layer in self.outgoing_connections:
-    #             chain = layer.chain()
-    #             print(chain)
-    #             if len(chain) == 1:
-    #                 results.extend(chain)
-    #             else:
-    #                 results.append(chain)
-    #         return results
-
-
-def topological_sort(net):
-    for layer in net.layers:
-        layer.visited = False
-    stack = []
-    for layer in net.layers:
-        if not layer.visited:
-            depth_first_search(layer, stack)
-    stack.reverse()
-    return stack
-
-def depth_first_search(layer, stack):
-    layer.visited = True
-    for outgoing_layer in layer.outgoing_connections:
-        if not outgoing_layer.visited:
-            depth_first_search(outgoing_layer, stack)
-    stack.append(layer)
-
-
+            return [k]
 
 '''
 
