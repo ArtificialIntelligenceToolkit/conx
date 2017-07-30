@@ -218,6 +218,7 @@ class Network:
             new_size = self.num_inputs * new_shape
         else:
             new_size = self.num_inputs * reduce(operator.mul, new_shape)
+        ## FIXME: work on multi-inputs?
         if new_size != self.inputs.size:
             raise Exception("shape %s is incompatible with inputs" % (new_shape,))
         if isinstance(new_shape, int):
@@ -292,6 +293,7 @@ class Network:
     def rescale_inputs(self, old_range, new_range, new_dtype):
         old_min, old_max = old_range
         new_min, new_max = new_range
+        ## FIXME: work on multi-inputs?
         if self.inputs.min() < old_min or self.inputs.max() > old_max:
             raise Exception('range %s is incompatible with inputs' % (old_range,))
         if old_min > old_max:
@@ -356,17 +358,32 @@ class Network:
             self.split = split
         else:
             raise Exception("invalid split: %s" % split)
-        self.train_inputs = self.inputs[:self.split]
-        self.test_inputs = self.inputs[self.split:]
+        if self.num_input_layers == 1:
+            self.train_inputs = self.inputs[:self.split]
+            self.test_inputs = self.inputs[self.split:]
+        else:
+            self.train_inputs = [col[:self.split] for col in self.inputs]
+            self.test_inputs = [col[self.split:] for col in self.inputs]
         if self.labels is not None:
             self.train_labels = self.labels[:self.split]
             self.test_labels = self.labels[self.split:]
         if self.targets is not None:
-            self.train_targets = self.targets[:self.split]
-            self.test_targets = self.targets[self.split:]
+            if self.num_target_layers == 1:
+                self.train_targets = self.targets[:self.split]
+                self.test_targets = self.targets[self.split:]
+            else:
+                self.train_targets = [col[:self.split] for col in self.targets]
+                self.test_targets = [col[self.split:] for col in self.targets]
         if verbose:
-            print('Split dataset into %d train inputs, %d test inputs' %
-                  (len(self.train_inputs), len(self.test_inputs)))
+            print('Split dataset into:')
+            if self.num_input_layers == 1:
+                print('   %d train inputs' % len(self.train_inputs))
+            else:
+                print('   %d train inputs' % len(self.train_inputs[0]))
+            if self.num_input_layers == 1:
+                print('   %d test inputs' % len(self.test_inputs))
+            else:
+                print('   %d test inputs' % len(self.test_inputs[0]))
 
     def test(self, dataset=None):
         if dataset is None:
@@ -382,7 +399,10 @@ class Network:
     def train(self, epochs=1, accuracy=None, batch_size=None,
               report_rate=1, tolerance=0.1):
         if batch_size is None:
-            batch_size = self.train_inputs.shape[0]
+            if self.num_input_layers == 1:
+                batch_size = self.train_inputs.shape[0]
+            else:
+                batch_size = self.train_inputs[0].shape[0]
         if not isinstance(batch_size, int):
             raise Exception("bad batch size: %s" % (batch_size,))
         if self.split == self.num_inputs:
@@ -395,15 +415,23 @@ class Network:
         with InterruptHandler() as handler:
             for e in range(1, epochs+1):
                 result = self.model.fit(self.train_inputs, self.train_targets,
-                                        validation_data=(validation_inputs, validation_targets),
                                         batch_size=batch_size,
                                         epochs=1,
                                         verbose=0)
                 outputs = self.model.predict(validation_inputs)
-                correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                               np.abs(outputs - validation_targets))].count(True)
+                if self.num_target_layers == 1:
+                    correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                   np.abs(outputs - validation_targets))].count(True)
+                else:
+                    correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                   np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
                 self.epoch_count += 1
-                acc = result.history['acc'][0]
+                acc = 0
+                # In multi-outputs, acc is given by output layer name + "_acc"
+                for key in result.history:
+                    if key.endswith("acc"):
+                        acc += result.history[key][0]
+                #acc = result.history['acc'][0]
                 self.acc_history.append(acc)
                 loss = result.history['loss'][0]
                 self.loss_history.append(loss)
@@ -431,6 +459,84 @@ class Network:
         # #print('Most recent weights saved in model.weights')
         # #self.model.save_weights('model.weights')
 
+    def get_input(self, i):
+        """
+        Get an input from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_input_layers == 1:
+            return list(self.inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.inputs[c][i]))
+            return inputs
+                
+    def get_target(self, i):
+        """
+        Get a target from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_target_layers == 1:
+            return list(self.targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.targets[c][i]))
+            return targets
+
+    def get_train_input(self, i):
+        """
+        Get an input from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_input_layers == 1:
+            return list(self.train_inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.train_inputs[c][i]))
+            return inputs
+                
+    def get_train_target(self, i):
+        """
+        Get a target from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_target_layers == 1:
+            return list(self.train_targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.train_targets[c][i]))
+            return targets
+
+    def get_test_input(self, i):
+        """
+        Get an input from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_input_layers == 1:
+            return list(self.test_inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.test_inputs[c][i]))
+            return inputs
+                
+    def get_test_target(self, i):
+        """
+        Get a target from the internal dataset and
+        format it in the human API.
+        """
+        if self.num_target_layers == 1:
+            return list(self.test_targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.test_targets[c][i]))
+            return targets
+
     def propagate(self, input):
         if self.num_input_layers == 1:
             return list(self.model.predict(np.array([input]))[0])
@@ -439,12 +545,17 @@ class Network:
             return [[list(y) for y in x][0] for x in self.model.predict(inputs)]
 
     def propagate_to(self, layer_name, input):
-        # FIXME: assumes one input: net.model.predict([np.array([[0]]), np.array([[0]])])
-        # take all inputs, but only use those needed
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
+        if self.num_input_layers == 1:
+            return list(self[layer_name]._output(np.array([input]))[0])
         else:
-            return self[layer_name]._output(input)
+            inputs = [np.array(x, "float32") for x in input]
+            # get just inputs for this layer, in order:
+            inputs = [inputs[self.input_layer_order.index(name)] for name in self[layer_name].input_names]
+            if len(inputs) == 1:
+                inputs = inputs[0]
+            return list(self[layer_name]._output(inputs)[0])
 
     def compile(self, **kwargs):
         ## Error checking:
@@ -505,6 +616,9 @@ class Network:
         self.model.compile(**kwargs)
 
     def get_input_ks_in_order(self, layer_names):
+        """
+        Get the Keras function for each of a set of layer names.
+        """
         if self.input_layer_order:
             result = []
             for name in self.input_layer_order:
@@ -516,6 +630,9 @@ class Network:
             return self[layer_names[0]].k
 
     def get_ordered_output_layers(self):
+        """
+        Return the ordered output layers' Keras functions.
+        """
         if self.output_layer_order:
             layers = []
             for layer_name in self.output_layer_order:
@@ -525,6 +642,9 @@ class Network:
         return layers
 
     def get_ordered_input_layers(self):
+        """
+        Get the Keras functions for all layers, in order.
+        """
         if self.input_layer_order:
             layers = []
             for layer_name in self.input_layer_order:
@@ -689,7 +809,7 @@ class Layer:
         self.outgoing_connections = []
 
     def _output(self, input):
-        output = list(self.model.predict(np.array([input]))[0])
+        output = self.model.predict(input)
         return output
 
     def summary(self):
