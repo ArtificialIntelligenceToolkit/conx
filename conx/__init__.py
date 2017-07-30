@@ -17,7 +17,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-__version__ = "1.0.6"
+__version__ = "3.0.0"
 
-from .network import Network
-from .srn import SRN
+from .konx import *

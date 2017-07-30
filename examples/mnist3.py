@@ -102,12 +102,11 @@ def view(images, start=0, cmap=None, interpolation=None):
 plt.ion()
 #---------------------------------------------------------------------------
 
-net = Network(
-    Layer("input", shape=784, vshape=(28, 28)),
-    Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
-    Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2),
-    Layer("output", shape=10, activation='softmax'),
-    )
+net = Network()
+net.add(Layer("input", shape=784, vshape=(28, 28)))
+net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+net.add(Layer("output", shape=10, activation='softmax'))
 
 net.connect('input', 'hidden1')
 net.connect('hidden1', 'hidden2')
@@ -122,7 +121,7 @@ net.shuffle_dataset()
 net.reshape_inputs(784)
 net.split_dataset(100)
 net.set_targets(10)
-net.show_dataset()
+net.summary_dataset()
 
 net.train(10, report_rate=1)
 net.test()

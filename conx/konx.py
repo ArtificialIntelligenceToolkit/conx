@@ -1,4 +1,4 @@
-from __future__ import print_function, division
+from __future__ import print_function, division, with_statement
 
 #------------------------------------------------------------------------
 import numpy as np
@@ -67,17 +67,34 @@ class InterruptHandler():
         return True
 
 class Network:
-
-    def __init__(self, *layers):
-        layer_names = [layer.name for layer in layers]
-        for name in layer_names:
-            if layer_names.count(name) > 1:
-                raise Exception("duplicate layer name '%s'" % name)
-        self.layers = list(layers)
-        self.layer_dict = {layer.name:layer for layer in layers}
+    def __init__(self, *sizes, **kwargs):
+        """
+        Create a neural network. 
+        if sizes is given, create a full network.
+        Optional keywork: activation
+        """
+        self.layers = []
+        self.layer_dict = {}
         self.inputs = None
         self.labels = None
         self.targets = None
+        def name(index, sizes):
+            if index == 0:
+                n = "input"
+            elif index == len(sizes) - 1:
+                n = "output"
+            elif len(sizes) == 3:
+                n = "hidden"
+            else:
+                n = "hidden%d" % i
+            return n
+        # If simple feed-forward network:
+        for i in range(len(sizes)):
+            self.add(Layer(name(i, sizes), shape=sizes[i],
+                           activation=kwargs.get("activation", "sigmoid")))
+        # Connect them together:
+        for i in range(len(sizes) - 1):
+            self.connect(name(i, sizes), name(i+1, sizes))
         self.epoch_count = 0
         self.acc_history = []
         self.loss_history = []
@@ -107,9 +124,9 @@ class Network:
         from_layer.outgoing_connections.append(to_layer)
         to_layer.incoming_connections.append(from_layer)
 
-    def show(self):
+    def summary(self):
         for layer in self.layers:
-            layer.show()
+            layer.summary()
 
     def set_dataset(self, pairs, verbose=True):
         ## FIXME: use ordered_inputs, or check shape:
@@ -240,7 +257,7 @@ class Network:
         self.test_targets = self.targets[self.split:]
         print('Generated %d target vectors from labels' % self.num_inputs)
 
-    def show_dataset(self):
+    def summary_dataset(self):
         if self.num_inputs == 0:
             print("no dataset loaded")
             return
@@ -351,6 +368,7 @@ class Network:
         else:
             validation_inputs = self.test_inputs
             validation_targets = self.test_targets
+        print("Training...")
         with InterruptHandler() as handler:
             for e in range(1, epochs+1):
                 result = self.model.fit(self.train_inputs, self.train_targets,
@@ -433,7 +451,7 @@ class Network:
         sequence = topological_sort(self)
         for layer in sequence:
             if layer.kind() == 'input':
-                layer.k = Input(shape=layer.shape)
+                layer.k = Input(shape=layer.shape, name=layer.name)
                 layer.input_names = [layer.name]
                 layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
             else:
@@ -649,7 +667,7 @@ class Layer:
         output = list(self.model.predict(np.array([input]))[0])
         return output
 
-    def show(self):
+    def summary(self):
         print("Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" %
               (self.name, self.kind(), self.shape, self.size, self.vshape, self.activation, self.dropout))
         if len(self.outgoing_connections) > 0:
