@@ -50,7 +50,7 @@ class InterruptHandler():
             self.release()
             if self.interrupted:
                 raise KeyboardInterrupt
-            print("\nStoppping at end of epoch... (^C again to quit now)...")
+            print("\nStopping at end of epoch... (^C again to quit now)...")
             self.interrupted = True
 
         signal.signal(self.sig, handler)
@@ -101,6 +101,9 @@ class Network:
         self.val_acc_history = []
         self.input_layer_order = []
         self.output_layer_order = []
+        self.num_input_layers = 0
+        self.num_target_layers = 0
+        self.num_inputs = 0
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -130,14 +133,11 @@ class Network:
 
     def set_dataset(self, pairs, verbose=True):
         input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-        if len(input_layers) == 1:
+        self.num_input_layers = len(input_layers)
+        if self.num_input_layers == 1:
             self.inputs = np.array([x for (x, y) in pairs], "float32")
             self.inputs_range = (self.inputs.min(), self.inputs.max())
             self.num_inputs = self.inputs.shape[0]
-            if verbose:
-                print('Set %d inputs and targets' % (self.num_inputs,))
-                print('Input data shape: %s, range: %s, type: %s' %
-                      (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
         else:
             self.inputs = []
             for i in range(len(pairs[0][0])):
@@ -145,32 +145,21 @@ class Network:
             self.inputs_range = (min([x.min() for x in self.inputs]),
                                  max([x.max() for x in self.inputs]))
             self.num_inputs = self.inputs[0].shape[0]
-            if verbose:
-                print('Set %d inputs and targets' % (self.num_inputs,))
-                print('Input data shapes: %s, range: %s, types: %s' %
-                      ([x[0].shape for x in self.inputs],
-                       self.inputs_range,
-                       [x[0].dtype for x in self.inputs]))
         target_layers = [layer for layer in self.layers if layer.kind() == "output"]
-        if len(target_layers) == 1:
+        self.num_target_layers = len(target_layers)
+        if self.num_target_layers == 1:
             self.targets = np.array([y for (x, y) in pairs], "float32")
             self.targets_range = (self.targets.min(), self.targets.max())
-            if verbose:
-                print('Target data shape: %s, range: %s, type: %s' %
-                      (self.targets.shape[1:], self.targets_range, self.targets.dtype))
         else:
             self.targets = []
             for i in range(len(pairs[0][1])):
                 self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
             self.targets_range = (min([x.min() for x in self.targets]),
                                   max([x.max() for x in self.targets]))
-            if verbose:
-                print('Target data shapes: %s, range: %s, types: %s' %
-                      ([x[0].shape for x in self.targets],
-                       self.targets_range,
-                       [x[0].dtype for x in self.targets]))
         self.labels = None
         self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
 
     def load_keras_dataset(self, name, verbose=True):
         available_datasets = [x for x in dir(keras.datasets) if '__' not in x and x != 'absolute_import']
@@ -185,19 +174,21 @@ class Network:
         self.inputs = np.concatenate((x_train,x_test))
         self.labels = np.concatenate((y_train,y_test))
         self.targets = None
+        self.num_input_layers = 1 ## FIXME: allow many inputs?
+        self.num_target_layers = 1 ## FIXME: allow many targets?
         self.num_inputs = self.inputs.shape[0]
         self.inputs_range = (self.inputs.min(), self.inputs.max())
         self.targets_range = (0, 0)
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
-            print('Loaded %d inputs and labels' % (self.num_inputs,))
-            print('Input data shape: %s, range: %s, type: %s' %
-                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+            self.summary_dataset()
 
     def load_npz_dataset(self, filename, verbose=True):
         """loads a dataset from an .npz file and returns data, labels"""
         if filename[-4:] != '.npz':
             raise Exception("filename must end in .npz")
+        if verbose:
+            print('Loading %s dataset...' % filename)
         try:
             f = np.load(filename)
             self.inputs = f['data']
@@ -208,13 +199,13 @@ class Network:
             if len(self.inputs) == 0:
                 raise Exception("Dataset is empty")
             self.num_inputs = self.inputs.shape[0]
+            self.num_input_layers = 1 ## FIXME: allow many inputs?
+            self.num_target_layers = 1 ## FIXME: allow many targets?
             self.inputs_range = (self.inputs.min(), self.inputs.max())
             self.targets_range = (0, 0)
             self.split_dataset(self.num_inputs, verbose=False)
             if verbose:
-                print('Loaded %d inputs and labels into network' % self.num_inputs)
-                print('Input data shape: %s, range: %s, type: %s' %
-                      (self.inputs[0].shape[1:], self.inputs_range, self.inputs.dtype))
+                self.summary_database()
         except:
             raise Exception("couldn't load .npz dataset %s" % filename)
 
@@ -262,7 +253,7 @@ class Network:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, int) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
-        self.targets = to_categorical(self.labels, num_classes, "uint8")
+        self.targets = to_categorical(self.labels, num_classes).astype("uint8")
         self.train_targets = self.targets[:self.split]
         self.test_targets = self.targets[self.split:]
         print('Generated %d target vectors from labels' % self.num_inputs)
@@ -273,8 +264,30 @@ class Network:
             return
         print('%d train inputs, %d test inputs' %
               (len(self.train_inputs), len(self.test_inputs)))
-        print('Input data shape: %s, range: %s, type: %s' %
-              (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+        if self.inputs is not None:
+            if self.num_input_layers == 1:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shape: %s, range: %s, type: %s' %
+                      (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+            else:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shapes: %s, range: %s, types: %s' %
+                      ([x[0].shape for x in self.inputs],
+                       self.inputs_range,
+                       [x[0].dtype for x in self.inputs]))
+        else:
+            print("No inputs")
+        if self.targets is not None:
+            if self.num_target_layers == 1:
+                print('Target data shape: %s, range: %s, type: %s' %
+                      (self.targets.shape[1:], self.targets_range, self.targets.dtype))
+            else:
+                print('Target data shapes: %s, range: %s, types: %s' %
+                      ([x[0].shape for x in self.targets],
+                       self.targets_range,
+                       [x[0].dtype for x in self.targets]))
+        else:
+            print("No targets")
 
     def rescale_inputs(self, old_range, new_range, new_dtype):
         old_min, old_max = old_range
