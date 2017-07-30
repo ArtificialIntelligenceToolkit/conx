@@ -1,5 +1,4 @@
 numpy
-theano
 keras
 matplotlib
 ipywidgets

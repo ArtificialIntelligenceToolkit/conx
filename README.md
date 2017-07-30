@@ -14,7 +14,7 @@ The network is specified to the constructor by providing sizes. For example, Net
 
 Computing XOR via a target function:
 
-```
+```python
 from conx import Network, SGD
 
 dataset = [[[0, 0], [0]],
@@ -32,13 +32,25 @@ net.test()
 
 ## Install
 
-```python
+```shell
 pip install conx -U
 ```
 
-To use Theano as the keras backend rather than TensorFlow, edit (or create) `~/.keras/kerson.json` to:
+You will need to decide whether to use Theano or Tensorflow. Pick one:
 
+```shell
+pip install theano
 ```
+
+or
+
+```shell
+pip install tensorflow
+```
+
+To use Theano as the Keras backend rather than TensorFlow, edit (or create) `~/.keras/kerson.json` to:
+
+```json
 {
     "backend": "theano",
     "image_data_format": "channels_last",
