@@ -23,12 +23,12 @@ net.set_output_layer_order("output1", "output2")
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
 
-# net.set_dataset([
-#     ([0,0], [0]),
-#     ([0,1], [1]),
-#     ([1,0], [1]),
-#     ([1,1], [0])
-# ])
+net.set_dataset([
+    ([[0],[0]], [[0],[0]]),
+    ([[0],[1]], [[1],[1]]),
+    ([[1],[0]], [[1],[1]]),
+    ([[1],[1]], [[0],[0]])
+])
 
 # net.train(2000, report_rate=10, accuracy=1)
 # net.test(net.train_inputs)
