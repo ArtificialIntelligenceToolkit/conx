@@ -3,6 +3,6 @@ theano
 keras
 matplotlib
 ipywidgets
-PIL
+Pillow
 IPython
 
