@@ -432,9 +432,11 @@ class Network:
         # #self.model.save_weights('model.weights')
 
     def propagate(self, input):
-        # FIXME: assumes one input: net.model.predict([np.array([[0]]), np.array([[0]])])
-        # take all inputs, but only use those needed
-        return list(self.model.predict(np.array([input]))[0])
+        if self.num_input_layers == 1:
+            return list(self.model.predict(np.array([input]))[0])
+        else:
+            inputs = [np.array(x, "float32") for x in input]
+            return [[list(y) for y in x][0] for x in self.model.predict(inputs)]
 
     def propagate_to(self, layer_name, input):
         # FIXME: assumes one input: net.model.predict([np.array([[0]]), np.array([[0]])])
