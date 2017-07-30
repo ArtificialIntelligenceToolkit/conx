@@ -1,2 +1,8 @@
 numpy
 theano
+keras
+matplotlib
+ipywidgets
+PIL
+IPython
+

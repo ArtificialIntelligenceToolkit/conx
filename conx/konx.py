@@ -5,16 +5,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import keras
-from keras.models import Sequential, Model
+from keras.models import Model
 from keras.layers import Input, Dense, Dropout, Add, Concatenate
-from keras.datasets import mnist
 from keras.optimizers import RMSprop, SGD
 from keras.utils import to_categorical
 
-from scipy import misc
-import glob, random, operator, importlib
+import glob
+import random
+import operator
+import importlib
 from functools import reduce
 import signal
+import io
 
 #------------------------------------------------------------------------
 
@@ -511,7 +513,6 @@ class Network:
         import ipywidgets
         import matplotlib as mpl
         import PIL
-        import io
         activation = layer.activation
         if layer.vshape != layer.shape:
             vector = vector.reshape(layer.vshape)
