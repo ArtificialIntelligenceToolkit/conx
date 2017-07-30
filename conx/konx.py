@@ -110,16 +110,38 @@ class Network:
             layer.show()
 
     def set_dataset(self, pairs, verbose=True):
-        self.inputs = np.array([x for (x, y) in pairs]).astype('float32')
-        self.targets = np.array([y for (x, y) in pairs]).astype('float32')
+        ## FIXME: use ordered_inputs, or check shape:
+        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+        if len(input_layers) == 1:
+            self.inputs = np.array([x for (x, y) in pairs]).astype('float32')
+            self.targets = np.array([y for (x, y) in pairs]).astype('float32')
+            self.inputs_range = (self.inputs.min(), self.inputs.max())
+            self.targets_range = (self.targets.min(), self.targets.max())
+            self.num_inputs = self.inputs.shape[0]
+            if verbose:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shape: %s, range: %s, type: %s' %
+                      (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+                print('Target data shape: %s, range: %s, type: %s' %
+                      (self.targets.shape[1:], self.targets_range, self.targets.dtype))
+        else:
+            self.inputs = np.array([[np.array([l]).astype('float32') for l in x] for (x, y) in pairs])
+            self.targets = np.array([[np.array([l]).astype('float32') for l in y] for (x, y) in pairs])
+            self.inputs_range = (self.inputs.min(), self.inputs.max())
+            self.targets_range = (self.targets.min(), self.targets.max())
+            self.num_inputs = self.inputs.shape[0]
+            if verbose:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shapes: %s, range: %s, types: %s' %
+                      ([x.shape[1:] for x in self.inputs[0]],
+                       self.inputs_range,
+                       [x.dtype for x in self.inputs[0]]))
+                print('Target data shapes: %s, range: %s, types: %s' %
+                      ([x.shape[1:] for x in self.targets[0]],
+                       self.targets_range,
+                       [x.dtype for x in self.targets[0]]))
         self.labels = None
-        self.num_inputs = self.inputs.shape[0]
         self.split_dataset(self.num_inputs, verbose=False)
-        self.inputs_range = (self.inputs.min(), self.inputs.max())
-        if verbose:
-            print('Set %d inputs and targets' % (self.num_inputs,))
-            print('Input data shape: %s, range: %s, type: %s' %
-                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
 
     def load_keras_dataset(self, name, verbose=True):
         available_datasets = [x for x in dir(keras.datasets) if '__' not in x and x != 'absolute_import']
@@ -136,6 +158,7 @@ class Network:
         self.targets = None
         self.num_inputs = self.inputs.shape[0]
         self.inputs_range = (self.inputs.min(), self.inputs.max())
+        self.targets_range = (0, 0)
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
             print('Loaded %d inputs and labels' % (self.num_inputs,))
@@ -150,12 +173,14 @@ class Network:
             f = np.load(filename)
             self.inputs = f['data']
             self.labels = f['labels']
+            self.targets = None
             if len(self.inputs) != len(self.labels):
                 raise Exception("Dataset contains different numbers of inputs and labels")
             if len(self.inputs) == 0:
                 raise Exception("Dataset is empty")
             self.num_inputs = self.inputs.shape[0]
             self.inputs_range = (self.inputs.min(), self.inputs.max())
+            self.targets_range = (0, 0)
             self.split_dataset(self.num_inputs, verbose=False)
             if verbose:
                 print('Loaded %d inputs and labels into network' % self.num_inputs)
