@@ -393,6 +393,8 @@ class Network:
                 dataset = self.test_inputs
         print("Testing...")
         outputs = self.model.predict(dataset)
+        if self.num_target_layers > 0:
+            outputs = [[list(y) for y in x] for x in zip(*outputs)]
         for output in outputs:
             print(output)
     

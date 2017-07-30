@@ -3,9 +3,9 @@ from konx import Network, Layer, SGD
 net = Network()
 net.add(Layer("input1", shape=1))
 net.add(Layer("input2", shape=1))
-net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
 net.add(Layer("hidden1", shape=2, activation="sigmoid"))
 net.add(Layer("hidden2", shape=2, activation="sigmoid"))
+net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
 net.add(Layer("output1", shape=1, activation="sigmoid"))
 net.add(Layer("output2", shape=1, activation="sigmoid"))
 
@@ -31,5 +31,5 @@ dataset = [
 
 net.set_dataset(dataset)
 
-# net.train(2000, report_rate=10, accuracy=1)
-# net.test(net.train_inputs)
+net.train(2000, report_rate=10, accuracy=1)
+net.test()
