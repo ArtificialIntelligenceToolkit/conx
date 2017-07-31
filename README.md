@@ -4,7 +4,7 @@ Neural Network Library for Cognitive Scientists
 
 Built in Python on Keras
 
-[![CircleCI](https://circleci.com/gh/Calysto/conx/tree/master.svg?style=svg)](https://circleci.com/gh/Calysto/conx/tree/master)
+[![CircleCI](https://circleci.com/gh/Calysto/conx/tree/master.svg?style=svg)](https://circleci.com/gh/Calysto/conx/tree/master) [![codecov](https://codecov.io/gh/Calysto/conx/branch/master/graph/badge.svg)](https://codecov.io/gh/Calysto/conx)
 
 Networks implement neural network algorithms. Networks can have as many hidden layers as you desire.
 
