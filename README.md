@@ -8,7 +8,7 @@ Built in Python on Keras
 
 Networks implement neural network algorithms. Networks can have as many hidden layers as you desire.
 
-The network is specified to the constructor by providing sizes. For example, Network(2, 5, 1) specifies a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
+The network is specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
 
 ## Example
 
@@ -22,7 +22,7 @@ dataset = [[[0, 0], [0]],
           [[1, 0], [1]],
           [[1, 1], [0]]]
 
-net = Network(2, 2, 1)
+net = Network("XOR", 2, 2, 1)
 net.set_dataset(dataset)
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))

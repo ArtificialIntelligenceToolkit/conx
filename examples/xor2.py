@@ -1,6 +1,6 @@
-from konx import Network, Layer, SGD
+from conx import Network, Layer, SGD
 
-net = Network()
+net = Network("XOR2")
 net.add(Layer("input1", shape=1))
 net.add(Layer("input2", shape=1))
 net.add(Layer("hidden1", shape=2, activation="sigmoid"))

@@ -1,4 +1,4 @@
-from konx import *
+from conx import *
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -102,7 +102,7 @@ def view(images, start=0, cmap=None, interpolation=None):
 plt.ion()
 #---------------------------------------------------------------------------
 
-net = Network()
+net = Network("MNIST")
 net.add(Layer("input", shape=784, vshape=(28, 28)))
 net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
 net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))

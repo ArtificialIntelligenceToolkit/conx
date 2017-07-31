@@ -68,12 +68,15 @@ class InterruptHandler():
         return True
 
 class Network:
-    def __init__(self, *sizes, **kwargs):
+    def __init__(self, name, *sizes, **kwargs):
         """
         Create a neural network. 
         if sizes is given, create a full network.
         Optional keywork: activation
         """
+        if not isinstance(name, str):
+            raise Exception("first argument should be a name for the network")
+        self.name = name
         self.layers = []
         self.layer_dict = {}
         self.inputs = None
@@ -461,9 +464,12 @@ class Network:
                 print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
                       (self.epoch_count, loss, acc, val_acc))
                 raise KeyboardInterrupt
-        if verbose: print("=" * 72)
-        if verbose: print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-                          (self.epoch_count, loss, acc, val_acc))
+        if verbose:
+            print("=" * 72)
+            print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+                  (self.epoch_count, loss, acc, val_acc))
+        else:
+            return (self.epoch_count, loss, acc, val_acc)
 
         # # evaluate the model
         # print('Evaluating performance...')
@@ -682,12 +688,11 @@ class Network:
         else: # activation in ["linear"] or otherwise
             return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
         
-    def _make_image_data(self, layer_name, vector, size=25, transpose=False, colormap="hot"):
+    def _make_image(self, layer_name, vector, size=25, transpose=False, colormap="hot"):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
-        import ipywidgets
         import matplotlib as mpl
         import PIL
         layer = self[layer_name]
@@ -704,31 +709,105 @@ class Network:
         #wpercent = (width/float(image.size[0]))
         #hsize = int((float(image.size[1])*float(wpercent)))
         #img_src = image.resize((width, hsize), PIL.Image.ANTIALIAS)
-        img_src = image.resize((hsize, width), PIL.Image.ANTIALIAS)
+        img_src = image.resize((hsize, width)) # , PIL.Image.ANTIALIAS)
         # colorize:
         #cm_hot = mpl.cm.get_cmap(colormap)
         #im = np.array(img_src)
         #im = cm_hot(im)
         #im = np.uint8(im * 255)
         #im = PIL.Image.fromarray(im)
-        # Convert to png binary data:
+        return img_src
+
+    def _image_to_uri(self, img_src):
+        # Convert to binary data:
         b = io.BytesIO()
         img_src.save(b, format='gif')
         data = b.getvalue()
-        #layout = ipywidgets.Layout(border='2px solid blue')
-        #widget = ipywidgets.Image(value=data, format='png', layout=layout)
-        return data
+        data = base64.b64encode(data)
+        if not isinstance(data, str):
+            data = data.decode("latin1")
+        return "data:image/gif;base64,%s" % data
 
     def propagate_input_to(self, index, layer_name):
         inputs = self._get_input(index)
         outputs = self.propagate_to(layer_name, inputs)
         outputs = np.array(outputs)
-        data = self._make_image_data(layer_name, outputs)
-        data = base64.b64encode(data)
-        if not isinstance(data, str):
-            data = data.decode("latin1")
-        return data
+        image = self._make_image(layer_name, outputs)
+        return image
 
+    def build_svg(self):
+        ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
+        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" xlink:href="{{image}}" />""".format(**{"netname": self.name})
+        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)" />"""
+        label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
+        total_height = 25 # top border
+        max_width = 0
+        images = {}
+        # Go through and build images, compute size:
+        for level_names in ordering:
+            # first make all images at this level
+            max_height = 0 # per row
+            total_width = 0
+            for layer_name in level_names:
+                image = self.propagate_input_to(0, layer_name) # use first input
+                (width, height) = image.size
+                max_dim = max(width, height)
+                if max_dim > 200:
+                    image = image.resize((int(width/max_dim * 200), int(height/max_dim * 200)))
+                    (width, height) = image.size
+                images[layer_name] = image
+                total_width += width + 75 # space between
+                max_height = max(max_height, height)
+            total_height += max_height + 50 # 50 for arrows
+            max_width = max(max_width, total_width)
+        # Now we go through again and build SVG:
+        svg = ""
+        cheight = 25 # top border
+        positioning = {}
+        for level_names in ordering:
+            row_layer_width = 0
+            for layer_name in level_names:
+                image = images[layer_name]
+                (width, height) = image.size
+                row_layer_width += width
+            spacing = (max_width - row_layer_width) / (len(level_names) + 1)
+            cwidth = spacing
+            max_height = 0
+            for layer_name in level_names:
+                image = images[layer_name]
+                (width, height) = image.size
+                positioning[layer_name] = {"name": layer_name,
+                                           "x": cwidth,
+                                           "y": cheight,
+                                           "image": self._image_to_uri(image),
+                                           "width": width,
+                                           "height": height}
+                for out in self[layer_name].outgoing_connections:
+                    # draw an arrow to these
+                    x = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                    y = positioning[out.name]["y"] + positioning[out.name]["height"]
+                    svg += arrow_svg.format(**{"x1":cwidth + width/2,
+                                               "y1":cheight,
+                                               "x2":x,
+                                               "y2":y})
+                svg += image_svg.format(**positioning[layer_name])
+                svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                                           "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
+                                           "label": layer_name,
+                                           "size": 10})
+                cwidth += width + spacing # spacing between
+                max_height = max(max_height, height)
+            cheight += max_height + 50 # 50 for arrows
+            top = False
+        return ("""
+        <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
+    <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="blue" />
+        </marker>
+    </defs>
+""".format(**{"width": max_width, "height": total_height, "netname": self.name}) + svg + """</svg>""")
+        
     def make_svg(self, data_uri):
         svg = """
 <svg id='mysvg' xmlns='http://www.w3.org/2000/svg' width="400" height="400">
@@ -737,7 +816,7 @@ class Network:
           <path d="M0,0 L0,6 L9,3 z" fill="black" />
         </marker>
     </defs>
-    <image id="output1" x="0" y="0" height="25" width="25" image-rendering="optimizeQuality"
+    <image id="output1" x="0" y="0" height="25" width="25" 
         xlink:href="{output1}" />
     <rect x="0" y="0" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
     <image id="output2" x="200" y="0" height="25" width="25" 
@@ -766,11 +845,7 @@ class Network:
 """.format(**data_uri)
         return svg
 
-    def make_image_uri(self, data):
-        return "data:image/gif;base64,%s" % data
-    
-    def visualize(self, inputs, colormap="hot"):
-        from IPython.display import display
+    def _get_level_ordering(self):
         ## First, get a level for all layers:
         levels = {}
         for layer in topological_sort(self):
@@ -778,6 +853,21 @@ class Network:
                 continue
             level = max([levels[lay.name] for lay in layer.incoming_connections] + [-1])
             levels[layer.name] = level + 1
+        max_level = max(levels.values())
+        # Now, sort by input layer indices:
+        ordering = []
+        for i in range(max_level + 1):
+            layer_names = [layer.name for layer in self.layers if levels[layer.name] == i]
+            if self.input_layer_order:
+                inputs = [([self.input_layer_order.index(name)
+                            for name in self[layer_name].input_names], layer_name)
+                          for layer_name in layer_names]
+            else:
+                inputs = [([0 for name in self[layer_name].input_names], layer_name)
+                          for layer_name in layer_names]
+            level = [row[1] for row in sorted(inputs)]
+            ordering.append(level)
+        return ordering
 
 #------------------------------------------------------------------------
 # utility functions
