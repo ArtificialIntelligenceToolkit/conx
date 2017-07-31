@@ -394,27 +394,31 @@ class Network:
             else:
                 print('   %d test inputs' % len(self.test_inputs[0]))
 
-    def test(self, dataset=None):
+    def test(self, dataset=None, batch_size=None):
         if dataset is None:
             if self.split == self.num_inputs:
                 dataset = self.train_inputs
             else:
                 dataset = self.test_inputs
         print("Testing...")
-        outputs = self.model.predict(dataset)
+        if batch_size is not None:
+            outputs = self.model.predict(dataset, batch_size=batch_size)
+        else:
+            outputs = self.model.predict(dataset)
         if self.num_target_layers > 1:
             outputs = [[list(y) for y in x] for x in zip(*outputs)]
         for output in outputs:
             print(output)
     
     def train(self, epochs=1, accuracy=None, batch_size=None,
-              report_rate=1, tolerance=0.1, verbose=1):
+              report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
+              class_weight=None, sample_weight=None):
         if batch_size is None:
             if self.num_input_layers == 1:
                 batch_size = self.train_inputs.shape[0]
             else:
                 batch_size = self.train_inputs[0].shape[0]
-        if not isinstance(batch_size, int):
+        if not (isinstance(batch_size, int) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
@@ -430,8 +434,14 @@ class Network:
                 result = self.model.fit(self.train_inputs, self.train_targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
-                                        verbose=0)
-                outputs = self.model.predict(validation_inputs)
+                                        verbose=1,
+                                        shuffle=shuffle,
+                                        class_weight=class_weight,
+                                        sample_weight=sample_weight)
+                if batch_size is not None:
+                    outputs = self.model.predict(validation_inputs, batch_size=batch_size)
+                else:
+                    outputs = self.model.predict(validation_inputs)
                 if self.num_target_layers == 1:
                     correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                    np.abs(outputs - validation_targets))].count(True)
@@ -455,8 +465,14 @@ class Network:
                     result = self.model.fit(self.train_inputs, self.train_targets,
                                             batch_size=batch_size,
                                             epochs=1,
-                                            verbose=0)
-                    outputs = self.model.predict(validation_inputs)
+                                            verbose=0,
+                                            shuffle=shuffle,
+                                            class_weight=class_weight,
+                                            sample_weight=sample_weight)
+                    if batch_size is not None:
+                        outputs = self.model.predict(validation_inputs, batch_size=batch_size)
+                    else:
+                        outputs = self.model.predict(validation_inputs)
                     if self.num_target_layers == 1:
                         correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                        np.abs(outputs - validation_targets))].count(True)
@@ -578,25 +594,37 @@ class Network:
                 targets.append(list(self.test_targets[c][i]))
             return targets
 
-    def propagate(self, input):
+    def propagate(self, input, batch_size=None):
         if self.num_input_layers == 1:
-            return list(self.model.predict(np.array([input]))[0])
+            if batch_size is not None:
+                return list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
+            else:
+                return list(self.model.predict(np.array([input]))[0])
         else:
             inputs = [np.array(x, "float32") for x in input]
-            return [[list(y) for y in x][0] for x in self.model.predict(inputs)]
+            if batch_size is not None:
+                return [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
+            else:
+                return [[list(y) for y in x][0] for x in self.model.predict(inputs)]
 
-    def propagate_to(self, layer_name, input):
+    def propagate_to(self, layer_name, input, batch_size=None):
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if self.num_input_layers == 1:
-            return list(self[layer_name]._output(np.array([input]))[0])
+            if batch_size is not None:
+                return list(self[layer_name]._output(np.array([input]), batch_size=batch_size)[0])
+            else:
+                return list(self[layer_name]._output(np.array([input]))[0])
         else:
             inputs = [np.array(x, "float32") for x in input]
             # get just inputs for this layer, in order:
             inputs = [inputs[self.input_layer_order.index(name)] for name in self[layer_name].input_names]
             if len(inputs) == 1:
                 inputs = inputs[0]
-            return list(self[layer_name]._output(inputs)[0])
+            if batch_size is not None:
+                return list(self[layer_name]._output(inputs, batch_size=batch_size)[0])
+            else:
+                return list(self[layer_name]._output(inputs)[0])
 
     def compile(self, **kwargs):
         ## Error checking:
@@ -630,7 +658,10 @@ class Network:
             if layer.kind() == 'input':
                 if "activation" in layer.params:
                     del layer.params["activation"]
-                layer.k = Input(shape=layer.shape, **layer.params)
+                if layer.shape:
+                    layer.k = Input(shape=layer.shape, **layer.params)
+                else:
+                    layer.k = Input(**layer.params)
                 layer.input_names = [layer.name]
                 layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
             else:
@@ -929,7 +960,7 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
 
 #------------------------------------------------------------------------
 
-class Layer:
+class Layer():
 
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
     CLASS = Dense
@@ -943,19 +974,21 @@ class Layer:
             raise Exception('bad layer name: %s' % (name,))
         self.name = name
         self.params = params
-        if not valid_shape(shape):
-            raise Exception('bad shape: %s' % (shape,))
-        # set layer topology (shape) and number of units (size)
-        if isinstance(shape, int):
-            # linear layer
-            self.shape = (shape,)
-            self.size = shape
+        if shape is None: # Special case: must be passed in
+            self.shape = None
+            self.size = None
         else:
-            # multi-dimensional layer
-            self.shape = shape
-            self.size = reduce(operator.mul, shape)
-        if "shape" in params:
-            del params["shape"] # drop those that we handle ourselves
+            if not valid_shape(shape):
+                raise Exception('bad shape: %s' % (shape,))
+            # set layer topology (shape) and number of units (size)
+            if isinstance(shape, int):
+                # linear layer
+                self.shape = (shape,)
+                self.size = shape
+            else:
+                # multi-dimensional layer
+                self.shape = shape
+                self.size = reduce(operator.mul, shape)
         params["name"] = name
 
         # set visual shape for display purposes
@@ -969,7 +1002,7 @@ class Layer:
                 raise Exception('vshape incompatible with layer of size %d' % (self.size,))
             else:
                 self.vshape = vs
-        elif len(self.shape) > 2:
+        elif self.shape and len(self.shape) > 2:
             self.vshape = (self.size,)
         else:
             self.vshape = self.shape
@@ -997,8 +1030,11 @@ class Layer:
         self.incoming_connections = []
         self.outgoing_connections = []
 
-    def _output(self, input):
-        output = self.model.predict(input)
+    def _output(self, input, batch_size=None):
+        if batch_size is not None:
+            output = self.model.predict(input, batch_size=batch_size)
+        else:
+            output = self.model.predict(input)
         return output
 
     def summary(self):
