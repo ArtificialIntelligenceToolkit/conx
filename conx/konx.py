@@ -82,29 +82,19 @@ class Network:
         self.inputs = None
         self.labels = None
         self.targets = None
-        def name(index, sizes):
-            if index == 0:
-                n = "input"
-            elif index == len(sizes) - 1:
-                n = "output"
-            elif len(sizes) == 3:
-                n = "hidden"
-            else:
-                n = "hidden%d" % i
-            return n
         # If simple feed-forward network:
         for i in range(len(sizes)):
-            self.add(Layer(name(i, sizes), shape=sizes[i],
+            self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
                            activation=kwargs.get("activation", "sigmoid")))
         self.num_input_layers = 0
         self.num_target_layers = 0
         # Connect them together:
         for i in range(len(sizes) - 1):
-            self.connect(name(i, sizes), name(i+1, sizes))
+            self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
         self.epoch_count = 0
         self.acc_history = []
         self.loss_history = []
-        self.val_acc_history = []
+        self.val_percent_history = []
         self.input_layer_order = []
         self.output_layer_order = []
         self.num_inputs = 0
@@ -121,19 +111,23 @@ class Network:
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
 
-    def connect(self, from_layer_name, to_layer_name):
-        if from_layer_name not in self.layer_dict:
-            raise Exception('unknown layer: %s' % from_layer_name)
-        if to_layer_name not in self.layer_dict:
-            raise Exception('unknown layer: %s' % to_layer_name)
-        from_layer = self.layer_dict[from_layer_name]
-        to_layer = self.layer_dict[to_layer_name]
-        from_layer.outgoing_connections.append(to_layer)
-        to_layer.incoming_connections.append(from_layer)
-        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-        self.num_input_layers = len(input_layers)
-        target_layers = [layer for layer in self.layers if layer.kind() == "output"]
-        self.num_target_layers = len(target_layers)
+    def connect(self, from_layer_name=None, to_layer_name=None):
+        if from_layer_name is None and to_layer_name is None:
+            for i in range(len(self.layers) - 1):
+                self.connect(self.layers[i].name, self.layers[i+1].name)
+        else:
+            if from_layer_name not in self.layer_dict:
+                raise Exception('unknown layer: %s' % from_layer_name)
+            if to_layer_name not in self.layer_dict:
+                raise Exception('unknown layer: %s' % to_layer_name)
+            from_layer = self.layer_dict[from_layer_name]
+            to_layer = self.layer_dict[to_layer_name]
+            from_layer.outgoing_connections.append(to_layer)
+            to_layer.incoming_connections.append(from_layer)
+            input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+            self.num_input_layers = len(input_layers)
+            target_layers = [layer for layer in self.layers if layer.kind() == "output"]
+            self.num_target_layers = len(target_layers)
 
     def summary(self):
         for layer in self.layers:
@@ -339,7 +333,7 @@ class Network:
         self.epoch_count = 0
         self.acc_history = []
         self.loss_history = []
-        self.val_acc_history = []
+        self.val_percent_history = []
         for layer in self.model.layers:
             weights = layer.get_weights()
             new_weights = []
@@ -422,6 +416,8 @@ class Network:
                 batch_size = self.train_inputs[0].shape[0]
         if not isinstance(batch_size, int):
             raise Exception("bad batch size: %s" % (batch_size,))
+        if accuracy is None and epochs > 1 and report_rate > 1:
+            print("Warning: report_rate is ignored when in epoch mode")
         if self.split == self.num_inputs:
             validation_inputs = self.train_inputs
             validation_targets = self.train_targets
@@ -430,10 +426,10 @@ class Network:
             validation_targets = self.test_targets
         if verbose: print("Training...")
         with InterruptHandler() as handler:
-            for e in range(1, epochs+1):
+            if accuracy is None: # train them all using fit
                 result = self.model.fit(self.train_inputs, self.train_targets,
                                         batch_size=batch_size,
-                                        epochs=1,
+                                        epochs=epochs,
                                         verbose=0)
                 outputs = self.model.predict(validation_inputs)
                 if self.num_target_layers == 1:
@@ -442,7 +438,7 @@ class Network:
                 else:
                     correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                    np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
-                self.epoch_count += 1
+                self.epoch_count += epochs
                 acc = 0
                 # In multi-outputs, acc is given by output layer name + "_acc"
                 for key in result.history:
@@ -452,24 +448,49 @@ class Network:
                 self.acc_history.append(acc)
                 loss = result.history['loss'][0]
                 self.loss_history.append(loss)
-                val_acc = correct/len(validation_targets)
-                self.val_acc_history.append(val_acc)
-                if self.epoch_count % report_rate == 0:
-                    if verbose: print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-                                      (self.epoch_count, loss, acc, val_acc))
-                if accuracy is not None and val_acc >= accuracy or handler.interrupted:
-                    break
+                val_percent = correct/len(validation_targets)
+                self.val_percent_history.append(val_percent)
+            else:
+                for e in range(1, epochs+1):
+                    result = self.model.fit(self.train_inputs, self.train_targets,
+                                            batch_size=batch_size,
+                                            epochs=1,
+                                            verbose=0)
+                    outputs = self.model.predict(validation_inputs)
+                    if self.num_target_layers == 1:
+                        correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                       np.abs(outputs - validation_targets))].count(True)
+                    else:
+                        correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                       np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
+                    self.epoch_count += 1
+                    acc = 0
+                    # In multi-outputs, acc is given by output layer name + "_acc"
+                    for key in result.history:
+                        if key.endswith("acc"):
+                            acc += result.history[key][0]
+                    #acc = result.history['acc'][0]
+                    self.acc_history.append(acc)
+                    loss = result.history['loss'][0]
+                    self.loss_history.append(loss)
+                    val_percent = correct/len(validation_targets)
+                    self.val_percent_history.append(val_percent)
+                    if self.epoch_count % report_rate == 0:
+                        if verbose: print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                                          (self.epoch_count, loss, acc, val_percent))
+                    if val_percent >= accuracy or handler.interrupted:
+                        break
             if handler.interrupted:
                 print("=" * 72)
-                print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-                      (self.epoch_count, loss, acc, val_acc))
+                print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                      (self.epoch_count, loss, acc, val_percent))
                 raise KeyboardInterrupt
         if verbose:
             print("=" * 72)
-            print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-                  (self.epoch_count, loss, acc, val_acc))
+            print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                  (self.epoch_count, loss, acc, val_percent))
         else:
-            return (self.epoch_count, loss, acc, val_acc)
+            return (self.epoch_count, loss, acc, val_percent)
 
         # # evaluate the model
         # print('Evaluating performance...')
@@ -607,7 +628,9 @@ class Network:
         sequence = topological_sort(self)
         for layer in sequence:
             if layer.kind() == 'input':
-                layer.k = Input(shape=layer.shape, name=layer.name)
+                if "activation" in layer.params:
+                    del layer.params["activation"]
+                layer.k = Input(shape=layer.shape, **layer.params)
                 layer.input_names = [layer.name]
                 layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
             else:
@@ -872,6 +895,17 @@ class Network:
 #------------------------------------------------------------------------
 # utility functions
 
+def autoname(index, sizes):
+    if index == 0:
+        n = "input"
+    elif index == sizes - 1:
+        n = "output"
+    elif sizes == 3:
+        n = "hidden"
+    else:
+        n = "hidden%d" % i
+    return n
+
 def valid_shape(x):
     return isinstance(x, int) and x > 0 \
         or isinstance(x, tuple) and len(x) > 1 and all([isinstance(n, int) and n > 0 for n in x])
@@ -898,6 +932,7 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
 class Layer:
 
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+    CLASS = Dense
             
     def __repr__(self):
         return "<Layer name='%s', shape=%s, act='%s'>" % (
@@ -919,10 +954,14 @@ class Layer:
             # multi-dimensional layer
             self.shape = shape
             self.size = reduce(operator.mul, shape)
+        if "shape" in params:
+            del params["shape"] # drop those that we handle ourselves
+        params["name"] = name
 
         # set visual shape for display purposes
         if 'vshape' in params:
             vs = params['vshape']
+            del params["vshape"] # drop those that are not Keras parameters
             if not valid_vshape(vs):
                 raise Exception('bad vshape: %s' % (vs,))
             elif isinstance(vs, int) and vs != self.size \
@@ -943,9 +982,11 @@ class Layer:
             self.activation = act
         else:
             self.activation = 'linear'
+            params["activation"] = "linear"
 
         if 'dropout' in params:
             dropout = params['dropout']
+            del params["dropout"] # we handle dropout layers
             if dropout == None: dropout = 0
             if not (isinstance(dropout, (int, float)) and 0 <= dropout <= 1):
                 raise Exception('bad dropout rate: %s' % (dropout,))
@@ -978,13 +1019,17 @@ class Layer:
         
     def make_keras_functions(self):
         if self.kind() == 'input':
-            raise Exception("")
-        k = Dense(self.size, activation=self.activation, name=self.name)
+            raise Exception("Input layers are made automatically")
+        k = self.CLASS(self.size, **self.params)
         if self.dropout > 0:
             return [k, Dropout(self.dropout)]
         else:
             return [k]
 
+
+class LSTMLayer(Layer):
+    CLASS = keras.layers.LSTM
+        
 '''
 
 def evaluate(model, test_inputs, test_targets, threshold=0.50, indices=None, show=False):

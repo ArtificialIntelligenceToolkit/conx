@@ -123,5 +123,5 @@ net.split_dataset(100)
 net.set_targets_to_categories(10)
 net.summary_dataset()
 
-net.train(10, report_rate=1)
-net.test()
+net.train(10)
+#net.test()
