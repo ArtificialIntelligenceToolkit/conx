@@ -16,6 +16,7 @@ import operator
 import importlib
 from functools import reduce
 import signal
+import base64
 import io
 
 #------------------------------------------------------------------------
@@ -92,6 +93,8 @@ class Network:
         for i in range(len(sizes)):
             self.add(Layer(name(i, sizes), shape=sizes[i],
                            activation=kwargs.get("activation", "sigmoid")))
+        self.num_input_layers = 0
+        self.num_target_layers = 0
         # Connect them together:
         for i in range(len(sizes) - 1):
             self.connect(name(i, sizes), name(i+1, sizes))
@@ -101,8 +104,6 @@ class Network:
         self.val_acc_history = []
         self.input_layer_order = []
         self.output_layer_order = []
-        self.num_input_layers = 0
-        self.num_target_layers = 0
         self.num_inputs = 0
 
     def __getitem__(self, layer_name):
@@ -126,37 +127,56 @@ class Network:
         to_layer = self.layer_dict[to_layer_name]
         from_layer.outgoing_connections.append(to_layer)
         to_layer.incoming_connections.append(from_layer)
+        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+        self.num_input_layers = len(input_layers)
+        target_layers = [layer for layer in self.layers if layer.kind() == "output"]
+        self.num_target_layers = len(target_layers)
 
     def summary(self):
         for layer in self.layers:
             layer.summary()
 
-    def set_dataset(self, pairs, verbose=True):
-        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-        self.num_input_layers = len(input_layers)
+    def set_dataset_direct(self, inputs, targets, verbose=True):
+        self.inputs = inputs
+        self.targets = targets
+        self.labels = None
+        self._cache_dataset_values()
+        self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
+
+    def _cache_dataset_values(self):
         if self.num_input_layers == 1:
-            self.inputs = np.array([x for (x, y) in pairs], "float32")
             self.inputs_range = (self.inputs.min(), self.inputs.max())
             self.num_inputs = self.inputs.shape[0]
+        else:
+            self.inputs_range = (min([x.min() for x in self.inputs]),
+                                 max([x.max() for x in self.inputs]))
+            self.num_inputs = self.inputs[0].shape[0]
+        if self.targets is not None:
+            if self.num_target_layers == 1:
+                self.targets_range = (self.targets.min(), self.targets.max())
+            else:
+                self.targets_range = (min([x.min() for x in self.targets]),
+                                      max([x.max() for x in self.targets]))
+        else:
+            self.targets_range = (0, 0)
+    
+    def set_dataset(self, pairs, verbose=True):
+        if self.num_input_layers == 1:
+            self.inputs = np.array([x for (x, y) in pairs], "float32")
         else:
             self.inputs = []
             for i in range(len(pairs[0][0])):
                 self.inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
-            self.inputs_range = (min([x.min() for x in self.inputs]),
-                                 max([x.max() for x in self.inputs]))
-            self.num_inputs = self.inputs[0].shape[0]
-        target_layers = [layer for layer in self.layers if layer.kind() == "output"]
-        self.num_target_layers = len(target_layers)
         if self.num_target_layers == 1:
             self.targets = np.array([y for (x, y) in pairs], "float32")
-            self.targets_range = (self.targets.min(), self.targets.max())
         else:
             self.targets = []
             for i in range(len(pairs[0][1])):
                 self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
-            self.targets_range = (min([x.min() for x in self.targets]),
-                                  max([x.max() for x in self.targets]))
         self.labels = None
+        self._cache_dataset_values()
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
             self.summary_dataset()
@@ -174,11 +194,7 @@ class Network:
         self.inputs = np.concatenate((x_train,x_test))
         self.labels = np.concatenate((y_train,y_test))
         self.targets = None
-        self.num_input_layers = 1 ## FIXME: allow many inputs?
-        self.num_target_layers = 1 ## FIXME: allow many targets?
-        self.num_inputs = self.inputs.shape[0]
-        self.inputs_range = (self.inputs.min(), self.inputs.max())
-        self.targets_range = (0, 0)
+        self._cache_dataset_values()
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
             self.summary_dataset()
@@ -198,11 +214,7 @@ class Network:
                 raise Exception("Dataset contains different numbers of inputs and labels")
             if len(self.inputs) == 0:
                 raise Exception("Dataset is empty")
-            self.num_inputs = self.inputs.shape[0]
-            self.num_input_layers = 1 ## FIXME: allow many inputs?
-            self.num_target_layers = 1 ## FIXME: allow many targets?
-            self.inputs_range = (self.inputs.min(), self.inputs.max())
-            self.targets_range = (0, 0)
+            self._cache_dataset_values()
             self.split_dataset(self.num_inputs, verbose=False)
             if verbose:
                 self.summary_database()
@@ -249,7 +261,7 @@ class Network:
             else:
                 raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
             
-    def set_targets(self, num_classes):
+    def set_targets_to_categories(self, num_classes):
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, int) or num_classes <= 0:
@@ -305,7 +317,7 @@ class Network:
         print('Inputs rescaled to %s values in the range %s - %s' %
               (self.inputs.dtype, new_min, new_max))
 
-    def make_weights(self, shape):
+    def _make_weights(self, shape):
         """
         Makes a vector/matrix of random weights centered around 0.0.
         """
@@ -329,7 +341,7 @@ class Network:
             weights = layer.get_weights()
             new_weights = []
             for weight in weights:
-                new_weights.append(self.make_weights(weight.shape))
+                new_weights.append(self._make_weights(weight.shape))
             layer.set_weights(new_weights)
         
     def shuffle_dataset(self, verbose=True):
@@ -393,13 +405,13 @@ class Network:
                 dataset = self.test_inputs
         print("Testing...")
         outputs = self.model.predict(dataset)
-        if self.num_target_layers > 0:
+        if self.num_target_layers > 1:
             outputs = [[list(y) for y in x] for x in zip(*outputs)]
         for output in outputs:
             print(output)
     
     def train(self, epochs=1, accuracy=None, batch_size=None,
-              report_rate=1, tolerance=0.1):
+              report_rate=1, tolerance=0.1, verbose=1):
         if batch_size is None:
             if self.num_input_layers == 1:
                 batch_size = self.train_inputs.shape[0]
@@ -413,7 +425,7 @@ class Network:
         else:
             validation_inputs = self.test_inputs
             validation_targets = self.test_targets
-        print("Training...")
+        if verbose: print("Training...")
         with InterruptHandler() as handler:
             for e in range(1, epochs+1):
                 result = self.model.fit(self.train_inputs, self.train_targets,
@@ -440,8 +452,8 @@ class Network:
                 val_acc = correct/len(validation_targets)
                 self.val_acc_history.append(val_acc)
                 if self.epoch_count % report_rate == 0:
-                    print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-                          (self.epoch_count, loss, acc, val_acc))
+                    if verbose: print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+                                      (self.epoch_count, loss, acc, val_acc))
                 if accuracy is not None and val_acc >= accuracy or handler.interrupted:
                     break
             if handler.interrupted:
@@ -449,9 +461,9 @@ class Network:
                 print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
                       (self.epoch_count, loss, acc, val_acc))
                 raise KeyboardInterrupt
-        print("=" * 72)
-        print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
-              (self.epoch_count, loss, acc, val_acc))
+        if verbose: print("=" * 72)
+        if verbose: print("Epoch #%5d | loss %7.5f | acc %7.5f | vacc %7.5f" %
+                          (self.epoch_count, loss, acc, val_acc))
 
         # # evaluate the model
         # print('Evaluating performance...')
@@ -461,7 +473,7 @@ class Network:
         # #print('Most recent weights saved in model.weights')
         # #self.model.save_weights('model.weights')
 
-    def get_input(self, i):
+    def _get_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -474,7 +486,7 @@ class Network:
                 inputs.append(list(self.inputs[c][i]))
             return inputs
                 
-    def get_target(self, i):
+    def _get_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -487,7 +499,7 @@ class Network:
                 targets.append(list(self.targets[c][i]))
             return targets
 
-    def get_train_input(self, i):
+    def _get_train_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -500,7 +512,7 @@ class Network:
                 inputs.append(list(self.train_inputs[c][i]))
             return inputs
                 
-    def get_train_target(self, i):
+    def _get_train_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -513,7 +525,7 @@ class Network:
                 targets.append(list(self.train_targets[c][i]))
             return targets
 
-    def get_test_input(self, i):
+    def _get_test_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -526,7 +538,7 @@ class Network:
                 inputs.append(list(self.test_inputs[c][i]))
             return inputs
                 
-    def get_test_target(self, i):
+    def _get_test_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -609,15 +621,15 @@ class Network:
                     f = k(f)
                 layer.k = f
                 ## get the inputs to this branch, in order:
-                input_ks = self.get_input_ks_in_order(layer.input_names)
+                input_ks = self._get_input_ks_in_order(layer.input_names)
                 layer.model = Model(inputs=input_ks, outputs=layer.k)
-        output_k_layers = self.get_ordered_output_layers()
-        input_k_layers = self.get_ordered_input_layers()
+        output_k_layers = self._get_ordered_output_layers()
+        input_k_layers = self._get_ordered_input_layers()
         self.model = Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
         self.model.compile(**kwargs)
 
-    def get_input_ks_in_order(self, layer_names):
+    def _get_input_ks_in_order(self, layer_names):
         """
         Get the Keras function for each of a set of layer names.
         """
@@ -631,7 +643,7 @@ class Network:
             # the one input name:
             return self[layer_names[0]].k
 
-    def get_ordered_output_layers(self):
+    def _get_ordered_output_layers(self):
         """
         Return the ordered output layers' Keras functions.
         """
@@ -643,7 +655,7 @@ class Network:
             layers = [layer.k for layer in self.layers if layer.kind() == "output"][0]
         return layers
 
-    def get_ordered_input_layers(self):
+    def _get_ordered_input_layers(self):
         """
         Get the Keras functions for all layers, in order.
         """
@@ -655,7 +667,7 @@ class Network:
             layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
         return layers
         
-    def scale_output_for_image(self, activation, vector):
+    def _scale_output_for_image(self, activation, vector):
         """
         Given an activation name (or something else) and an output
         vector, scale the vector.
@@ -670,7 +682,7 @@ class Network:
         else: # activation in ["linear"] or otherwise
             return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
         
-    def make_image_widget(self, layer, vector, size=25, transpose=False, colormap="hot"):
+    def _make_image_data(self, layer_name, vector, size=25, transpose=False, colormap="hot"):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
@@ -678,10 +690,11 @@ class Network:
         import ipywidgets
         import matplotlib as mpl
         import PIL
+        layer = self[layer_name]
         activation = layer.activation
         if layer.vshape != layer.shape:
             vector = vector.reshape(layer.vshape)
-        vector = self.scale_output_for_image(activation, vector)
+        vector = self._scale_output_for_image(activation, vector)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         image = PIL.Image.fromarray(vector, 'P')
@@ -693,36 +706,78 @@ class Network:
         #img_src = image.resize((width, hsize), PIL.Image.ANTIALIAS)
         img_src = image.resize((hsize, width), PIL.Image.ANTIALIAS)
         # colorize:
-        cm_hot = mpl.cm.get_cmap(colormap)
-        im = np.array(img_src)
-        im = cm_hot(im)
-        im = np.uint8(im * 255)
-        im = PIL.Image.fromarray(im)
+        #cm_hot = mpl.cm.get_cmap(colormap)
+        #im = np.array(img_src)
+        #im = cm_hot(im)
+        #im = np.uint8(im * 255)
+        #im = PIL.Image.fromarray(im)
         # Convert to png binary data:
         b = io.BytesIO()
-        im.save(b, format='png')
+        img_src.save(b, format='gif')
         data = b.getvalue()
-        layout = ipywidgets.Layout(border='2px solid blue')
-        widget = ipywidgets.Image(value=data, format='png', layout=layout)
-        return widget
+        #layout = ipywidgets.Layout(border='2px solid blue')
+        #widget = ipywidgets.Image(value=data, format='png', layout=layout)
+        return data
 
+    def propagate_input_to(self, index, layer_name):
+        inputs = self._get_input(index)
+        outputs = self.propagate_to(layer_name, inputs)
+        outputs = np.array(outputs)
+        data = self._make_image_data(layer_name, outputs)
+        data = base64.b64encode(data)
+        if not isinstance(data, str):
+            data = data.decode("latin1")
+        return data
+
+    def make_svg(self, data_uri):
+        svg = """
+<svg id='mysvg' xmlns='http://www.w3.org/2000/svg' width="400" height="400">
+    <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="black" />
+        </marker>
+    </defs>
+    <image id="output1" x="0" y="0" height="25" width="25" image-rendering="optimizeQuality"
+        xlink:href="{output1}" />
+    <rect x="0" y="0" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="output2" x="200" y="0" height="25" width="25" 
+        xlink:href="{output2}" />
+    <rect x="200" y="0" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="shared-hidden" x="100" y="100" height="25" width="50" 
+        xlink:href="{shared-hidden}" />
+    <rect x="100" y="100" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="hidden1" x="0" y="200" height="25" width="50" 
+        xlink:href="{hidden1}" />
+    <rect x="0" y="200" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="hidden2" x="200" y="200" height="25" width="50" 
+        xlink:href="{hidden2}" />
+    <rect x="200" y="200" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="input1" x="0" y="300" height="25" width="25" 
+        xlink:href="{input1}" />
+    <rect x="0" y="300" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <image id="input2" x="200" y="300" height="25" width="25" 
+        xlink:href="{input2}" />
+    <rect x="200" y="300" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
+    <line x1="100" y1="100" x2="50" y2="75" stroke="#000" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="100" y="35" font-family="Verdana" font-size="20">
+      input1
+    </text>
+</svg>
+""".format(**data_uri)
+        return svg
+
+    def make_image_uri(self, data):
+        return "data:image/gif;base64,%s" % data
+    
     def visualize(self, inputs, colormap="hot"):
-        import ipywidgets
         from IPython.display import display
-        self.widgets = {}
-        self.index = 0
-        for layer in self.layers:
-            if layer.kind() == 'input':
-                for lay in reversed(layer.chain()):
-                    if hasattr(lay, "model"):
-                        output = np.array(lay._output(inputs))
-                    else:
-                        continue
-                    accordion = ipywidgets.Accordion((self.make_image_widget(lay, output, colormap=colormap),))
-                    accordion.set_title(0, lay.name)
-                    display(accordion)
-        display(ipywidgets.Button(description="Next"))
-        display(ipywidgets.Button(description="Previous"))
+        ## First, get a level for all layers:
+        levels = {}
+        for layer in topological_sort(self):
+            if not hasattr(layer, "model"):
+                continue
+            level = max([levels[lay.name] for lay in layer.incoming_connections] + [-1])
+            levels[layer.name] = level + 1
 
 #------------------------------------------------------------------------
 # utility functions
@@ -755,7 +810,8 @@ class Layer:
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
             
     def __repr__(self):
-        return self.name
+        return "<Layer name='%s', shape=%s, act='%s'>" % (
+            self.name, self.shape, self.activation)
 
     def __init__(self, name, shape, **params):
         if not (isinstance(name, str) and len(name) > 0):

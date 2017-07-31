@@ -120,7 +120,7 @@ net.rescale_inputs((0,255), (0,1), 'float32')
 net.shuffle_dataset()
 net.reshape_inputs(784)
 net.split_dataset(100)
-net.set_targets(10)
+net.set_targets_to_categories(10)
 net.summary_dataset()
 
 net.train(10, report_rate=1)
