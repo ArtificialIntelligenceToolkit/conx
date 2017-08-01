@@ -67,7 +67,7 @@ class InterruptHandler():
         self.released = True
         return True
 
-class Network:
+class Network():
     def __init__(self, name, *sizes, **kwargs):
         """
         Create a neural network. 
@@ -104,6 +104,9 @@ class Network:
             return None
         else:
             return self.layer_dict[layer_name]
+
+    def _repr_svg_(self):
+        return self.build_svg()
 
     def add(self, layer):
         if layer.name in self.layer_dict:
@@ -434,7 +437,7 @@ class Network:
                 result = self.model.fit(self.train_inputs, self.train_targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
-                                        verbose=1,
+                                        verbose=verbose,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight)
@@ -789,6 +792,19 @@ class Network:
         image = self._make_image(layer_name, outputs)
         return image
 
+    def update_svg(self, index):
+        ## FIXME: need better method:
+        from IPython.display import Javascript, display
+        text = ""
+        for name in [layer.name for layer in self.layers]:
+            image = self.propagate_input_to(index, name)
+            data_uri = self._image_to_uri(image)
+            text +=  """
+var image = document.getElementById("{netname}_{name}");
+image.setAttributeNS(null, "href", "{data_uri}");
+""".format(**{"netname": self.name, "name": name, "data_uri": data_uri})
+        display(Javascript(text))
+    
     def build_svg(self):
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" xlink:href="{{image}}" />""".format(**{"netname": self.name})
