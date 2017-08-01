@@ -884,7 +884,7 @@ class Network():
             cheight += max_height + 50 # 50 for arrows
             top = False
         self.visualize = True
-        self._initialize_javascript_server()
+        self._initialize_javascript()
         return ("""
         <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
     <defs>
@@ -894,16 +894,21 @@ class Network():
     </defs>
 """.format(**{"width": max_width, "height": total_height, "netname": self.name}) + svg + """</svg>""")
 
-    def _initialize_javascript_server(self):
+    def _initialize_javascript(self):
         from IPython.display import Javascript, display
         js = """
-Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
-    comm.on_msg(function(msg) {
-        var data = msg["content"]["data"];
-        var image = document.getElementById(data["id"]);
-        image.setAttributeNS(null, "href", data["href"]);
+require(['base/js/namespace'], function(Jupyter) {
+    Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
+        comm.on_msg(function(msg) {
+            var data = msg["content"]["data"];
+            var image = document.getElementById(data["id"]);
+            if (image) {
+                image.setAttributeNS(null, "href", data["href"]);
+            }
+        });
     });
-});"""
+});
+"""
         display(Javascript(js))
     
     def _get_level_ordering(self):

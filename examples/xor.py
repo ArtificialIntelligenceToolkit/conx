@@ -5,7 +5,7 @@ dataset = [[[0, 0], [0]],
            [[1, 0], [1]],
            [[1, 1], [0]]]
 
-net = Network("XOR", 2, 2, 1)
+net = Network("XOR", 2, 2, 1, activation="sigmoid")
 
 # NOTE:
 #    net = Network(2, 3, 4, 1, activation="sigmoid")

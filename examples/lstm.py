@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # since we are using stateful rnn tsteps can be set to 1
 tsteps = 1
 batch_size = 25
-epochs = 25
+epochs = 1
 # number of elements ahead that are used to make the prediction
 lahead = 1
 
@@ -39,17 +39,17 @@ print('Output shape:', expected_output.shape)
 
 print('Creating Model...')
 net = Network("LSTM")
-net.add(Layer("input", None, batch_shape=(batch_size, tsteps, 1))) #, batch_shape=(batch_size, tsteps, 1)))
+net.add(Layer("input", (1, 1), batch_shape=(25, 1, 1))) 
 net.add(LSTMLayer("lstm1",
-                  shape=50,
-                  #batch_input_shape=batch_size,
+                  50,
+                  batch_size=25,
                   return_sequences=True,
                   stateful=True))
 net.add(LSTMLayer("lstm2",
-                  shape=50,
+                  50,
                   return_sequences=False,
                   stateful=True))
-net.add(Layer("output", shape=1))
+net.add(Layer("output", 1))
 net.connect()
 net.compile(loss='mse', optimizer='rmsprop')
 
