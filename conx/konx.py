@@ -98,6 +98,8 @@ class Network():
         self.input_layer_order = []
         self.output_layer_order = []
         self.num_inputs = 0
+        self.visualize = False
+        self._comm = None
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -600,24 +602,36 @@ class Network():
     def propagate(self, input, batch_size=None):
         if self.num_input_layers == 1:
             if batch_size is not None:
-                return list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
+                outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
             else:
-                return list(self.model.predict(np.array([input]))[0])
+                outputs = list(self.model.predict(np.array([input]))[0])
         else:
             inputs = [np.array(x, "float32") for x in input]
             if batch_size is not None:
-                return [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
+                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
             else:
-                return [[list(y) for y in x][0] for x in self.model.predict(inputs)]
-
+                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs)]
+        if self.visualize:
+            if not self._comm:
+                from ipykernel.comm import Comm
+                self._comm = Comm(target_name='conx_svg_control')
+            for layer in self.layers:
+                image = self.propagate_to_image(layer.name, input, batch_size)
+                data_uri = self._image_to_uri(image)
+                self._comm.send({'id': "XOR2_" + layer.name, "href": data_uri})
+        return outputs
+            
     def propagate_to(self, layer_name, input, batch_size=None):
+        """
+        Computes activation at a layer. Side-effect: updates visualized SVG.
+        """
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if self.num_input_layers == 1:
             if batch_size is not None:
-                return list(self[layer_name]._output(np.array([input]), batch_size=batch_size)[0])
+                outputs = list(self[layer_name]._output(np.array([input]), batch_size=batch_size)[0])
             else:
-                return list(self[layer_name]._output(np.array([input]))[0])
+                outputs = list(self[layer_name]._output(np.array([input]))[0])
         else:
             inputs = [np.array(x, "float32") for x in input]
             # get just inputs for this layer, in order:
@@ -625,9 +639,28 @@ class Network():
             if len(inputs) == 1:
                 inputs = inputs[0]
             if batch_size is not None:
-                return list(self[layer_name]._output(inputs, batch_size=batch_size)[0])
+                outputs = list(self[layer_name]._output(inputs, batch_size=batch_size)[0])
             else:
-                return list(self[layer_name]._output(inputs)[0])
+                outputs = list(self[layer_name]._output(inputs)[0])
+        if self.visualize:
+            if not self._comm:
+                from ipykernel.comm import Comm
+                self._comm = Comm(target_name='conx_svg_control')
+            array = np.array(outputs)
+            image = self._make_image(layer_name, array)
+            data_uri = self._image_to_uri(image)
+            self._comm.send({'id': "%s_%s" % (self.name, layer_name),
+                            "href": data_uri})
+        return outputs
+
+    def propagate_to_image(self, layer_name, input, batch_size=None):
+        """
+        Gets an image of activations at a layer.
+        """
+        outputs = self.propagate_to(layer_name, input, batch_size)
+        array = np.array(outputs)
+        image = self._make_image(layer_name, array)
+        return image
 
     def compile(self, **kwargs):
         ## Error checking:
@@ -785,27 +818,8 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % data
 
-    def propagate_input_to(self, index, layer_name):
-        inputs = self._get_input(index)
-        outputs = self.propagate_to(layer_name, inputs)
-        outputs = np.array(outputs)
-        image = self._make_image(layer_name, outputs)
-        return image
-
-    def update_svg(self, index):
-        ## FIXME: need better method:
-        from IPython.display import Javascript, display
-        text = ""
-        for name in [layer.name for layer in self.layers]:
-            image = self.propagate_input_to(index, name)
-            data_uri = self._image_to_uri(image)
-            text +=  """
-var image = document.getElementById("{netname}_{name}");
-image.setAttributeNS(null, "href", "{data_uri}");
-""".format(**{"netname": self.name, "name": name, "data_uri": data_uri})
-        display(Javascript(text))
-    
     def build_svg(self):
+        self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" xlink:href="{{image}}" />""".format(**{"netname": self.name})
         arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)" />"""
@@ -819,7 +833,9 @@ image.setAttributeNS(null, "href", "{data_uri}");
             max_height = 0 # per row
             total_width = 0
             for layer_name in level_names:
-                image = self.propagate_input_to(0, layer_name) # use first input
+                ## FIXME: make an input from input layer description
+                ## FIXME: currently requires dataset before it can be drawn
+                image = self.propagate_to_image(layer_name, self._get_input(0)) 
                 (width, height) = image.size
                 max_dim = max(width, height)
                 if max_dim > 200:
@@ -869,6 +885,8 @@ image.setAttributeNS(null, "href", "{data_uri}");
                 max_height = max(max_height, height)
             cheight += max_height + 50 # 50 for arrows
             top = False
+        self.visualize = True
+        self._initialize_javascript_server()
         return ("""
         <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
     <defs>
@@ -877,44 +895,19 @@ image.setAttributeNS(null, "href", "{data_uri}");
         </marker>
     </defs>
 """.format(**{"width": max_width, "height": total_height, "netname": self.name}) + svg + """</svg>""")
-        
-    def make_svg(self, data_uri):
-        svg = """
-<svg id='mysvg' xmlns='http://www.w3.org/2000/svg' width="400" height="400">
-    <defs>
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L0,6 L9,3 z" fill="black" />
-        </marker>
-    </defs>
-    <image id="output1" x="0" y="0" height="25" width="25" 
-        xlink:href="{output1}" />
-    <rect x="0" y="0" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="output2" x="200" y="0" height="25" width="25" 
-        xlink:href="{output2}" />
-    <rect x="200" y="0" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="shared-hidden" x="100" y="100" height="25" width="50" 
-        xlink:href="{shared-hidden}" />
-    <rect x="100" y="100" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="hidden1" x="0" y="200" height="25" width="50" 
-        xlink:href="{hidden1}" />
-    <rect x="0" y="200" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="hidden2" x="200" y="200" height="25" width="50" 
-        xlink:href="{hidden2}" />
-    <rect x="200" y="200" width="50" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="input1" x="0" y="300" height="25" width="25" 
-        xlink:href="{input1}" />
-    <rect x="0" y="300" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <image id="input2" x="200" y="300" height="25" width="25" 
-        xlink:href="{input2}" />
-    <rect x="200" y="300" width="25" height="25" stroke="purple" stroke-width="2px" fill="none" />
-    <line x1="100" y1="100" x2="50" y2="75" stroke="#000" stroke-width="2" marker-end="url(#arrow)" />
-    <text x="100" y="35" font-family="Verdana" font-size="20">
-      input1
-    </text>
-</svg>
-""".format(**data_uri)
-        return svg
 
+    def _initialize_javascript_server(self):
+        from IPython.display import Javascript, display
+        js = """
+Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
+    comm.on_msg(function(msg) {
+        var data = msg["content"]["data"];
+        var image = document.getElementById(data["id"]);
+        image.setAttributeNS(null, "href", data["href"]);
+    });
+});"""
+        display(Javascript(js))
+    
     def _get_level_ordering(self):
         ## First, get a level for all layers:
         levels = {}
