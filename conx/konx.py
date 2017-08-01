@@ -84,8 +84,11 @@ class Network():
         self.targets = None
         # If simple feed-forward network:
         for i in range(len(sizes)):
-            self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
-                           activation=kwargs.get("activation", "sigmoid")))
+            if i > 0:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
+                               activation=kwargs.get("activation", "linear")))
+            else:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
         self.num_input_layers = 0
         self.num_target_layers = 0
         # Connect them together:
@@ -692,12 +695,7 @@ class Network():
         sequence = topological_sort(self)
         for layer in sequence:
             if layer.kind() == 'input':
-                if "activation" in layer.params:
-                    del layer.params["activation"]
-                if layer.shape:
-                    layer.k = Input(shape=layer.shape, **layer.params)
-                else:
-                    layer.k = Input(**layer.params)
+                layer.k = layer.make_input_layer_k()
                 layer.input_names = [layer.name]
                 layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
             else:
@@ -969,36 +967,20 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
 
 #------------------------------------------------------------------------
 
-class Layer():
-
+class BaseLayer():
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
-    CLASS = Dense
-            
-    def __repr__(self):
-        return "<Layer name='%s', shape=%s, act='%s'>" % (
-            self.name, self.shape, self.activation)
+    CLASS = None
 
-    def __init__(self, name, shape, **params):
+    def __init__(self, name, *args, **params):
         if not (isinstance(name, str) and len(name) > 0):
             raise Exception('bad layer name: %s' % (name,))
         self.name = name
         self.params = params
-        if shape is None: # Special case: must be passed in
-            self.shape = None
-            self.size = None
-        else:
-            if not valid_shape(shape):
-                raise Exception('bad shape: %s' % (shape,))
-            # set layer topology (shape) and number of units (size)
-            if isinstance(shape, int):
-                # linear layer
-                self.shape = (shape,)
-                self.size = shape
-            else:
-                # multi-dimensional layer
-                self.shape = shape
-                self.size = reduce(operator.mul, shape)
+        self.args = args
         params["name"] = name
+        self.vshape = None
+        # used to determine image ranges:
+        self.activation = params.get("activation", None) 
 
         # set visual shape for display purposes
         if 'vshape' in params:
@@ -1006,25 +988,87 @@ class Layer():
             del params["vshape"] # drop those that are not Keras parameters
             if not valid_vshape(vs):
                 raise Exception('bad vshape: %s' % (vs,))
-            elif isinstance(vs, int) and vs != self.size \
-                 or isinstance(vs, tuple) and vs[0]*vs[1] != self.size:
-                raise Exception('vshape incompatible with layer of size %d' % (self.size,))
             else:
                 self.vshape = vs
-        elif self.shape and len(self.shape) > 2:
-            self.vshape = (self.size,)
+        
+        if 'dropout' in params:
+            dropout = params['dropout']
+            del params["dropout"] # we handle dropout layers
+            if dropout == None: dropout = 0
+            if not (isinstance(dropout, (int, float)) and 0 <= dropout <= 1):
+                raise Exception('bad dropout rate: %s' % (dropout,))
+            self.dropout = dropout
         else:
-            self.vshape = self.shape
+            self.dropout = 0
+
+        self.incoming_connections = []
+        self.outgoing_connections = []
+
+    def __repr__(self):
+        return "<BaseLayer name='%s'>" % (self.name)
+
+    def _output(self, input, batch_size=None):
+        if batch_size is not None:
+            output = self.model.predict(input, batch_size=batch_size)
+        else:
+            output = self.model.predict(input)
+        return output
+
+    def summary(self):
+        print("Name: %s (%s) VShape: %s Dropout: %s" %
+              (self.name, self.kind(), self.vshape, self.dropout))
+        if len(self.outgoing_connections) > 0:
+            print("Connected to:", [layer.name for layer in self.outgoing_connections])
+
+    def kind(self):
+        if len(self.incoming_connections) == 0 and len(self.outgoing_connections) == 0:
+            return 'unconnected'
+        elif len(self.incoming_connections) > 0 and len(self.outgoing_connections) > 0:
+            return 'hidden'
+        elif len(self.incoming_connections) > 0:
+            return 'output'
+        else:
+            return 'input'
+
+    def make_input_layer_k(self):
+        return Input(self.shape, *self.args, **self.params)
+        
+    def make_keras_function(self):
+        return self.CLASS(*self.args, **self.params)
+        
+    def make_keras_functions(self):
+        k = self.make_keras_function() # can override
+        if self.dropout > 0:
+            return [k, Dropout(self.dropout)]
+        else:
+            return [k]
+
+class Layer(BaseLayer):
+    """
+    For Dense and Input type layers.
+    """
+    CLASS = Dense
+    def __init__(self, name, shape, **params):
+        super().__init__(name, **params)
+
+        if not valid_shape(shape):
+            raise Exception('bad shape: %s' % (shape,))
+        # set layer topology (shape) and number of units (size)
+        if isinstance(shape, int):
+            self.shape = (shape,)
+            self.size = shape
+        else:
+            # multi-dimensional layer
+            self.shape = shape
+            self.size = reduce(operator.mul, shape)
         
         if 'activation' in params:
             act = params['activation']
-            if act == None: act = 'linear'
+            if act == None:
+                act = 'linear'
             if not (callable(act) or act in Layer.ACTIVATION_FUNCTIONS):
                 raise Exception('unknown activation function: %s' % (act,))
             self.activation = act
-        else:
-            self.activation = 'linear'
-            params["activation"] = "linear"
 
         if 'dropout' in params:
             dropout = params['dropout']
@@ -1039,12 +1083,9 @@ class Layer():
         self.incoming_connections = []
         self.outgoing_connections = []
 
-    def _output(self, input, batch_size=None):
-        if batch_size is not None:
-            output = self.model.predict(input, batch_size=batch_size)
-        else:
-            output = self.model.predict(input)
-        return output
+    def __repr__(self):
+        return "<Layer name='%s', shape=%s, act='%s'>" % (
+            self.name, self.shape, self.activation)
 
     def summary(self):
         print("Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" %
@@ -1052,27 +1093,11 @@ class Layer():
         if len(self.outgoing_connections) > 0:
             print("Connected to:", [layer.name for layer in self.outgoing_connections])
 
-    def kind(self):
-        if len(self.incoming_connections) == 0 and len(self.outgoing_connections) == 0:
-            return 'unconnected'
-        elif len(self.incoming_connections) > 0 and len(self.outgoing_connections) > 0:
-            return 'hidden'
-        elif len(self.incoming_connections) > 0:
-            return 'output'
-        else:
-            return 'input'
-        
-    def make_keras_functions(self):
-        if self.kind() == 'input':
-            raise Exception("Input layers are made automatically")
-        k = self.CLASS(self.size, **self.params)
-        if self.dropout > 0:
-            return [k, Dropout(self.dropout)]
-        else:
-            return [k]
+    def make_keras_function(self):
+        return self.CLASS(self.size, **self.params)
 
 
-class LSTMLayer(Layer):
+class LSTMLayer(BaseLayer):
     CLASS = keras.layers.LSTM
         
 '''
