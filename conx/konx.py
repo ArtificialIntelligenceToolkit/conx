@@ -16,6 +16,7 @@ import operator
 import importlib
 from functools import reduce
 import signal
+import numbers
 import base64
 import io
 
@@ -231,14 +232,14 @@ class Network():
             raise Exception("no dataset loaded")
         if not valid_shape(new_shape):
             raise Exception("bad shape: %s" % (new_shape,))
-        if isinstance(new_shape, int):
+        if isinstance(new_shape, numbers.Integral):
             new_size = self.num_inputs * new_shape
         else:
             new_size = self.num_inputs * reduce(operator.mul, new_shape)
         ## FIXME: work on multi-inputs?
         if new_size != self.inputs.size:
             raise Exception("shape %s is incompatible with inputs" % (new_shape,))
-        if isinstance(new_shape, int):
+        if isinstance(new_shape, numbers.Integral):
             new_shape = (new_shape,)
         self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
         self.split_dataset(self.split, verbose=False)
@@ -269,7 +270,7 @@ class Network():
     def set_targets_to_categories(self, num_classes):
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
-        if not isinstance(num_classes, int) or num_classes <= 0:
+        if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
         self.targets = to_categorical(self.labels, num_classes).astype("uint8")
         self.train_targets = self.targets[:self.split]
@@ -365,14 +366,14 @@ class Network():
     def split_dataset(self, split=0.50, verbose=True):
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
-        if isinstance(split, float):
-            if not 0 <= split <= 1:
-                raise Exception("split is not in the range 0-1: %s" % split)
-            self.split = int(self.num_inputs * split)
-        elif isinstance(split, int):
+        if isinstance(split, numbers.Integral):
             if not 0 <= split <= self.num_inputs:
                 raise Exception("split out of range: %d" % split)
             self.split = split
+        elif isinstance(split, numbers.Real):
+            if not 0 <= split <= 1:
+                raise Exception("split is not in the range 0-1: %s" % split)
+            self.split = int(self.num_inputs * split)
         else:
             raise Exception("invalid split: %s" % split)
         if self.num_input_layers == 1:
@@ -426,7 +427,7 @@ class Network():
                 batch_size = self.train_inputs.shape[0]
             else:
                 batch_size = self.train_inputs[0].shape[0]
-        if not (isinstance(batch_size, int) or batch_size is None):
+        if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
@@ -950,15 +951,15 @@ def autoname(index, sizes):
     return n
 
 def valid_shape(x):
-    return isinstance(x, int) and x > 0 \
-        or isinstance(x, tuple) and len(x) > 1 and all([isinstance(n, int) and n > 0 for n in x])
+    return isinstance(x, numbers.Integral) and x > 0 \
+        or isinstance(x, (tuple, list)) and len(x) > 1 and all([isinstance(n, numbers.Integral) and n > 0 for n in x])
 
 def valid_vshape(x):
     # vshape must be a single int or a 2-dimensional tuple
-    return valid_shape(x) and (isinstance(x, int) or len(x) == 2)
+    return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) == 2)
 
 def rescale_numpy_array(a, old_range, new_range, new_dtype):
-    assert isinstance(old_range, tuple) and isinstance(new_range, tuple)
+    assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range
     if a.min() < old_min or a.max() > old_max:
         raise Exception('array values are outside range %s' % (old_range,))
@@ -1000,7 +1001,7 @@ class BaseLayer():
             dropout = params['dropout']
             del params["dropout"] # we handle dropout layers
             if dropout == None: dropout = 0
-            if not (isinstance(dropout, (int, float)) and 0 <= dropout <= 1):
+            if not (isinstance(dropout, numbers.Real) and 0 <= dropout <= 1):
                 raise Exception('bad dropout rate: %s' % (dropout,))
             self.dropout = dropout
         else:
@@ -1059,7 +1060,7 @@ class Layer(BaseLayer):
         if not valid_shape(shape):
             raise Exception('bad shape: %s' % (shape,))
         # set layer topology (shape) and number of units (size)
-        if isinstance(shape, int):
+        if isinstance(shape, numbers.Integral):
             self.shape = (shape,)
             self.size = shape
         else:
@@ -1074,16 +1075,6 @@ class Layer(BaseLayer):
             if not (callable(act) or act in Layer.ACTIVATION_FUNCTIONS):
                 raise Exception('unknown activation function: %s' % (act,))
             self.activation = act
-
-        if 'dropout' in params:
-            dropout = params['dropout']
-            del params["dropout"] # we handle dropout layers
-            if dropout == None: dropout = 0
-            if not (isinstance(dropout, (int, float)) and 0 <= dropout <= 1):
-                raise Exception('bad dropout rate: %s' % (dropout,))
-            self.dropout = dropout
-        else:
-            self.dropout = 0
 
         self.incoming_connections = []
         self.outgoing_connections = []
