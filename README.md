@@ -22,7 +22,7 @@ dataset = [[[0, 0], [0]],
           [[1, 0], [1]],
           [[1, 1], [0]]]
 
-net = Network("XOR", 2, 2, 1)
+net = Network("XOR", 2, 2, 1, activation="sigmoid")
 net.set_dataset(dataset)
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
