@@ -112,7 +112,13 @@ class Network():
             return self.layer_dict[layer_name]
 
     def _repr_svg_(self):
-        return self.build_svg()
+        if all([layer.model for layer in self.layers]):
+            return self.build_svg()
+        else:
+            return None
+
+    def __repr__(self):
+        return "<Network name='%s'>" % self.name
 
     def add(self, layer):
         if layer.name in self.layer_dict:
@@ -343,12 +349,13 @@ class Network():
         self.acc_history = []
         self.loss_history = []
         self.val_percent_history = []
-        for layer in self.model.layers:
-            weights = layer.get_weights()
-            new_weights = []
-            for weight in weights:
-                new_weights.append(self._make_weights(weight.shape))
-            layer.set_weights(new_weights)
+        if self.model:
+            for layer in self.model.layers:
+                weights = layer.get_weights()
+                new_weights = []
+                for weight in weights:
+                    new_weights.append(self._make_weights(weight.shape))
+                layer.set_weights(new_weights)
         
     def shuffle_dataset(self, verbose=True):
         if self.num_inputs == 0:
@@ -651,7 +658,7 @@ class Network():
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
             array = np.array(outputs)
-            image = self._make_image(layer_name, array)
+            image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
             data_uri = self._image_to_uri(image)
             self._comm.send({'id': "%s_%s" % (self.name, layer_name),
                             "href": data_uri})
@@ -663,7 +670,7 @@ class Network():
         """
         outputs = self.propagate_to(layer_name, input, batch_size)
         array = np.array(outputs)
-        image = self._make_image(layer_name, array)
+        image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
         return image
 
     def compile(self, **kwargs):
@@ -761,23 +768,28 @@ class Network():
         else:
             layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
         return layers
-        
-    def _scale_output_for_image(self, activation, vector):
+
+    def _get_minmax(self, layer, vector):
+        if layer.minmax:
+            return layer.minmax
+        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+        if layer.activation in ["tanh"]:
+            return (-1,+1)
+        elif layer.activation in ["sigmoid", "softmax"]:
+            return (0,+1)
+        elif layer.activation in ["relu"]:
+            return (0,vector.max())
+        else: # activation in ["linear"] or otherwise
+            return (-1,+1)
+    
+    def _scale_output_for_image(self, vector, minmax):
         """
         Given an activation name (or something else) and an output
         vector, scale the vector.
         """
-        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
-        if activation in ["tanh"]:
-            return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
-        elif activation in ["sigmoid", "softmax"]:
-            return rescale_numpy_array(vector, (0,+1), (0,255), 'uint8')
-        elif activation in ["relu"]:
-            return rescale_numpy_array(vector, (0,vector.max()), (0,255), 'uint8')
-        else: # activation in ["linear"] or otherwise
-            return rescale_numpy_array(vector, (-1,+1), (0,255), 'uint8')
+        return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
         
-    def _make_image(self, layer_name, vector, size=25, transpose=False, colormap="hot"):
+    def _make_image(self, layer_name, vector, size=25, transpose=False, colormap=None):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
@@ -788,24 +800,21 @@ class Network():
         activation = layer.activation
         if layer.vshape != layer.shape:
             vector = vector.reshape(layer.vshape)
-        vector = self._scale_output_for_image(activation, vector)
+        minmax = self._get_minmax(layer, vector)
+        vector = self._scale_output_for_image(vector, minmax)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
-        image = PIL.Image.fromarray(vector, 'P')
-        width = vector.shape[0] * size # in, pixels
-        # Fixed size:
-        hsize = vector.shape[1] * size # in, pixels
-        #wpercent = (width/float(image.size[0]))
-        #hsize = int((float(image.size[1])*float(wpercent)))
-        #img_src = image.resize((width, hsize), PIL.Image.ANTIALIAS)
-        img_src = image.resize((hsize, width)) # , PIL.Image.ANTIALIAS)
-        # colorize:
-        #cm_hot = mpl.cm.get_cmap(colormap)
-        #im = np.array(img_src)
-        #im = cm_hot(im)
-        #im = np.uint8(im * 255)
-        #im = PIL.Image.fromarray(im)
-        return img_src
+        new_width = vector.shape[0] * size # in, pixels
+        new_height = vector.shape[1] * size # in, pixels
+        if colormap:
+            cm_hot = mpl.cm.get_cmap(colormap)
+            vector = cm_hot(vector)
+            vector = np.uint8(vector * 255)
+            image = PIL.Image.fromarray(vector)
+        else:
+            image = PIL.Image.fromarray(vector, 'P')
+        image = image.resize((new_height, new_width))
+        return image
 
     def _image_to_uri(self, img_src):
         # Convert to binary data:
@@ -817,6 +826,12 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % data
 
+    def _make_dummy_vector(self, layer):
+        v = np.ones(layer.shape)
+        lo, hi = self._get_minmax(layer, v)
+        v *= (lo + hi) / 2.0
+        return v
+    
     def build_svg(self):
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
@@ -832,9 +847,11 @@ class Network():
             max_height = 0 # per row
             total_width = 0
             for layer_name in level_names:
-                ## FIXME: make an input from input layer description
-                ## FIXME: currently requires dataset before it can be drawn
-                image = self.propagate_to_image(layer_name, self._get_input(0)) 
+                if self.inputs is not None:
+                    v = self._get_input(0)
+                else:
+                    v = self._make_dummy_vector(self[layer_name])
+                image = self.propagate_to_image(layer_name, v)
                 (width, height) = image.size
                 max_dim = max(width, height)
                 if max_dim > 200:
@@ -985,6 +1002,10 @@ class BaseLayer():
         self.args = args
         params["name"] = name
         self.vshape = None
+        self.colormap = None
+        self.minmax = None
+        self.model = None
+        self.input_names = []
         # used to determine image ranges:
         self.activation = params.get("activation", None) 
 
@@ -996,6 +1017,14 @@ class BaseLayer():
                 raise Exception('bad vshape: %s' % (vs,))
             else:
                 self.vshape = vs
+
+        if 'colormap' in params:
+            self.colormap = params['colormap']
+            del params["colormap"] # drop those that are not Keras parameters
+        
+        if 'minmax' in params:
+            self.minmax = params['minmax']
+            del params["minmax"] # drop those that are not Keras parameters
         
         if 'dropout' in params:
             dropout = params['dropout']
@@ -1011,7 +1040,7 @@ class BaseLayer():
         self.outgoing_connections = []
 
     def __repr__(self):
-        return "<BaseLayer name='%s'>" % (self.name)
+        return "<%s name='%s'>" % (self.CLASS.__name__, self.name)
 
     def _output(self, input, batch_size=None):
         if batch_size is not None:
