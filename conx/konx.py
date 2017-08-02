@@ -629,7 +629,7 @@ class Network():
             for layer in self.layers:
                 image = self.propagate_to_image(layer.name, input, batch_size)
                 data_uri = self._image_to_uri(image)
-                self._comm.send({'id': "XOR2_" + layer.name, "href": data_uri})
+                self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
             
     def propagate_to(self, layer_name, input, batch_size=None):
@@ -660,8 +660,7 @@ class Network():
             array = np.array(outputs)
             image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
             data_uri = self._image_to_uri(image)
-            self._comm.send({'id': "%s_%s" % (self.name, layer_name),
-                            "href": data_uri})
+            self._comm.send({'id': "%s_%s" % (self.name, layer_name), "href": data_uri})
         return outputs
 
     def propagate_to_image(self, layer_name, input, batch_size=None):
@@ -835,7 +834,7 @@ class Network():
     def build_svg(self):
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" xlink:href="{{image}}" />""".format(**{"netname": self.name})
+        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}" />""".format(**{"netname": self.name})
         arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)" />"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
         total_height = 25 # top border
