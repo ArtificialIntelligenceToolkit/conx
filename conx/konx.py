@@ -631,7 +631,39 @@ class Network():
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
-            
+
+    def propagate_from(self, layer_name, input, batch_size=None):
+        ## FIXME:
+        ## This needs to be build brand new from here to output(s)
+        # if self[layer_name].decode_model is None:
+        #     outks = self._get_output_ks_in_order()
+        #     if len(outks) == 1:
+        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks[0])
+        #     else:
+        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks)
+        # if batch_size is None:
+        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs)]
+        # else:
+        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs, batch_size=batch_size)]
+        # if self.visualize:
+        #     ## FIXME: should visualize this all the way through
+        #     ## For now, we just update the outputs
+        #     if not self._comm:
+        #         from ipykernel.comm import Comm
+        #         self._comm = Comm(target_name='conx_svg_control')
+        #     if self.output_layer_order:
+        #         layers = self.output_layer_order # layer_names
+        #         outpairs = zip(layers, outputs)
+        #     else:
+        #         layers = [layer.name for layer in self.layers if layer.kind() == "output"]
+        #         outpairs = [(layers[0], outputs)]
+        #     for (layer_name, vector) in vectors:
+        #         image = self._make_image(layer_name, vector, colormap=self[layer_name].colormap)
+        #         data_uri = self._image_to_uri(image)
+        #         self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+        # return outputs
+        return 
+        
     def propagate_to(self, layer_name, input, batch_size=None):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
@@ -742,7 +774,21 @@ class Network():
             return result
         else:
             # the one input name:
-            return self[layer_names[0]].k
+            return [[layer for layer in self.layers if layer.kind() == "input"][0].k]
+
+    def _get_output_ks_in_order(self):
+        """
+        Get the Keras function for each output layer, in order.
+        """
+        if self.output_layer_order:
+            result = []
+            for name in self.output_layer_order:
+                if name in [layer.name for layer in self.layers if layer.kind() == "output"]:
+                    result.append(self[name].k)
+            return result
+        else:
+            # the one output name:
+            return [[layer for layer in self.layers if layer.kind() == "output"][0].k] 
 
     def _get_ordered_output_layers(self):
         """
@@ -835,7 +881,8 @@ class Network():
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
-        arrow_svg = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect><line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
+        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
+        arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
         total_height = 25 # top border
         max_width = 0
@@ -888,21 +935,32 @@ class Network():
                                            "ry": cheight - 1, 
                                            "rh": height + 2, 
                                            "rw": width + 2} 
+                x1 = cwidth + width/2
+                y1 = cheight - 1
                 for out in self[layer_name].outgoing_connections:
-                    # draw an arrow to these
-                    x1 = cwidth + width/2
-                    y1 = cheight
+                    # draw background to arrows to allow mouseover tooltips:
                     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
-                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"] 
+                    rect_width = abs(x1 - x2)
+                    rect_extra = 0
+                    if rect_width < 20:
+                        rect_extra = 10
+                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    svg += arrow_rect.format(**{"tooltip": tooltip,
+                                                "rx": min(x2, x1) - rect_extra,
+                                                "ry": min(y2, y1) + 2, # bring down
+                                                "rw": rect_width + rect_extra * 2,
+                                                "rh": abs(y1 - y2) - 2})
+                for out in self[layer_name].outgoing_connections:
+                    # draw an arrow between layers:
+                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"] 
                     svg += arrow_svg.format(**{"x1":x1,
                                                "y1":y1,
                                                "x2":x2,
-                                               "y2":y2,
-                                               "tooltip": self.describe_connection_to(self[layer_name], out),
-                                               "rx": x2 - 10,
-                                               "ry": y2 + 2,
-                                               "rw": (x1 - x2) + 20,
-                                               "rh": (y1 - y2) - 2})
+                                               "y2":y2 + 2,
+                                               "tooltip": tooltip})
                 svg += image_svg.format(**positioning[layer_name])
                 svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
                                            "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
@@ -995,6 +1053,11 @@ require(['base/js/namespace'], function(Jupyter) {
                 new_weights = np.load(fp)
                 layer.set_weights(new_weights)
 
+    ## FIXME: add these:
+    #def to_array(self):
+    #def from_array(self):
+
+
 #------------------------------------------------------------------------
 # utility functions
 
@@ -1047,6 +1110,7 @@ class BaseLayer():
         self.colormap = None
         self.minmax = None
         self.model = None
+        self.decode_model = None
         self.input_names = []
         # used to determine image ranges:
         self.activation = params.get("activation", None) # make a copy, if one
