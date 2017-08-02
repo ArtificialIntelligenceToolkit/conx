@@ -974,6 +974,27 @@ require(['base/js/namespace'], function(Jupyter) {
         ## FIXME: how to show merged weights?
         return retval
 
+    def save(self, filename=None):
+        """
+        Save the weights to a file.
+        """
+        if filename is None:
+            filename = "%s.wts" % self.name
+        with open(filename, "wb") as fp:
+            for layer in self.model.layers:
+                np.save(fp, layer.get_weights())
+
+    def load(self, filename=None):
+        """
+        Load the weights from a file.
+        """
+        if filename is None:
+            filename = "%s.wts" % self.name
+        with open(filename, "rb") as fp:
+            for layer in self.model.layers:
+                new_weights = np.load(fp)
+                layer.set_weights(new_weights)
+
 #------------------------------------------------------------------------
 # utility functions
 
