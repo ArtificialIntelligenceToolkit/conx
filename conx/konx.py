@@ -532,7 +532,7 @@ class Network():
         # #print('Most recent weights saved in model.weights')
         # #self.model.save_weights('model.weights')
 
-    def _get_input(self, i):
+    def get_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -545,7 +545,7 @@ class Network():
                 inputs.append(list(self.inputs[c][i]))
             return inputs
                 
-    def _get_target(self, i):
+    def get_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -558,7 +558,7 @@ class Network():
                 targets.append(list(self.targets[c][i]))
             return targets
 
-    def _get_train_input(self, i):
+    def get_train_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -571,7 +571,7 @@ class Network():
                 inputs.append(list(self.train_inputs[c][i]))
             return inputs
                 
-    def _get_train_target(self, i):
+    def get_train_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -584,7 +584,7 @@ class Network():
                 targets.append(list(self.train_targets[c][i]))
             return targets
 
-    def _get_test_input(self, i):
+    def get_test_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -597,7 +597,7 @@ class Network():
                 inputs.append(list(self.test_inputs[c][i]))
             return inputs
                 
-    def _get_test_target(self, i):
+    def get_test_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -834,8 +834,8 @@ class Network():
     def build_svg(self):
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
-        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
+        arrow_svg = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect><line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
         total_height = 25 # top border
         max_width = 0
@@ -847,7 +847,7 @@ class Network():
             total_width = 0
             for layer_name in level_names:
                 if self.inputs is not None:
-                    v = self._get_input(0)
+                    v = self.get_input(0)
                 else:
                     v = self._make_dummy_vector(self[layer_name])
                 image = self.propagate_to_image(layer_name, v)
@@ -857,7 +857,7 @@ class Network():
                     image = image.resize((int(width/max_dim * 200), int(height/max_dim * 200)))
                     (width, height) = image.size
                 images[layer_name] = image
-                total_width += width + 75 # space between
+                total_width += width + 100 # space between
                 max_height = max(max_height, height)
             total_height += max_height + 50 # 50 for arrows
             max_width = max(max_width, total_width)
@@ -883,21 +883,31 @@ class Network():
                                            "image": self._image_to_uri(image),
                                            "width": width,
                                            "height": height,
-                                           "tooltip": self[layer_name].tooltip()}
+                                           "tooltip": self[layer_name].tooltip(),
+                                           "rx": cwidth - 1, # based on arrow width
+                                           "ry": cheight - 1, 
+                                           "rh": height + 2, 
+                                           "rw": width + 2} 
                 for out in self[layer_name].outgoing_connections:
                     # draw an arrow to these
-                    x = positioning[out.name]["x"] + positioning[out.name]["width"]/2
-                    y = positioning[out.name]["y"] + positioning[out.name]["height"]
-                    svg += arrow_svg.format(**{"x1":cwidth + width/2,
-                                               "y1":cheight,
-                                               "x2":x,
-                                               "y2":y,
-                                               "tooltip": self[layer_name].describe_connection_to(out)})
+                    x1 = cwidth + width/2
+                    y1 = cheight
+                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                    svg += arrow_svg.format(**{"x1":x1,
+                                               "y1":y1,
+                                               "x2":x2,
+                                               "y2":y2,
+                                               "tooltip": self.describe_connection_to(self[layer_name], out),
+                                               "rx": x2 - 10,
+                                               "ry": y2 + 2,
+                                               "rw": (x1 - x2) + 20,
+                                               "rh": (y1 - y2) - 2})
                 svg += image_svg.format(**positioning[layer_name])
                 svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
                                            "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
                                            "label": layer_name,
-                                           "size": 10})
+                                           "size": 12})
                 cwidth += width + spacing # spacing between
                 max_height = max(max_height, height)
             cheight += max_height + 50 # 50 for arrows
@@ -954,6 +964,16 @@ require(['base/js/namespace'], function(Jupyter) {
             ordering.append(level)
         return ordering
 
+    def describe_connection_to(self, layer1, layer2):
+        retval = "Weights from %s to %s" % (layer1.name, layer2.name)
+        for klayer in self.model.layers:
+            if klayer.name == layer2.name:
+                weights = klayer.get_weights()
+                for w in range(len(klayer.weights)):
+                    retval += "\n %s has shape %s" % (klayer.weights[w], weights[w].shape)
+        ## FIXME: how to show merged weights?
+        return retval
+
 #------------------------------------------------------------------------
 # utility functions
 
@@ -1008,7 +1028,7 @@ class BaseLayer():
         self.model = None
         self.input_names = []
         # used to determine image ranges:
-        self.activation = params.get("activation", None) 
+        self.activation = params.get("activation", None) # make a copy, if one
 
         # set visual shape for display purposes
         if 'vshape' in params:
@@ -1123,11 +1143,23 @@ class Layer(BaseLayer):
         return self.CLASS(self.size, **self.params)
 
     def tooltip(self):
-        retval = "Layer: %s" % self.name
-        return retval
-
-    def describe_connection_to(self, layer):
-        retval = "Weights from '%s' to '%s'" % (self.name, layer.name)
+        """
+        String (with newlines) for describing layer."
+        """
+        kind = self.kind()
+        retval = "Layer: %s (%s)" % (self.name, kind)
+        if self.shape:
+            retval += "\n shape = %s" % self.shape
+        if self.dropout:
+            retval += "\n dropout = %s" % self.dropout
+        if kind == "input":
+            retval += "\n Keras class = Input"
+        else:
+            retval += "\n Keras class = %s" % self.CLASS.__name__
+        for key in self.params:
+            if key in ["name"]:
+                continue
+            retval += "\n %s = %s" % (key, self.params[key])
         return retval
 
 class LSTMLayer(BaseLayer):
