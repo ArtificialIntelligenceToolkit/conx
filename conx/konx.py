@@ -834,8 +834,8 @@ class Network():
     def build_svg(self):
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}" />""".format(**{"netname": self.name})
-        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)" />"""
+        image_svg = """<image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
+        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="1" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
         total_height = 25 # top border
         max_width = 0
@@ -882,7 +882,8 @@ class Network():
                                            "y": cheight,
                                            "image": self._image_to_uri(image),
                                            "width": width,
-                                           "height": height}
+                                           "height": height,
+                                           "tooltip": self[layer_name].tooltip()}
                 for out in self[layer_name].outgoing_connections:
                     # draw an arrow to these
                     x = positioning[out.name]["x"] + positioning[out.name]["width"]/2
@@ -890,7 +891,8 @@ class Network():
                     svg += arrow_svg.format(**{"x1":cwidth + width/2,
                                                "y1":cheight,
                                                "x2":x,
-                                               "y2":y})
+                                               "y2":y,
+                                               "tooltip": self[layer_name].describe_connection_to(out)})
                 svg += image_svg.format(**positioning[layer_name])
                 svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
                                            "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
@@ -1120,6 +1122,13 @@ class Layer(BaseLayer):
     def make_keras_function(self):
         return self.CLASS(self.size, **self.params)
 
+    def tooltip(self):
+        retval = "Layer: %s" % self.name
+        return retval
+
+    def describe_connection_to(self, layer):
+        retval = "Weights from '%s' to '%s'" % (self.name, layer.name)
+        return retval
 
 class LSTMLayer(BaseLayer):
     CLASS = keras.layers.LSTM
