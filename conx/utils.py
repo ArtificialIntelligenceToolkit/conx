@@ -22,7 +22,7 @@ import numbers
 #------------------------------------------------------------------------
 # utility functions
 
-def pp(**args):
+def pp(*args):
     if isinstance(args[0], str):
         label = args[0]
         vector = args[1]

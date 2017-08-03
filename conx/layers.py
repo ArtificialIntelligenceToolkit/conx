@@ -85,10 +85,10 @@ class BaseLayer():
 
     def propagate_to(self, input, batch_size=None):
         if batch_size is not None:
-            output = self.model.predict(input, batch_size=batch_size)
+            output = self.model.predict(np.array([input]), batch_size=batch_size)
         else:
-            output = self.model.predict(input)
-        return output
+            output = self.model.predict(np.array([input]))
+        return output[0].tolist()
 
     def summary(self):
         print("Name: %s (%s) VShape: %s Dropout: %s" %
@@ -126,6 +126,9 @@ class BaseLayer():
         """
         from matplotlib import cm
         import PIL
+        ## FIXME: grabbing a couple of dimensions
+        while len(vector.shape) > 2:
+            vector = vector[0]
         if self.vshape != self.shape:
             vector = vector.reshape(self.vshape)
         minmax = self.get_minmax(vector)
@@ -152,10 +155,14 @@ class BaseLayer():
         return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
 
     def make_dummy_vector(self):
+        """
+        This is in the easy to use human format (list of lists ...)
+        """
+        ## FIXME: for pictures give a vector
         v = np.ones(self.shape)
         lo, hi = self.get_minmax(v)
         v *= (lo + hi) / 2.0
-        return v
+        return v.tolist()
 
     def get_minmax(self, vector):
         if self.minmax:
@@ -170,6 +177,25 @@ class BaseLayer():
         else: # activation in ["linear"] or otherwise
             return (-1,+1)
 
+    def tooltip(self):
+        """
+        String (with newlines) for describing layer."
+        """
+        kind = self.kind()
+        retval = "Layer: %s (%s)" % (self.name, kind)
+        if self.shape:
+            retval += "\n shape = %s" % (self.shape, )
+        if self.dropout:
+            retval += "\n dropout = %s" % self.dropout
+        if kind == "input":
+            retval += "\n Keras class = Input"
+        else:
+            retval += "\n Keras class = %s" % self.CLASS.__name__
+        for key in self.params:
+            if key in ["name"]:
+                continue
+            retval += "\n %s = %s" % (key, self.params[key])
+        return retval
 
 class Layer(BaseLayer):
     """
@@ -212,26 +238,6 @@ class Layer(BaseLayer):
     def make_keras_function(self):
         return self.CLASS(self.size, **self.params)
 
-    def tooltip(self):
-        """
-        String (with newlines) for describing layer."
-        """
-        kind = self.kind()
-        retval = "Layer: %s (%s)" % (self.name, kind)
-        if self.shape:
-            retval += "\n shape = %s" % self.shape
-        if self.dropout:
-            retval += "\n dropout = %s" % self.dropout
-        if kind == "input":
-            retval += "\n Keras class = Input"
-        else:
-            retval += "\n Keras class = %s" % self.CLASS.__name__
-        for key in self.params:
-            if key in ["name"]:
-                continue
-            retval += "\n %s = %s" % (key, self.params[key])
-        return retval
-
 class PictureLayer(Layer):
     def make_image(self, vector):
         """
@@ -239,7 +245,19 @@ class PictureLayer(Layer):
         make and return an image widget.
         """
         import PIL
-        return PIL.Image.fromarray(vector).resize((200,200))
+        return PIL.Image.fromarray(vector.astype("uint8")).resize((200,200))
     
 class LSTMLayer(BaseLayer):
     CLASS = keras.layers.LSTM
+
+class Conv2DLayer(BaseLayer):
+    CLASS = keras.layers.Conv2D
+
+class MaxPooling2DLayer(BaseLayer):
+    CLASS = keras.layers.MaxPooling2D
+
+class FlattenLayer(BaseLayer):
+    CLASS = keras.layers.Flatten
+
+DenseLayer = Layer
+InputLayer = Layer

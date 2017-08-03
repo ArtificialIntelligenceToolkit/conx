@@ -671,9 +671,9 @@ class Network():
             raise Exception('unknown layer: %s' % (layer_name,))
         if self.num_input_layers == 1:
             if batch_size is not None:
-                outputs = list(self[layer_name].propagate_to(np.array([input]), batch_size=batch_size)[0])
+                outputs = self[layer_name].propagate_to(input, batch_size=batch_size)
             else:
-                outputs = list(self[layer_name].propagate_to(np.array([input]))[0])
+                outputs = self[layer_name].propagate_to(input)
         else:
             inputs = [np.array(x, "float32") for x in input]
             # get just inputs for this layer, in order:
@@ -681,9 +681,9 @@ class Network():
             if len(inputs) == 1:
                 inputs = inputs[0]
             if batch_size is not None:
-                outputs = list(self[layer_name].propagate_to(inputs, batch_size=batch_size)[0])
+                outputs = self[layer_name].propagate_to(inputs, batch_size=batch_size)
             else:
-                outputs = list(self[layer_name].propagate_to(inputs)[0])
+                outputs = self[layer_name].propagate_to(inputs)
         if self.visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -859,13 +859,23 @@ class Network():
                 if self.inputs is not None:
                     v = self.get_input(0)
                 else:
-                    v = self[layer_name].make_dummy_vector()
+                    if self.input_layer_order:
+                        v = []
+                        for in_name in self.input_layer_order:
+                            v.append(self[in_name].make_dummy_vector())
+                    else:
+                        in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
+                        v = in_layer.make_dummy_vector()
                 image = self.propagate_to_image(layer_name, v)
                 (width, height) = image.size
                 max_dim = max(width, height)
                 if max_dim > config["image_maxdim"]:
-                    image = image.resize((int(width/max_dim * config["image_maxdim"]),
-                                          int(height/max_dim * config["image_maxdim"])))
+                    ## FIXME: probably a zero dim; do better!
+                    try:
+                        image = image.resize((int(width/max_dim * config["image_maxdim"]),
+                                              int(height/max_dim * config["image_maxdim"])))
+                    except:
+                        image = image.resize((config["image_maxdim"], 25))
                     (width, height) = image.size
                 images[layer_name] = image
                 total_width += width + config["hspace"] # space between
