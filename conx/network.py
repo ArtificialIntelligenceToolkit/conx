@@ -871,14 +871,31 @@ class Network():
         v *= (lo + hi) / 2.0
         return v
 
-    def build_svg(self):
+    def build_svg(self, opts={}):
+        """
+        opts include:
+            "font_size": 12,
+            "border_top": 25,
+            "hspace": 100,
+            "vspace": 50,
+            "image_maxdim": 200,
+        """
+        # defaults:
+        config = {
+            "font_size": 12,
+            "border_top": 25,
+            "hspace": 100,
+            "vspace": 50,
+            "image_maxdim": 200,
+        }
+        config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
         arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
-        total_height = 25 # top border
+        total_height = config["border_top"] # top border
         max_width = 0
         images = {}
         # Go through and build images, compute size:
@@ -894,17 +911,18 @@ class Network():
                 image = self.propagate_to_image(layer_name, v)
                 (width, height) = image.size
                 max_dim = max(width, height)
-                if max_dim > 200:
-                    image = image.resize((int(width/max_dim * 200), int(height/max_dim * 200)))
+                if max_dim > config["image_maxdim"]:
+                    image = image.resize((int(width/max_dim * config["image_maxdim"]),
+                                          int(height/max_dim * config["image_maxdim"])))
                     (width, height) = image.size
                 images[layer_name] = image
-                total_width += width + 100 # space between
+                total_width += width + config["hspace"] # space between
                 max_height = max(max_height, height)
-            total_height += max_height + 50 # 50 for arrows
+            total_height += max_height + config["vspace"] # 50 for arrows
             max_width = max(max_width, total_width)
         # Now we go through again and build SVG:
         svg = ""
-        cheight = 25 # top border
+        cheight = config["border_top"] # top border
         positioning = {}
         for level_names in ordering:
             row_layer_width = 0
@@ -959,10 +977,10 @@ class Network():
                 svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
                                            "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
                                            "label": layer_name,
-                                           "size": 12})
-                cwidth += width + spacing # spacing between
+                                           "size": config["font_size"]})
+                cwidth += width + config["hspace"] # spacing between
                 max_height = max(max_height, height)
-            cheight += max_height + 50 # 50 for arrows
+            cheight += max_height + config["vspace"] # 50 for arrows
         self.visualize = True
         self._initialize_javascript()
         return ("""
