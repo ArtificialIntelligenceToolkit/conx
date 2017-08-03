@@ -1,8 +1,6 @@
-from __future__ import print_function, division
-
 # conx - a neural network library
 #
-# Copyright (c) Douglas S. Blank <dblank@cs.brynmawr.edu>
+# Copyright (c) Douglas S. Blank <doug.blank@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,712 +17,1019 @@ from __future__ import print_function, division
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-import theano
-import theano.tensor as T
-from theano import function, pp
-import io
 import operator
-import functools
-import numpy as np
-import random
-import copy
+import importlib
+from functools import reduce
 import signal
+import numbers
+import base64
+import io
 
-# Based on code from:
-# http://colinraffel.com/talks/next2015theano.pdf
-# http://nbviewer.ipython.org/github/craffel/theano-tutorial/blob/master/Theano%20Tutorial.ipynb#example-mlp
-# http://mlg.eng.cam.ac.uk/yarin/620bdeb168a59f1b072e4173ac867e79/Ex4_MLP_answer.py
+import numpy as np
+import keras
+from keras.models import Model
 
-class Layer(object):
-    def __init__(self, n_input, n_output, activation_function):
-        '''
-        A layer of a neural network, computes s(Wx + b) where s is a
-        nonlinearity and x is the input vector.
+from .utils import *
+from .layers import Layer
 
-        Properties:
-            - weights : np.ndarray, shape=(n_output, n_input)
-                Values to initialize the weight matrix to.
-            - biases : np.ndarray, shape=(n_output,)
-                Values to initialize the bias vector
-            - activation_function : theano.tensor.elemwise.Elemwise
-                Activation function for layer output
-        '''
-        weights = self.make_weights(n_input, n_output)
-        #np.random.uniform(-0.5, 0.5, size=(outs,))
-        biases = np.random.randn(n_output)
+#------------------------------------------------------------------------
 
-        # Make sure b is n_output in size
-        assert biases.shape == (n_output,)
-        # All parameters should be shared variables.
-        # They're used in this class to compute the layer output,
-        # but are updated elsewhere when optimizing the network parameters.
-        # Note that we are explicitly requiring that weights has the theano.config.floatX dtype
-        self.weights = theano.shared(
-            value=weights.astype(theano.config.floatX),
-            # The name parameter is solely for printing purporses
-            name='self.weights',
-            # Setting borrow=True allows Theano to use user memory for this object.
-            # It can make code slightly faster by avoiding a deep copy on construction.
-            # For more details, see
-            # http://deeplearning.net/software/theano/tutorial/aliasing.html
-            borrow=True
-        )
-        # We can force our bias vector b to be a column vector using numpy's reshape method.
-        # When b is a column vector, we can pass a matrix-shaped input to the layer
-        # and get a matrix-shaped output, thanks to broadcasting (described below)
-        self.biases = theano.shared(
-            value=biases.astype(theano.config.floatX),
-            name='self.biases',
-            borrow=True,
-            # Theano allows for broadcasting, similar to numpy.
-            # However, you need to explicitly denote which axes can be broadcasted.
-            # By setting broadcastable=(False, True), we are denoting that b
-            # can be broadcast (copied) along its second dimension in order to be
-            # added to another variable.  For more information, see
-            # http://deeplearning.net/software/theano/library/tensor/basic.html
-            #broadcastable=(False, True)
-        )
-        self.activation_function = activation_function
-        # We'll compute the gradient of the cost of the network with respect to the parameters in this list.
-        self.params = [self.weights, self.biases]
-        self.n_output, self.n_input = (n_output, n_input)
-        # Dynamic functions
-        inputs = T.vector(dtype=theano.config.floatX)
-        self._pypropagate = function([inputs], self._propagate(inputs),
-                                     allow_input_downcast=True)
-
-    def __str__(self):
-        retval = "    Type: %s\n" % type(self)
-        retval += "    Act : %s\n" % self.activation_function
-        retval += "    In  : %s\n" % self.n_input
-        retval += "    Out : %s\n" % self.n_output
-        return retval
-
-    def propagate(self, inputs):
+class Network():
+    def __init__(self, name, *sizes, **kwargs):
         """
-        Layer's propagate method. May be overridden in subclasses.
+        Create a neural network.
+        if sizes is given, create a full network.
+        Optional keywork: activation
         """
-        return self._pypropagate(inputs)
+        if not isinstance(name, str):
+            raise Exception("first argument should be a name for the network")
+        self.name = name
+        self.layers = []
+        self.layer_dict = {}
+        self.inputs = None
+        self.train_inputs = []
+        self.train_targets = []
+        self.test_inputs = []
+        self.test_targets = []
+        self.labels = None
+        self.targets = None
+        # If simple feed-forward network:
+        for i in range(len(sizes)):
+            if i > 0:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
+                               activation=kwargs.get("activation", "linear")))
+            else:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
+        self.num_input_layers = 0
+        self.num_target_layers = 0
+        # Connect them together:
+        for i in range(len(sizes) - 1):
+            self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
+        self.epoch_count = 0
+        self.acc_history = []
+        self.loss_history = []
+        self.val_percent_history = []
+        self.input_layer_order = []
+        self.output_layer_order = []
+        self.num_inputs = 0
+        self.visualize = False
+        self._comm = None
+        self.inputs_range = (0,0)
+        self.targets_range = (0,0)
+        self.test_labels = []
+        self.train_labels = []
+        self.model = None
+        self.split = 0
 
-    def _propagate(self, inputs):
-        '''
-        Compute this layer's output given an input
+    def __getitem__(self, layer_name):
+        if layer_name not in self.layer_dict:
+            return None
+        else:
+            return self.layer_dict[layer_name]
 
-        :parameters:
-            - inputs : theano.tensor.var.TensorVariable
-                Theano symbolic variable for layer input
+    def _repr_svg_(self):
+        if all([layer.model for layer in self.layers]):
+            return self.build_svg()
+        else:
+            return None
 
-        :returns:
-            - output : theano.tensor.var.TensorVariable
-                Mixed, biased, and activated inputs
-        '''
-        # Compute linear mix
-        lin_output = T.dot(self.weights, inputs) + self.biases
-        # Output is just linear mix if no activation function
-        # Otherwise, apply the activation function
-        return (lin_output if self.activation_function is None
-                else self.activation_function(lin_output))
+    def __repr__(self):
+        return "<Network name='%s'>" % self.name
 
-    def save_deltas_and_reset_weights(self):
-        # compute delta weights/biases
-        # save deltas
-        self.delta_weights = self.weights.get_value() - self.orig_weights
-        self.delta_biases = self.biases.get_value() - self.orig_biases
-        # reset the weights/biases
-        self.weights.set_value(self.orig_weights)
-        self.biases.set_value(self.orig_biases)
+    def add(self, layer):
+        if layer.name in self.layer_dict:
+            raise Exception("duplicate layer name '%s'" % layer.name)
+        self.layers.append(layer)
+        self.layer_dict[layer.name] = layer
 
-    def save_weights(self):
-        self.orig_weights = self.weights.get_value()
-        self.orig_biases = self.biases.get_value()
+    def connect(self, from_layer_name=None, to_layer_name=None):
+        if from_layer_name is None and to_layer_name is None:
+            for i in range(len(self.layers) - 1):
+                self.connect(self.layers[i].name, self.layers[i+1].name)
+        else:
+            if from_layer_name not in self.layer_dict:
+                raise Exception('unknown layer: %s' % from_layer_name)
+            if to_layer_name not in self.layer_dict:
+                raise Exception('unknown layer: %s' % to_layer_name)
+            from_layer = self.layer_dict[from_layer_name]
+            to_layer = self.layer_dict[to_layer_name]
+            from_layer.outgoing_connections.append(to_layer)
+            to_layer.incoming_connections.append(from_layer)
+            input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+            self.num_input_layers = len(input_layers)
+            target_layers = [layer for layer in self.layers if layer.kind() == "output"]
+            self.num_target_layers = len(target_layers)
 
-    def update_weights_from_deltas(self):
-        self.weights.set_value(self.orig_weights + self.delta_weights)
-        self.biases.set_value(self.orig_biases + self.delta_biases)
+    def summary(self):
+        for layer in self.layers:
+            layer.summary()
 
-    def make_weights(self, ins, outs):
+    def set_dataset_direct(self, inputs, targets, verbose=True):
+        self.inputs = inputs
+        self.targets = targets
+        self.labels = None
+        self._cache_dataset_values()
+        self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
+
+    def _cache_dataset_values(self):
+        if self.num_input_layers == 1:
+            self.inputs_range = (self.inputs.min(), self.inputs.max())
+            self.num_inputs = self.inputs.shape[0]
+        else:
+            self.inputs_range = (min([x.min() for x in self.inputs]),
+                                 max([x.max() for x in self.inputs]))
+            self.num_inputs = self.inputs[0].shape[0]
+        if self.targets is not None:
+            if self.num_target_layers == 1:
+                self.targets_range = (self.targets.min(), self.targets.max())
+            else:
+                self.targets_range = (min([x.min() for x in self.targets]),
+                                      max([x.max() for x in self.targets]))
+        else:
+            self.targets_range = (0, 0)
+
+    def set_dataset(self, pairs, verbose=True):
+        if self.num_input_layers == 1:
+            self.inputs = np.array([x for (x, y) in pairs], "float32")
+        else:
+            self.inputs = []
+            for i in range(len(pairs[0][0])):
+                self.inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
+        if self.num_target_layers == 1:
+            self.targets = np.array([y for (x, y) in pairs], "float32")
+        else:
+            self.targets = []
+            for i in range(len(pairs[0][1])):
+                self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
+        self.labels = None
+        self._cache_dataset_values()
+        self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
+
+    def load_keras_dataset(self, name, verbose=True):
+        available_datasets = [x for x in dir(keras.datasets) if '__' not in x and x != 'absolute_import']
+        if name not in available_datasets:
+            s = "unknown keras dataset: %s" % name
+            s += "\navailable datasets: %s" % ','.join(available_datasets)
+            raise Exception(s)
+        if verbose:
+            print('Loading %s dataset...' % name)
+        load_data = importlib.import_module('keras.datasets.' + name).load_data
+        (x_train,y_train), (x_test,y_test) = load_data()
+        self.inputs = np.concatenate((x_train,x_test))
+        self.labels = np.concatenate((y_train,y_test))
+        self.targets = None
+        self._cache_dataset_values()
+        self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
+
+    def load_npz_dataset(self, filename, verbose=True):
+        """loads a dataset from an .npz file and returns data, labels"""
+        if filename[-4:] != '.npz':
+            raise Exception("filename must end in .npz")
+        if verbose:
+            print('Loading %s dataset...' % filename)
+        try:
+            f = np.load(filename)
+            self.inputs = f['data']
+            self.labels = f['labels']
+            self.targets = None
+            if len(self.inputs) != len(self.labels):
+                raise Exception("Dataset contains different numbers of inputs and labels")
+            if len(self.inputs) == 0:
+                raise Exception("Dataset is empty")
+            self._cache_dataset_values()
+            self.split_dataset(self.num_inputs, verbose=False)
+            if verbose:
+                self.summary_dataset()
+        except:
+            raise Exception("couldn't load .npz dataset %s" % filename)
+
+    def reshape_inputs(self, new_shape, verbose=True):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        if not valid_shape(new_shape):
+            raise Exception("bad shape: %s" % (new_shape,))
+        if isinstance(new_shape, numbers.Integral):
+            new_size = self.num_inputs * new_shape
+        else:
+            new_size = self.num_inputs * reduce(operator.mul, new_shape)
+        ## FIXME: work on multi-inputs?
+        if new_size != self.inputs.size:
+            raise Exception("shape %s is incompatible with inputs" % (new_shape,))
+        if isinstance(new_shape, numbers.Integral):
+            new_shape = (new_shape,)
+        self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
+        self.split_dataset(self.split, verbose=False)
+        if verbose:
+            print('Input data shape: %s, range: %s, type: %s' %
+                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+
+    def set_input_layer_order(self, *layer_names):
+        if len(layer_names) == 1:
+            raise Exception("set_input_layer_order cannot be a single layer")
+        self.input_layer_order = []
+        for layer_name in layer_names:
+            if layer_name not in self.input_layer_order:
+                self.input_layer_order.append(layer_name)
+            else:
+                raise Exception("duplicate name in set_input_layer_order: '%s'" % layer_name)
+
+    def set_output_layer_order(self, *layer_names):
+        if len(layer_names) == 1:
+            raise Exception("set_output_layer_order cannot be a single layer")
+        self.output_layer_order = []
+        for layer_name in layer_names:
+            if layer_name not in self.output_layer_order:
+                self.output_layer_order.append(layer_name)
+            else:
+                raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
+
+    def set_targets_to_categories(self, num_classes):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
+            raise Exception("number of classes must be a positive integer")
+        self.targets = keras.utils.to_categorical(self.labels, num_classes).astype("uint8")
+        self.train_targets = self.targets[:self.split]
+        self.test_targets = self.targets[self.split:]
+        print('Generated %d target vectors from labels' % self.num_inputs)
+
+    def summary_dataset(self):
+        if self.num_inputs == 0:
+            print("no dataset loaded")
+            return
+        print('%d train inputs, %d test inputs' %
+              (len(self.train_inputs), len(self.test_inputs)))
+        if self.inputs is not None:
+            if self.num_input_layers == 1:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shape: %s, range: %s, type: %s' %
+                      (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+            else:
+                print('Set %d inputs and targets' % (self.num_inputs,))
+                print('Input data shapes: %s, range: %s, types: %s' %
+                      ([x[0].shape for x in self.inputs],
+                       self.inputs_range,
+                       [x[0].dtype for x in self.inputs]))
+        else:
+            print("No inputs")
+        if self.targets is not None:
+            if self.num_target_layers == 1:
+                print('Target data shape: %s, range: %s, type: %s' %
+                      (self.targets.shape[1:], self.targets_range, self.targets.dtype))
+            else:
+                print('Target data shapes: %s, range: %s, types: %s' %
+                      ([x[0].shape for x in self.targets],
+                       self.targets_range,
+                       [x[0].dtype for x in self.targets]))
+        else:
+            print("No targets")
+
+    def rescale_inputs(self, old_range, new_range, new_dtype):
+        old_min, old_max = old_range
+        new_min, new_max = new_range
+        ## FIXME: work on multi-inputs?
+        if self.inputs.min() < old_min or self.inputs.max() > old_max:
+            raise Exception('range %s is incompatible with inputs' % (old_range,))
+        if old_min > old_max:
+            raise Exception('range %s is out of order' % (old_range,))
+        if new_min > new_max:
+            raise Exception('range %s is out of order' % (new_range,))
+        self.inputs = rescale_numpy_array(self.inputs, old_range, new_range, new_dtype)
+        self.inputs_range = (self.inputs.min(), self.inputs.max())
+        print('Inputs rescaled to %s values in the range %s - %s' %
+              (self.inputs.dtype, new_min, new_max))
+
+    def _make_weights(self, shape):
         """
-        Makes a 2D matrix of random weights centered around 0.0.
+        Makes a vector/matrix of random weights centered around 0.0.
         """
-        min, max = -0.5, 0.5
-        range = (max - min)
-        return np.array(range * np.random.rand(outs, ins) - range/2.0,
-                        dtype=theano.config.floatX)
+        size = reduce(operator.mul, shape) # (in, out)
+        magnitude = max(min(1/shape[0] * 50, 1.16), 0.06)
+        rmin, rmax = -magnitude, magnitude
+        span = (rmax - rmin)
+        return np.array(span * np.random.rand(size) - range/2.0,
+                        dtype='float32').reshape(shape)
 
     def reset(self):
         """
-        Resets a layer's learned values.
+        Reset all of the weights/biases in a network.
+        The magnitude is based on the size of the network.
         """
-        out_size, in_size = self.weights.get_value().shape
-        self.weights.set_value(
-            self.make_weights(in_size, out_size)
-        )
-        self.biases.set_value(
-            np.random.randn(n_output)
-            #np.random.uniform(-0.5, 0.5, size=(n_output,))
-        )
+        self.epoch_count = 0
+        self.acc_history = []
+        self.loss_history = []
+        self.val_percent_history = []
+        if self.model:
+            for layer in self.model.layers:
+                weights = layer.get_weights()
+                new_weights = []
+                for weight in weights:
+                    new_weights.append(self._make_weights(weight.shape))
+                layer.set_weights(new_weights)
 
-    def change_size(self, ins, outs):
-        """
-        Change the size of the weights/biases for this layer.
-        """
-        self.n_output, self.n_input = (outs, ins)
-        self.weights.set_value(self.make_weights(ins, outs))
-        self.biases.set_value(
-            np.random.randn(outs)
-            #np.random.uniform(-0.5, 0.5, size=(outs,))
-            )
+    def shuffle_dataset(self, verbose=True):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        indices = np.random.permutation(self.num_inputs)
+        self.inputs = self.inputs[indices]
+        if self.labels is not None:
+            self.labels = self.labels[indices]
+        if self.targets is not None:
+            self.targets = self.targets[indices]
+        self.split_dataset(self.split, verbose=False)
+        if verbose:
+            print('Shuffled all %d inputs' % self.num_inputs)
 
-    def save(self, fp):
-        """
-        Save the weights to a file.
-        """
-        np.save(fp, self.weights.get_value())
-        np.save(fp, self.biases.get_value())
-
-    def load(self, fp):
-        """
-        Load the weights from a file.
-        """
-        self.weights.set_value(np.load(fp))
-        self.biases.set_value(np.load(fp))
-
-class Network(object):
-    def __init__(self, *sizes, **kwargs):
-        ## args in old style because Python2 limitations
-        '''
-        Multi-layer perceptron class, computes the composition of a
-        sequence of Layers
-
-        :parameters:
-            - weights : list of np.ndarray, len=N
-                Values to initialize the weight matrix in each layer to.
-                The layer sizes will be inferred from the shape of each matrix in weights
-            - biases : list of np.ndarray, len=N
-                Values to initialize the bias vector in each layer to
-            - activation_functions : list of theano.tensor.elemwise.Elemwise, len=N
-                Activation function for layer output for each layer
-
-        '''
-        # Construct theano variables:
-        self._epsilon = theano.shared(0.0, name='self.epsilon')
-        self._momentum = theano.shared(0.0, name='self.momentum')
-        # Create Theano variables for the input
-        self.th_inputs = T.vector('self.th_inputs', dtype=theano.config.floatX)
-        # ... and the desired output
-        self.th_targets = T.vector('self.th_targets', dtype=theano.config.floatX)
-        # Set defaults:
-        self.defaults = {"epsilon": 0.1,
-                         "momentum": 0.9,
-                         "activation_function": T.nnet.sigmoid,
-                         "max_training_epochs": 5000,
-                         "stop_percentage": 1.0,
-                         "tolerance": 0.1,
-                         "report_rate": 500,
-                         "batch": False,
-                         "shuffle": True}
-        # First, set defaults from self.defaults:
-        for key in self.defaults:
-            if key == "activation_function": # don't use property yet, layers not made
-                self._activation_function = self.defaults[key]
+    def split_dataset(self, split=0.50, verbose=True):
+        if self.num_inputs == 0:
+            raise Exception("no dataset loaded")
+        if isinstance(split, numbers.Integral):
+            if not 0 <= split <= self.num_inputs:
+                raise Exception("split out of range: %d" % split)
+            self.split = split
+        elif isinstance(split, numbers.Real):
+            if not 0 <= split <= 1:
+                raise Exception("split is not in the range 0-1: %s" % split)
+            self.split = int(self.num_inputs * split)
+        else:
+            raise Exception("invalid split: %s" % split)
+        if self.num_input_layers == 1:
+            self.train_inputs = self.inputs[:self.split]
+            self.test_inputs = self.inputs[self.split:]
+        else:
+            self.train_inputs = [col[:self.split] for col in self.inputs]
+            self.test_inputs = [col[self.split:] for col in self.inputs]
+        if self.labels is not None:
+            self.train_labels = self.labels[:self.split]
+            self.test_labels = self.labels[self.split:]
+        if self.targets is not None:
+            if self.num_target_layers == 1:
+                self.train_targets = self.targets[:self.split]
+                self.test_targets = self.targets[self.split:]
             else:
-                setattr(self, key, self.defaults[key])
-        # Then, set args:
-        for key in kwargs:
-            if key in self.defaults:
-                if key == "activation_function": # don't use property yet, layers not made
-                    self._activation_function = kwargs[key]
+                self.train_targets = [col[:self.split] for col in self.targets]
+                self.test_targets = [col[self.split:] for col in self.targets]
+        if verbose:
+            print('Split dataset into:')
+            if self.num_input_layers == 1:
+                print('   %d train inputs' % len(self.train_inputs))
+            else:
+                print('   %d train inputs' % len(self.train_inputs[0]))
+            if self.num_input_layers == 1:
+                print('   %d test inputs' % len(self.test_inputs))
+            else:
+                print('   %d test inputs' % len(self.test_inputs[0]))
+
+    def test(self, dataset=None, batch_size=None):
+        if dataset is None:
+            if self.split == self.num_inputs:
+                dataset = self.train_inputs
+            else:
+                dataset = self.test_inputs
+        print("Testing...")
+        if batch_size is not None:
+            outputs = self.model.predict(dataset, batch_size=batch_size)
+        else:
+            outputs = self.model.predict(dataset)
+        if self.num_target_layers > 1:
+            outputs = [[list(y) for y in x] for x in zip(*outputs)]
+        for output in outputs:
+            print(output)
+
+    def train(self, epochs=1, accuracy=None, batch_size=None,
+              report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
+              class_weight=None, sample_weight=None):
+        if batch_size is None:
+            if self.num_input_layers == 1:
+                batch_size = self.train_inputs.shape[0]
+            else:
+                batch_size = self.train_inputs[0].shape[0]
+        if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
+            raise Exception("bad batch size: %s" % (batch_size,))
+        if accuracy is None and epochs > 1 and report_rate > 1:
+            print("Warning: report_rate is ignored when in epoch mode")
+        if self.split == self.num_inputs:
+            validation_inputs = self.train_inputs
+            validation_targets = self.train_targets
+        else:
+            validation_inputs = self.test_inputs
+            validation_targets = self.test_targets
+        if verbose: print("Training...")
+        with InterruptHandler() as handler:
+            if accuracy is None: # train them all using fit
+                result = self.model.fit(self.train_inputs, self.train_targets,
+                                        batch_size=batch_size,
+                                        epochs=epochs,
+                                        verbose=verbose,
+                                        shuffle=shuffle,
+                                        class_weight=class_weight,
+                                        sample_weight=sample_weight)
+                if batch_size is not None:
+                    outputs = self.model.predict(validation_inputs, batch_size=batch_size)
                 else:
-                    setattr(self, key, kwargs[key])
-                self.defaults[key] = kwargs[key]
+                    outputs = self.model.predict(validation_inputs)
+                if self.num_target_layers == 1:
+                    correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                   np.abs(outputs - validation_targets))].count(True)
+                else:
+                    correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                   np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
+                self.epoch_count += epochs
+                acc = 0
+                # In multi-outputs, acc is given by output layer name + "_acc"
+                for key in result.history:
+                    if key.endswith("acc"):
+                        acc += result.history[key][0]
+                #acc = result.history['acc'][0]
+                self.acc_history.append(acc)
+                loss = result.history['loss'][0]
+                self.loss_history.append(loss)
+                val_percent = correct/len(validation_targets)
+                self.val_percent_history.append(val_percent)
             else:
-                raise Exception("invalid keyword argument '%s'" % key)
-        # Make the layers:
-        self.make_layers(sizes)
-        # Combine parameters from all layers:
-        self.compile()
-        # Reset:
-        self.target_function = None
-        self.epoch = 0
-        self.history = {}
-        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
-        self.last_cv_percent = 0
+                for e in range(1, epochs+1):
+                    result = self.model.fit(self.train_inputs, self.train_targets,
+                                            batch_size=batch_size,
+                                            epochs=1,
+                                            verbose=0,
+                                            shuffle=shuffle,
+                                            class_weight=class_weight,
+                                            sample_weight=sample_weight)
+                    if batch_size is not None:
+                        outputs = self.model.predict(validation_inputs, batch_size=batch_size)
+                    else:
+                        outputs = self.model.predict(validation_inputs)
+                    if self.num_target_layers == 1:
+                        correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                       np.abs(outputs - validation_targets))].count(True)
+                    else:
+                        correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                                       np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
+                    self.epoch_count += 1
+                    acc = 0
+                    # In multi-outputs, acc is given by output layer name + "_acc"
+                    for key in result.history:
+                        if key.endswith("acc"):
+                            acc += result.history[key][0]
+                    #acc = result.history['acc'][0]
+                    self.acc_history.append(acc)
+                    loss = result.history['loss'][0]
+                    self.loss_history.append(loss)
+                    val_percent = correct/len(validation_targets)
+                    self.val_percent_history.append(val_percent)
+                    if self.epoch_count % report_rate == 0:
+                        if verbose: print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                                          (self.epoch_count, loss, acc, val_percent))
+                    if val_percent >= accuracy or handler.interrupted:
+                        break
+            if handler.interrupted:
+                print("=" * 72)
+                print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                      (self.epoch_count, loss, acc, val_percent))
+                raise KeyboardInterrupt
+        if verbose:
+            print("=" * 72)
+            print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                  (self.epoch_count, loss, acc, val_percent))
+        else:
+            return (self.epoch_count, loss, acc, val_percent)
 
-    def compile(self):
-        """
-        Given the network architecture, create the Theano equations
-        to propagate and backpropagate.
-        """
-        self.params = []
-        for layer in self.layer:
-            self.params += layer.params # [weights, biases]
-        # Theano expressions:
-        error = self._tss_error(self.th_inputs, self.th_targets)
-        # Dynamic Python methods:
-        self._pytrain_one = function(
-            [self.th_inputs, self.th_targets],
-            error,
-            updates=self.compute_delta_weights(error),
-            allow_input_downcast=True)
-        self._pypropagate = function([self.th_inputs],
-                                     self._propagate(self.th_inputs),
-                                     allow_input_downcast=True)
-        self.tss_error = function([self.th_inputs, self.th_targets],
-                                  self._tss_error(self.th_inputs, self.th_targets),
-                                  allow_input_downcast=True)
+        # # evaluate the model
+        # print('Evaluating performance...')
+        # loss, accuracy = self.model.evaluate(self.test_inputs, self.test_targets, verbose=0)
+        # print('Test loss:', loss)
+        # print('Test accuracy:', accuracy)
+        # #print('Most recent weights saved in model.weights')
+        # #self.model.save_weights('model.weights')
 
-    def make_layers(self, sizes):
+    def get_input(self, i):
         """
-        Create the layers for the network.
+        Get an input from the internal dataset and
+        format it in the human API.
         """
-        self.layer = []
-        for n_input, n_output in zip(sizes[:-1], sizes[1:]):
-            self.layer.append(Layer(n_input, n_output,
-                                    self.activation_function))
+        if self.num_input_layers == 1:
+            return list(self.inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.inputs[c][i]))
+            return inputs
 
-    def _set_epsilon(self, epsilon):
+    def get_target(self, i):
         """
-        Method to set epsilon (learning rate).
+        Get a target from the internal dataset and
+        format it in the human API.
         """
-        self._epsilon.set_value(epsilon)
+        if self.num_target_layers == 1:
+            return list(self.targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.targets[c][i]))
+            return targets
 
-    def _get_epsilon(self):
+    def get_train_input(self, i):
         """
-        Method to get epsilon (learning rate).
+        Get an input from the internal dataset and
+        format it in the human API.
         """
-        return self._epsilon.get_value()
+        if self.num_input_layers == 1:
+            return list(self.train_inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.train_inputs[c][i]))
+            return inputs
 
-    def _set_batch(self, batch):
+    def get_train_target(self, i):
         """
-        Method to set batch.
+        Get a target from the internal dataset and
+        format it in the human API.
         """
-        self._batch = batch
-        if self._batch:
-            self.save_weights()
+        if self.num_target_layers == 1:
+            return list(self.train_targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.train_targets[c][i]))
+            return targets
 
-    def _get_batch(self):
+    def get_test_input(self, i):
         """
-        Method to get batch.
+        Get an input from the internal dataset and
+        format it in the human API.
         """
-        return self._batch
+        if self.num_input_layers == 1:
+            return list(self.test_inputs[i])
+        else:
+            inputs = []
+            for c in range(self.num_input_layers):
+                inputs.append(list(self.test_inputs[c][i]))
+            return inputs
 
-    def _set_momentum(self, momentum):
+    def get_test_target(self, i):
         """
-        Method to set momentum.
+        Get a target from the internal dataset and
+        format it in the human API.
         """
-        self._momentum.set_value(momentum)
+        if self.num_target_layers == 1:
+            return list(self.test_targets[i])
+        else:
+            targets = []
+            for c in range(self.num_target_layers):
+                targets.append(list(self.test_targets[c][i]))
+            return targets
 
-    def _get_momentum(self):
-        """
-        Method to get mementum.
-        """
-        return self._momentum.get_value()
+    def propagate(self, input, batch_size=None):
+        if self.num_input_layers == 1:
+            if batch_size is not None:
+                outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
+            else:
+                outputs = list(self.model.predict(np.array([input]))[0])
+        else:
+            inputs = [np.array(x, "float32") for x in input]
+            if batch_size is not None:
+                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
+            else:
+                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs)]
+        if self.visualize:
+            if not self._comm:
+                from ipykernel.comm import Comm
+                self._comm = Comm(target_name='conx_svg_control')
+            for layer in self.layers:
+                image = self.propagate_to_image(layer.name, input, batch_size)
+                data_uri = self._image_to_uri(image)
+                self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+        return outputs
 
-    def _get_activation_function(self):
-        return self._activation_function
+    def propagate_from(self, layer_name, input, batch_size=None):
+        ## FIXME:
+        ## This needs to be build brand new from here to output(s)
+        # if self[layer_name].decode_model is None:
+        #     outks = self._get_output_ks_in_order()
+        #     if len(outks) == 1:
+        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks[0])
+        #     else:
+        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks)
+        # if batch_size is None:
+        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs)]
+        # else:
+        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs, batch_size=batch_size)]
+        # if self.visualize:
+        #     ## FIXME: should visualize this all the way through
+        #     ## For now, we just update the outputs
+        #     if not self._comm:
+        #         from ipykernel.comm import Comm
+        #         self._comm = Comm(target_name='conx_svg_control')
+        #     if self.output_layer_order:
+        #         layers = self.output_layer_order # layer_names
+        #         outpairs = zip(layers, outputs)
+        #     else:
+        #         layers = [layer.name for layer in self.layers if layer.kind() == "output"]
+        #         outpairs = [(layers[0], outputs)]
+        #     for (layer_name, vector) in vectors:
+        #         image = self._make_image(layer_name, vector, colormap=self[layer_name].colormap)
+        #         data_uri = self._image_to_uri(image)
+        #         self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+        # return outputs
+        return
 
-    def _set_activation_function(self, value):
-        self._activation_function = value
-        for i in range(len(self.layer)):
-            self.layer[i].activation_function = value
-
-    epsilon = property(_get_epsilon, _set_epsilon)
-    momentum = property(_get_momentum, _set_momentum)
-    activation_function = property(_get_activation_function, _set_activation_function)
-    batch = property(_get_batch, _set_batch)
-
-    def train_one(self, inputs, targets):
+    def propagate_to(self, layer_name, input, batch_size=None):
         """
-        Given an input vector and a target vector, update the weights (if
-        not batch) and return error.
+        Computes activation at a layer. Side-effect: updates visualized SVG.
         """
-        retval = self._pytrain_one(inputs, targets)
-        if self.batch:
-            self.save_deltas_and_reset_weights()
+        if layer_name not in self.layer_dict:
+            raise Exception('unknown layer: %s' % (layer_name,))
+        if self.num_input_layers == 1:
+            if batch_size is not None:
+                outputs = list(self[layer_name].propagate_to(np.array([input]), batch_size=batch_size)[0])
+            else:
+                outputs = list(self[layer_name].propagate_to(np.array([input]))[0])
+        else:
+            inputs = [np.array(x, "float32") for x in input]
+            # get just inputs for this layer, in order:
+            inputs = [inputs[self.input_layer_order.index(name)] for name in self[layer_name].input_names]
+            if len(inputs) == 1:
+                inputs = inputs[0]
+            if batch_size is not None:
+                outputs = list(self[layer_name].propagate_to(inputs, batch_size=batch_size)[0])
+            else:
+                outputs = list(self[layer_name].propagate_to(inputs)[0])
+        if self.visualize:
+            if not self._comm:
+                from ipykernel.comm import Comm
+                self._comm = Comm(target_name='conx_svg_control')
+            array = np.array(outputs)
+            image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
+            data_uri = self._image_to_uri(image)
+            self._comm.send({'id': "%s_%s" % (self.name, layer_name), "href": data_uri})
+        return outputs
+
+    def propagate_to_image(self, layer_name, input, batch_size=None):
+        """
+        Gets an image of activations at a layer.
+        """
+        outputs = self.propagate_to(layer_name, input, batch_size)
+        array = np.array(outputs)
+        image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
+        return image
+
+    def compile(self, **kwargs):
+        ## Error checking:
+        if len(self.layers) == 0:
+            raise Exception("network has no layers")
+        for layer in self.layers:
+            if layer.kind() == 'unconnected':
+                raise Exception("'%s' layer is unconnected" % layer.name)
+        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+        if len(input_layers) == 1 and len(self.input_layer_order) == 0:
+            pass # ok!
+        elif len(input_layers) == len(self.input_layer_order):
+            # check to make names all match
+            for layer in input_layers:
+                if layer.name not in self.input_layer_order:
+                    raise Exception("layer '%s' is not listed in set_input_layer_order()" % layer.name)
+        else:
+            raise Exception("improper set_input_layer_order() names")
+        output_layers = [layer for layer in self.layers if layer.kind() == "output"]
+        if len(output_layers) == 1 and len(self.output_layer_order) == 0:
+            pass # ok!
+        elif len(output_layers) == len(self.output_layer_order):
+            # check to make names all match
+            for layer in output_layers:
+                if layer.name not in self.output_layer_order:
+                    raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
+        else:
+            raise Exception("improper set_output_layer_order() names")
+        sequence = topological_sort(self)
+        for layer in sequence:
+            if layer.kind() == 'input':
+                layer.k = layer.make_input_layer_k()
+                layer.input_names = [layer.name]
+                layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
+            else:
+                if len(layer.incoming_connections) == 0:
+                    raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
+                kfuncs = layer.make_keras_functions()
+                if len(layer.incoming_connections) == 1:
+                    f = layer.incoming_connections[0].k
+                    layer.input_names = layer.incoming_connections[0].input_names
+                else: # multiple inputs, need to merge
+                    f = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
+                    # flatten:
+                    layer.input_names = [item for sublist in
+                                         [incoming.input_names for incoming in layer.incoming_connections]
+                                         for item in sublist]
+                for k in kfuncs:
+                    f = k(f)
+                layer.k = f
+                ## get the inputs to this branch, in order:
+                input_ks = self._get_input_ks_in_order(layer.input_names)
+                layer.model = Model(inputs=input_ks, outputs=layer.k)
+        output_k_layers = self._get_ordered_output_layers()
+        input_k_layers = self._get_ordered_input_layers()
+        self.model = Model(inputs=input_k_layers, outputs=output_k_layers)
+        kwargs['metrics'] = ['accuracy']
+        self.model.compile(**kwargs)
+
+    def _get_input_ks_in_order(self, layer_names):
+        """
+        Get the Keras function for each of a set of layer names.
+        """
+        if self.input_layer_order:
+            result = []
+            for name in self.input_layer_order:
+                if name in layer_names:
+                    result.append(self[name].k)
+            return result
+        else:
+            # the one input name:
+            return [[layer for layer in self.layers if layer.kind() == "input"][0].k]
+
+    def _get_output_ks_in_order(self):
+        """
+        Get the Keras function for each output layer, in order.
+        """
+        if self.output_layer_order:
+            result = []
+            for name in self.output_layer_order:
+                if name in [layer.name for layer in self.layers if layer.kind() == "output"]:
+                    result.append(self[name].k)
+            return result
+        else:
+            # the one output name:
+            return [[layer for layer in self.layers if layer.kind() == "output"][0].k]
+
+    def _get_ordered_output_layers(self):
+        """
+        Return the ordered output layers' Keras functions.
+        """
+        if self.output_layer_order:
+            layers = []
+            for layer_name in self.output_layer_order:
+                layers.append(self[layer_name].k)
+        else:
+            layers = [layer.k for layer in self.layers if layer.kind() == "output"][0]
+        return layers
+
+    def _get_ordered_input_layers(self):
+        """
+        Get the Keras functions for all layers, in order.
+        """
+        if self.input_layer_order:
+            layers = []
+            for layer_name in self.input_layer_order:
+                layers.append(self[layer_name].k)
+        else:
+            layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
+        return layers
+
+    def _get_minmax(self, layer, vector):
+        if layer.minmax:
+            return layer.minmax
+        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+        if layer.activation in ["tanh"]:
+            return (-1,+1)
+        elif layer.activation in ["sigmoid", "softmax"]:
+            return (0,+1)
+        elif layer.activation in ["relu"]:
+            return (0,vector.max())
+        else: # activation in ["linear"] or otherwise
+            return (-1,+1)
+
+    def _scale_output_for_image(self, vector, minmax):
+        """
+        Given an activation name (or something else) and an output
+        vector, scale the vector.
+        """
+        return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
+
+    def _make_image(self, layer_name, vector, size=25, transpose=False, colormap=None):
+        """
+        Given an activation name (or function), and an output vector, display
+        make and return an image widget.
+        """
+        from matplotlib import cm
+        import PIL
+        layer = self[layer_name]
+        if layer.vshape != layer.shape:
+            vector = vector.reshape(layer.vshape)
+        minmax = self._get_minmax(layer, vector)
+        vector = self._scale_output_for_image(vector, minmax)
+        if len(vector.shape) == 1:
+            vector = vector.reshape((1, vector.shape[0]))
+        new_width = vector.shape[0] * size # in, pixels
+        new_height = vector.shape[1] * size # in, pixels
+        if colormap:
+            cm_hot = cm.get_cmap(colormap)
+            vector = cm_hot(vector)
+            vector = np.uint8(vector * 255)
+            image = PIL.Image.fromarray(vector)
+        else:
+            image = PIL.Image.fromarray(vector, 'P')
+        image = image.resize((new_height, new_width))
+        return image
+
+    def _image_to_uri(self, img_src):
+        # Convert to binary data:
+        b = io.BytesIO()
+        img_src.save(b, format='gif')
+        data = b.getvalue()
+        data = base64.b64encode(data)
+        if not isinstance(data, str):
+            data = data.decode("latin1")
+        return "data:image/gif;base64,%s" % data
+
+    def _make_dummy_vector(self, layer):
+        v = np.ones(layer.shape)
+        lo, hi = self._get_minmax(layer, v)
+        v *= (lo + hi) / 2.0
+        return v
+
+    def build_svg(self):
+        self.visualize = False # so we don't try to update previously drawn images
+        ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
+        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
+        arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
+        label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
+        total_height = 25 # top border
+        max_width = 0
+        images = {}
+        # Go through and build images, compute size:
+        for level_names in ordering:
+            # first make all images at this level
+            max_height = 0 # per row
+            total_width = 0
+            for layer_name in level_names:
+                if self.inputs is not None:
+                    v = self.get_input(0)
+                else:
+                    v = self._make_dummy_vector(self[layer_name])
+                image = self.propagate_to_image(layer_name, v)
+                (width, height) = image.size
+                max_dim = max(width, height)
+                if max_dim > 200:
+                    image = image.resize((int(width/max_dim * 200), int(height/max_dim * 200)))
+                    (width, height) = image.size
+                images[layer_name] = image
+                total_width += width + 100 # space between
+                max_height = max(max_height, height)
+            total_height += max_height + 50 # 50 for arrows
+            max_width = max(max_width, total_width)
+        # Now we go through again and build SVG:
+        svg = ""
+        cheight = 25 # top border
+        positioning = {}
+        for level_names in ordering:
+            row_layer_width = 0
+            for layer_name in level_names:
+                image = images[layer_name]
+                (width, height) = image.size
+                row_layer_width += width
+            spacing = (max_width - row_layer_width) / (len(level_names) + 1)
+            cwidth = spacing
+            max_height = 0
+            for layer_name in level_names:
+                image = images[layer_name]
+                (width, height) = image.size
+                positioning[layer_name] = {"name": layer_name,
+                                           "x": cwidth,
+                                           "y": cheight,
+                                           "image": self._image_to_uri(image),
+                                           "width": width,
+                                           "height": height,
+                                           "tooltip": self[layer_name].tooltip(),
+                                           "rx": cwidth - 1, # based on arrow width
+                                           "ry": cheight - 1,
+                                           "rh": height + 2,
+                                           "rw": width + 2}
+                x1 = cwidth + width/2
+                y1 = cheight - 1
+                for out in self[layer_name].outgoing_connections:
+                    # draw background to arrows to allow mouseover tooltips:
+                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                    rect_width = abs(x1 - x2)
+                    rect_extra = 0
+                    if rect_width < 20:
+                        rect_extra = 10
+                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    svg += arrow_rect.format(**{"tooltip": tooltip,
+                                                "rx": min(x2, x1) - rect_extra,
+                                                "ry": min(y2, y1) + 2, # bring down
+                                                "rw": rect_width + rect_extra * 2,
+                                                "rh": abs(y1 - y2) - 2})
+                for out in self[layer_name].outgoing_connections:
+                    # draw an arrow between layers:
+                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                    svg += arrow_svg.format(**{"x1":x1,
+                                               "y1":y1,
+                                               "x2":x2,
+                                               "y2":y2 + 2,
+                                               "tooltip": tooltip})
+                svg += image_svg.format(**positioning[layer_name])
+                svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                                           "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
+                                           "label": layer_name,
+                                           "size": 12})
+                cwidth += width + spacing # spacing between
+                max_height = max(max_height, height)
+            cheight += max_height + 50 # 50 for arrows
+        self.visualize = True
+        self._initialize_javascript()
+        return ("""
+        <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
+    <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="blue" />
+        </marker>
+    </defs>
+""".format(**{"width": max_width, "height": total_height, "netname": self.name}) + svg + """</svg>""")
+
+    def _initialize_javascript(self):
+        from IPython.display import Javascript, display
+        js = """
+require(['base/js/namespace'], function(Jupyter) {
+    Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
+        comm.on_msg(function(msg) {
+            var data = msg["content"]["data"];
+            var image = document.getElementById(data["id"]);
+            if (image) {
+                image.setAttributeNS(null, "href", data["href"]);
+            }
+        });
+    });
+});
+"""
+        display(Javascript(js))
+
+    def _get_level_ordering(self):
+        ## First, get a level for all layers:
+        levels = {}
+        for layer in topological_sort(self):
+            if not hasattr(layer, "model"):
+                continue
+            level = max([levels[lay.name] for lay in layer.incoming_connections] + [-1])
+            levels[layer.name] = level + 1
+        max_level = max(levels.values())
+        # Now, sort by input layer indices:
+        ordering = []
+        for i in range(max_level + 1):
+            layer_names = [layer.name for layer in self.layers if levels[layer.name] == i]
+            if self.input_layer_order:
+                inputs = [([self.input_layer_order.index(name)
+                            for name in self[layer_name].input_names], layer_name)
+                          for layer_name in layer_names]
+            else:
+                inputs = [([0 for name in self[layer_name].input_names], layer_name)
+                          for layer_name in layer_names]
+            level = [row[1] for row in sorted(inputs)]
+            ordering.append(level)
+        return ordering
+
+    def describe_connection_to(self, layer1, layer2):
+        retval = "Weights from %s to %s" % (layer1.name, layer2.name)
+        for klayer in self.model.layers:
+            if klayer.name == layer2.name:
+                weights = klayer.get_weights()
+                for w in range(len(klayer.weights)):
+                    retval += "\n %s has shape %s" % (klayer.weights[w], weights[w].shape)
+        ## FIXME: how to show merged weights?
         return retval
-
-    def save_deltas_and_reset_weights(self):
-        """
-        """
-        for layer in self.layer:
-            layer.save_deltas_and_reset_weights()
-
-    def save_weights(self):
-        """
-        """
-        for layer in self.layer:
-            layer.save_weights()
 
     def save(self, filename=None):
         """
-        Save network weights and biases to a file.
+        Save the weights to a file.
         """
         if filename is None:
-            fp = io.BytesIO()
-            for layer in self.layer:
-                layer.save(fp)
-            return fp
-        else:
-            with open(filename, "wb") as fp:
-                for layer in self.layer:
-                    layer.save(fp)
+            filename = "%s.wts" % self.name
+        with open(filename, "wb") as fp:
+            for layer in self.model.layers:
+                np.save(fp, layer.get_weights())
 
-    def load(self, filename):
+    def load(self, filename=None):
         """
-        Load network weights and biases from a file.
+        Load the weights from a file.
         """
-        if isinstance(filename, str):
-            with open(filename, "rb") as fp:
-                for layer in self.layer:
-                    layer.load(fp)
-        else:
-            fp.seek(0)
-            for layer in net.layer:
-                layer.load(fp)
+        if filename is None:
+            filename = "%s.wts" % self.name
+        with open(filename, "rb") as fp:
+            for layer in self.model.layers:
+                new_weights = np.load(fp)
+                layer.set_weights(new_weights)
 
-    def update_weights_from_deltas(self):
-        """
-        """
-        for layer in self.layer:
-            layer.update_weights_from_deltas()
-
-    def propagate(self, inputs):
-        return self._pypropagate(inputs)
-
-    def compute_delta_weights(self, error):
-        '''
-        Compute updates for gradient descent with momentum
-
-        :returns:
-            updates : list
-                List of updates, one for each parameter
-        '''
-        # Make sure momentum is a sane value
-        assert self.momentum < 1 and self.momentum >= 0
-        # List of update steps for each parameter
-        updates = []
-        # Just gradient descent on cost
-        for param in self.params: # [weights, biases]
-            # For each parameter, we'll create a param_update shared variable.
-            # This variable will keep track of the parameter's update step across iterations.
-            # We initialize it to 0
-            param_update = theano.shared(param.get_value() * 0.,
-                                         broadcastable=param.broadcastable)
-            # Each parameter is updated by taking a step in the direction of the gradient.
-            # However, we also "mix in" the previous step according to the given momentum value.
-            # Note that when updating param_update, we are using its old value and also the new gradient step.
-            updates.append((param, T.cast(param - self._epsilon * param_update,
-                                          theano.config.floatX)))
-            # Note that we don't need to derive backpropagation to compute updates - just use T.grad!
-            updates.append((param_update,
-                            T.cast((self._momentum * param_update) +
-                                   T.grad(error, param),
-                                   theano.config.floatX)))
-        return updates
-
-    def _propagate(self, inputs):
-        '''
-        Compute the networks's output given an input
-
-        :parameters:
-            - inputs : theano.tensor.var.TensorVariable
-                Theano symbolic variable for network input
-
-        :returns:
-            - output : theano.tensor.var.TensorVariable
-                inputs passed through the network
-        '''
-        # Recursively compute output
-        # FIXME: This is the network graph
-        activations = inputs
-        for layer in self.layer:
-            activations = layer._propagate(activations)
-        return activations
-
-    def _tss_error(self, inputs, targets):
-        '''
-        Compute the squared euclidean error of the network output against the "true" output y
-
-        :parameters:
-            - inputs : theano.tensor.var.TensorVariable
-                Theano symbolic variable for network input
-            - targets : theano.tensor.var.TensorVariable
-                Theano symbolic variable for desired network output
-
-        :returns:
-            - error : theano.tensor.var.TensorVariable
-                The squared Euclidian distance between the network output and y
-        '''
-        return T.sum((self._propagate(inputs) - targets)**2,
-                     dtype=theano.config.floatX)
-
-    def initialize_inputs(self):
-        if self.shuffle:
-            self.shuffle_inputs()
-
-    def inputs_size(self):
-        return len(self.inputs)
-
-    def get_inputs(self, i):
-        return self.inputs[i]
-
-    def cross_validate(self):
-        """
-        Run through all, computing error, correct, total
-        """
-        error = 0
-        correct = 0
-        total = 0
-        for i in range(self.inputs_size()):
-            self.current_input_index = i
-            inputs = self.get_inputs(i)
-            if self.target_function:
-                target = self.target_function(inputs)
-            else:
-                # inputs is input and target
-                target = inputs[1]
-                inputs = inputs[0]
-            output = self.propagate(inputs)
-            error += self.tss_error(inputs, target)
-            if all(map(lambda v: v <= self.tolerance,
-                       np.abs(output - target, dtype=theano.config.floatX))):
-                correct += 1
-            total += 1
-        self.last_cv_error, self.last_cv_correct, self.last_cv_total = error, correct, total
-        if total > 0:
-            self.last_cv_percent = correct/total
-        else:
-            self.last_cv_percent = 0
-        return error, correct, total
-
-    def train(self, **kwargs):
-        """
-        Method to train network.
-        """
-        # Get initial error, before training:
-        for key in kwargs:
-            if key in ["epsilon", "momentum", "activation_function",
-                       "max_training_epochs", "stop_percentage",
-                       "tolerance", "report_rate", "batch", "shuffle"]:
-                setattr(self, key, kwargs[key])
-            else:
-                raise AttributeError("Invalid option: '%s'" % key)
-        print("-" * 50)
-        print("Training for max trails:", self.max_training_epochs, "...")
-        self.initialize_inputs()
-        error, correct, total = self.cross_validate()
-        print('Epoch:', self.epoch,
-              'TSS error:', error,
-              '%correct:', correct/total * 100)
-        self.history[self.epoch] = [error, correct/total]
-        with InterruptHandler() as handler:
-            if correct/total < self.stop_percentage and not handler.interrupted:
-                for e in range(self.max_training_epochs):
-                    if self.batch:
-                        self.save_weights()
-                    self.initialize_inputs()
-                    for i in range(self.inputs_size()):
-                        self.current_input_index = i
-                        inputs = self.get_inputs(i)
-                        if self.target_function:
-                            target = self.target_function(inputs)
-                        else:
-                            # inputs is input and target
-                            target = inputs[1]
-                            inputs = inputs[0]
-                        self.train_one(inputs, target)
-                        output = self.propagate(inputs)
-                    if self.batch:
-                        self.update_weights_from_deltas()
-                    self.epoch += 1
-                    error, correct, total = self.cross_validate()
-                    if self.epoch % self.report_rate == 0 or handler.interrupted:
-                        self.history[self.epoch] = [error, correct/total]
-                        print('Epoch:', self.epoch,
-                              'TSS error:', error,
-                              '%correct:', correct/total * 100)
-                    if self.stop_percentage is not None:
-                        if correct/total >= self.stop_percentage:
-                            break
-                    if handler.interrupted:
-                        print("\nInterrupted by user; stopping...")
-                        break
-            if handler.interrupted:
-                raise KeyboardInterrupt
-        self.history[self.epoch] = [error, correct/total]
-        print("-" * 50)
-        print('Epoch:', self.epoch,
-              'TSS error:', error,
-              '%correct:', correct/total * 100)
-
-    def shuffle_inputs(self):
-        """
-        Shuffle the input/target patterns.
-        """
-        random.shuffle(self.inputs)
-
-    def test(self, stop=None, start=0):
-        """
-        Method to test network.
-        """
-        if stop is None:
-            stop = self.inputs_size()
-        error = 0
-        total = 0
-        correct = 0
-        print("-" * 50)
-        print("Test:")
-        self.initialize_inputs()
-        for i in range(start, stop):
-            self.current_input_index = i
-            inputs = self.get_inputs(i)
-            if self.target_function:
-                target = self.target_function(inputs)
-            else:
-                # inputs is input and target
-                target = inputs[1]
-                inputs = inputs[0]
-            output = self.propagate(inputs)
-            error += self.tss_error(inputs, target)
-            answer = "Incorrect"
-            if all(map(lambda v: v <= self.tolerance,
-                       np.abs(output - target, dtype=theano.config.floatX))):
-                correct += 1
-                answer = "Correct"
-            total += 1
-            print("*" * 30)
-            self.display_test_input(inputs)
-            self.display_test_output(output)
-            self.display_test_output(target, result=answer, label='Target: ')
-        print("-" * 50)
-        print('Epoch:', self.epoch,
-              'TSS error:', error,
-              '%correct:', correct/total)
-
-    def reset(self):
-        """
-        Resets a network's learned values.
-        """
-        self.last_cv_error, self.last_cv_correct, self.last_cv_total = 0, 0, 0
-        self.last_cv_percent = 0
-        self.epoch = 0
-        self.history = {}
-        for i in range(len(self.layer)):
-            self.layer[i].reset()
-
-    def reinit(self):
-        """
-        Restore network to inital state.
-        """
-        self.reset()
-        self.target_function = None
-        self.inputs = None
-
-    def get_history(self):
-        """
-        Get the history in order.
-        """
-        epochs = sorted(self.history.keys())
-        return [[key] + self.history[key] for key in epochs]
-
-    def set_inputs(self, inputs):
-        """
-        Set the inputs and optionally targets to train on.
-
-        inputs may be list of inputs, or list of inputs/targets.
-
-        If inputs is just inputs, then you need to set
-        net.set_target_function.
-        """
-        self.inputs = inputs
-
-    def set_target_function(self, func):
-        """
-        Set the target function, if one.
-        """
-        self.target_function = func
-
-    def change_layer_size(self, layer, size):
-        """
-        Change the size of a layer. Should call
-        reset at some point after this.
-        """
-        self.sizes[layer] = size
-
-    def pp(self, label, vector, result=''):
-        """
-        Pretty printer for a label, vector and optional result
-        """
-        print(label + (",".join(["% .1f" % v for v in vector])) + " " + result)
-
-    def display_test_input(self, v):
-        """
-        Method to display input pattern.
-        """
-        self.pp("Input : ", v)
-
-    def display_test_output(self, v, result='', label='Output: '):
-        """
-        Method to display output pattern.
-        """
-        self.pp(label, v, result)
-
-    def __repr__(self):
-        retval = "Network:"
-        retval += ("-" * 50) + "\n"
-        for i in range(len(self.layer)):
-            layer = self.layer[i]
-            retval += "Layer %s:\n" % i
-            retval += str(layer)
-            retval += ("-" * 50) + "\n"
-        return retval
-
-    def get_device(self):
-        """
-        Returns 'cpu' or 'gpu' indicating which device
-        the network will use.
-        """
-        if np.any([isinstance(x.op, T.Elemwise) for x
-                   in self._pypropagate.maker.fgraph.toposort()]):
-            return "cpu"
-        else:
-            return "gpu"
-
-    def to_array(self):
-        """
-        Turn weights and biases into a 1D vector of values.
-        """
-        fp = self.save()
-        fp.seek(0)
-        array = []
-        while True:
-            try:
-                layer = np.load(fp)
-            except:
-                break
-            layer.shape = tuple([functools.reduce(operator.mul, layer.shape)])
-            array.extend(layer)
-        return array
-
-    def from_array(self, array):
-        """
-        Given an array (perhaps formed from Network.to_array) load
-        all of the weights and biases.
-        """
-        current = 0
-        for layer in self.layer:
-            w = layer.n_input * layer.n_output
-            weights = np.array(array[current: current + w])
-            weights.shape = (layer.n_output, layer.n_input)
-            assert layer.weights.get_value().shape == weights.shape
-            layer.weights.set_value(weights)
-            current += w
-            b = layer.n_output
-            biases = np.array(array[current: current + b])
-            assert layer.biases.get_value().shape == biases.shape
-            layer.biases.set_value(biases)
-            current += b
-
+    ## FIXME: add these:
+    #def to_array(self):
+    #def from_array(self):
 
 class InterruptHandler():
     def __init__(self, sig=signal.SIGINT):
@@ -737,6 +1042,9 @@ class InterruptHandler():
 
         def handler(signum, frame):
             self.release()
+            if self.interrupted:
+                raise KeyboardInterrupt
+            print("\nStopping at end of epoch... (^C again to quit now)...")
             self.interrupted = True
 
         signal.signal(self.sig, handler)

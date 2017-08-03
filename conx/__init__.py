@@ -19,4 +19,6 @@
 
 __version__ = "3.0.0"
 
-from .konx import *
+from .network import *
+from .layers import *
+
