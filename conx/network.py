@@ -617,6 +617,7 @@ class Network():
             output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
         else:
             output_layer_names = self.output_layer_order
+        outputs = []
         for output_layer_name in output_layer_names:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             if prop_model is None:
@@ -637,23 +638,26 @@ class Network():
                                                                           outputs=k)
                 # Now we should be able to get the prop_from model:
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
-        input = np.array([input])
-        if batch_size is None:
-            outputs = [list(x)[0] for x in prop_model.predict(input)]
-        else:
-            outputs = [list(x)[0] for x in prop_model.predict(input,
-                                                              batch_size=batch_size)]
+            inputs = np.array([input])
+            if batch_size is None:
+                outputs.append([list(x) for x in prop_model.predict(inputs)][0])
+            else:
+                outputs.append([list(x) for x in prop_model.predict(inputs,
+                                                                    batch_size=batch_size)][0])
         if self.visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
             for layer in topological_sort(self, [self[layer_name]]):
                 model = self.prop_from_dict[(layer_name, layer.name)]
-                vector = model.predict(input)[0]
+                vector = model.predict(inputs)[0]
                 image = self._make_image(layer.name, vector, colormap=self[layer.name].colormap)
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
-        return outputs
+        if len(output_layer_names) == 1:
+            return outputs[0]
+        else:
+            return outputs
 
     def propagate_to(self, layer_name, input, batch_size=None):
         """
@@ -1029,7 +1033,8 @@ require(['base/js/namespace'], function(Jupyter) {
             filename = "%s.wts" % self.name
         with open(filename, "wb") as fp:
             for layer in self.model.layers:
-                np.save(fp, layer.get_weights())
+                for weight in layer.get_weights():
+                    np.save(fp, weight)
 
     def load(self, filename=None):
         """
@@ -1039,7 +1044,10 @@ require(['base/js/namespace'], function(Jupyter) {
             filename = "%s.wts" % self.name
         with open(filename, "rb") as fp:
             for layer in self.model.layers:
-                new_weights = np.load(fp)
+                weights = layer.get_weights()
+                new_weights = []
+                for w in range(len(weights)):
+                    new_weights.append(np.load(fp))
                 layer.set_weights(new_weights)
 
     ## FIXME: add these:

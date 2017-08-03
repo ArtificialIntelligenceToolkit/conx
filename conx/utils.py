@@ -22,6 +22,15 @@ import numbers
 #------------------------------------------------------------------------
 # utility functions
 
+def pp(**args):
+    if isinstance(args[0], str):
+        label = args[0]
+        vector = args[1]
+    else:
+        label = ""
+        vector = args[0]
+    print(label + "[" + (", ".join(["%.1f" % v for v in vector])) + "]")
+
 def topological_sort(net, layers):
     ## Initilize all:
     for layer in net.layers:
