@@ -23,6 +23,7 @@ import numbers
 import operator
 from functools import reduce
 
+import numpy as np
 import keras
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
@@ -118,6 +119,58 @@ class BaseLayer():
         else:
             return [k]
 
+    def make_image(self, vector, size=25):
+        """
+        Given an activation name (or function), and an output vector, display
+        make and return an image widget.
+        """
+        from matplotlib import cm
+        import PIL
+        if self.vshape != self.shape:
+            vector = vector.reshape(self.vshape)
+        minmax = self.get_minmax(vector)
+        vector = self.scale_output_for_image(vector, minmax)
+        if len(vector.shape) == 1:
+            vector = vector.reshape((1, vector.shape[0]))
+        new_width = vector.shape[0] * size # in, pixels
+        new_height = vector.shape[1] * size # in, pixels
+        if self.colormap:
+            cm_hot = cm.get_cmap(self.colormap)
+            vector = cm_hot(vector)
+            vector = np.uint8(vector * 255)
+            image = PIL.Image.fromarray(vector)
+        else:
+            image = PIL.Image.fromarray(vector, 'P')
+        image = image.resize((new_height, new_width))
+        return image
+
+    def scale_output_for_image(self, vector, minmax):
+        """
+        Given an activation name (or something else) and an output
+        vector, scale the vector.
+        """
+        return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
+
+    def make_dummy_vector(self):
+        v = np.ones(self.shape)
+        lo, hi = self.get_minmax(v)
+        v *= (lo + hi) / 2.0
+        return v
+
+    def get_minmax(self, vector):
+        if self.minmax:
+            return self.minmax
+        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+        if self.activation in ["tanh"]:
+            return (-1,+1)
+        elif self.activation in ["sigmoid", "softmax"]:
+            return (0,+1)
+        elif self.activation in ["relu"]:
+            return (0,vector.max())
+        else: # activation in ["linear"] or otherwise
+            return (-1,+1)
+
+
 class Layer(BaseLayer):
     """
     For Dense and Input type layers.
@@ -179,5 +232,14 @@ class Layer(BaseLayer):
             retval += "\n %s = %s" % (key, self.params[key])
         return retval
 
+class PictureLayer(Layer):
+    def make_image(self, vector):
+        """
+        Given an activation name (or function), and an output vector, display
+        make and return an image widget.
+        """
+        import PIL
+        return PIL.Image.fromarray(vector).resize((200,200))
+    
 class LSTMLayer(BaseLayer):
     CLASS = keras.layers.LSTM

@@ -610,13 +610,17 @@ class Network():
                 self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
 
-    def propagate_from(self, layer_name, input, batch_size=None):
+    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=None):
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
-        if self.num_target_layers == 1:
-            output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
+        if output_layer_names is None:
+            if self.num_target_layers == 1:
+                output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
+            else:
+                output_layer_names = self.output_layer_order
         else:
-            output_layer_names = self.output_layer_order
+            if isinstance(output_layer_names, str):
+                output_layer_names = [output_layer_names]
         outputs = []
         for output_layer_name in output_layer_names:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
@@ -651,7 +655,7 @@ class Network():
             for layer in topological_sort(self, [self[layer_name]]):
                 model = self.prop_from_dict[(layer_name, layer.name)]
                 vector = model.predict(inputs)[0]
-                image = self._make_image(layer.name, vector, colormap=self[layer.name].colormap)
+                image = layer.make_image(vector)
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if len(output_layer_names) == 1:
@@ -685,7 +689,7 @@ class Network():
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
             array = np.array(outputs)
-            image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
+            image = self[layer_name].make_image(array)
             data_uri = self._image_to_uri(image)
             self._comm.send({'id': "%s_%s" % (self.name, layer_name), "href": data_uri})
         return outputs
@@ -696,7 +700,7 @@ class Network():
         """
         outputs = self.propagate_to(layer_name, input, batch_size)
         array = np.array(outputs)
-        image = self._make_image(layer_name, array, colormap=self[layer_name].colormap)
+        image = self[layer_name].make_image(array)
         return image
 
     def compile(self, **kwargs):
@@ -809,52 +813,6 @@ class Network():
             layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
         return layers
 
-    def _get_minmax(self, layer, vector):
-        if layer.minmax:
-            return layer.minmax
-        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
-        if layer.activation in ["tanh"]:
-            return (-1,+1)
-        elif layer.activation in ["sigmoid", "softmax"]:
-            return (0,+1)
-        elif layer.activation in ["relu"]:
-            return (0,vector.max())
-        else: # activation in ["linear"] or otherwise
-            return (-1,+1)
-
-    def _scale_output_for_image(self, vector, minmax):
-        """
-        Given an activation name (or something else) and an output
-        vector, scale the vector.
-        """
-        return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
-
-    def _make_image(self, layer_name, vector, size=25, transpose=False, colormap=None):
-        """
-        Given an activation name (or function), and an output vector, display
-        make and return an image widget.
-        """
-        from matplotlib import cm
-        import PIL
-        layer = self[layer_name]
-        if layer.vshape != layer.shape:
-            vector = vector.reshape(layer.vshape)
-        minmax = self._get_minmax(layer, vector)
-        vector = self._scale_output_for_image(vector, minmax)
-        if len(vector.shape) == 1:
-            vector = vector.reshape((1, vector.shape[0]))
-        new_width = vector.shape[0] * size # in, pixels
-        new_height = vector.shape[1] * size # in, pixels
-        if colormap:
-            cm_hot = cm.get_cmap(colormap)
-            vector = cm_hot(vector)
-            vector = np.uint8(vector * 255)
-            image = PIL.Image.fromarray(vector)
-        else:
-            image = PIL.Image.fromarray(vector, 'P')
-        image = image.resize((new_height, new_width))
-        return image
-
     def _image_to_uri(self, img_src):
         # Convert to binary data:
         b = io.BytesIO()
@@ -864,12 +822,6 @@ class Network():
         if not isinstance(data, str):
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % data
-
-    def _make_dummy_vector(self, layer):
-        v = np.ones(layer.shape)
-        lo, hi = self._get_minmax(layer, v)
-        v *= (lo + hi) / 2.0
-        return v
 
     def build_svg(self, opts={}):
         """
@@ -907,7 +859,7 @@ class Network():
                 if self.inputs is not None:
                     v = self.get_input(0)
                 else:
-                    v = self._make_dummy_vector(self[layer_name])
+                    v = self[layer_name].make_dummy_vector()
                 image = self.propagate_to_image(layer_name, v)
                 (width, height) = image.size
                 max_dim = max(width, height)
