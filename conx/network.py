@@ -28,6 +28,7 @@ import io
 import numpy as np
 import keras
 from keras.models import Model
+from keras.layers import Input
 
 from .utils import *
 from .layers import Layer
@@ -80,6 +81,7 @@ class Network():
         self.train_labels = []
         self.model = None
         self.split = 0
+        self.prop_from_dict = {}
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -609,36 +611,49 @@ class Network():
         return outputs
 
     def propagate_from(self, layer_name, input, batch_size=None):
-        ## FIXME:
-        ## This needs to be build brand new from here to output(s)
-        # if self[layer_name].decode_model is None:
-        #     outks = self._get_output_ks_in_order()
-        #     if len(outks) == 1:
-        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks[0])
-        #     else:
-        #         self[layer_name].decode_model = Model(inputs=Input(self[layer_name].shape), outputs=outks)
-        # if batch_size is None:
-        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs)]
-        # else:
-        #     outputs = [[list(y) for y in x][0] for x in self.decode_model.predict(inputs, batch_size=batch_size)]
-        # if self.visualize:
-        #     ## FIXME: should visualize this all the way through
-        #     ## For now, we just update the outputs
-        #     if not self._comm:
-        #         from ipykernel.comm import Comm
-        #         self._comm = Comm(target_name='conx_svg_control')
-        #     if self.output_layer_order:
-        #         layers = self.output_layer_order # layer_names
-        #         outpairs = zip(layers, outputs)
-        #     else:
-        #         layers = [layer.name for layer in self.layers if layer.kind() == "output"]
-        #         outpairs = [(layers[0], outputs)]
-        #     for (layer_name, vector) in vectors:
-        #         image = self._make_image(layer_name, vector, colormap=self[layer_name].colormap)
-        #         data_uri = self._image_to_uri(image)
-        #         self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
-        # return outputs
-        return
+        if layer_name not in self.layer_dict:
+            raise Exception("No such layer '%s'" % layer_name)
+        if self.num_target_layers == 1:
+            output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
+        else:
+            output_layer_names = self.output_layer_order
+        for output_layer_name in output_layer_names:
+            prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
+            if prop_model is None:
+                path = topological_sort(self, self[layer_name].outgoing_connections)
+                # Make a new Input to start here:
+                k = input_k = Input(np.array(input).shape)
+                # So that we can display activations here:
+                self.prop_from_dict[(layer_name, layer_name)] = Model(inputs=input_k,
+                                                                      outputs=input_k)
+                for layer in path:
+                    k = self.prop_from_dict.get((layer_name, layer.name), None)
+                    if k is None:
+                        k = input_k
+                        fs = layer.make_keras_functions()
+                        for f in fs:
+                            k = f(k)
+                    self.prop_from_dict[(layer_name, layer.name)] = Model(inputs=input_k,
+                                                                          outputs=k)
+                # Now we should be able to get the prop_from model:
+                prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
+        input = np.array([input])
+        if batch_size is None:
+            outputs = [list(x)[0] for x in prop_model.predict(input)]
+        else:
+            outputs = [list(x)[0] for x in prop_model.predict(input,
+                                                              batch_size=batch_size)]
+        if self.visualize:
+            if not self._comm:
+                from ipykernel.comm import Comm
+                self._comm = Comm(target_name='conx_svg_control')
+            for layer in topological_sort(self, [self[layer_name]]):
+                model = self.prop_from_dict[(layer_name, layer.name)]
+                vector = model.predict(input)[0]
+                image = self._make_image(layer.name, vector, colormap=self[layer.name].colormap)
+                data_uri = self._image_to_uri(image)
+                self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+        return outputs
 
     def propagate_to(self, layer_name, input, batch_size=None):
         """
@@ -707,7 +722,7 @@ class Network():
                     raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
         else:
             raise Exception("improper set_output_layer_order() names")
-        sequence = topological_sort(self)
+        sequence = topological_sort(self, self.layers)
         for layer in sequence:
             if layer.kind() == 'input':
                 layer.k = layer.make_input_layer_k()
@@ -718,17 +733,17 @@ class Network():
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
                 kfuncs = layer.make_keras_functions()
                 if len(layer.incoming_connections) == 1:
-                    f = layer.incoming_connections[0].k
+                    k = layer.incoming_connections[0].k
                     layer.input_names = layer.incoming_connections[0].input_names
                 else: # multiple inputs, need to merge
-                    f = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
+                    k = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
                     # flatten:
                     layer.input_names = [item for sublist in
                                          [incoming.input_names for incoming in layer.incoming_connections]
                                          for item in sublist]
-                for k in kfuncs:
-                    f = k(f)
-                layer.k = f
+                for f in kfuncs:
+                    k = f(k)
+                layer.k = k
                 ## get the inputs to this branch, in order:
                 input_ks = self._get_input_ks_in_order(layer.input_names)
                 layer.model = Model(inputs=input_ks, outputs=layer.k)
@@ -975,7 +990,7 @@ require(['base/js/namespace'], function(Jupyter) {
     def _get_level_ordering(self):
         ## First, get a level for all layers:
         levels = {}
-        for layer in topological_sort(self):
+        for layer in topological_sort(self, self.layers):
             if not hasattr(layer, "model"):
                 continue
             level = max([levels[lay.name] for lay in layer.incoming_connections] + [-1])

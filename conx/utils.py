@@ -22,11 +22,13 @@ import numbers
 #------------------------------------------------------------------------
 # utility functions
 
-def topological_sort(net):
+def topological_sort(net, layers):
+    ## Initilize all:
     for layer in net.layers:
         layer.visited = False
     stack = []
-    for layer in net.layers:
+    # Only track and sort these:
+    for layer in layers:
         if not layer.visited:
             visit(layer, stack)
     stack.reverse()
