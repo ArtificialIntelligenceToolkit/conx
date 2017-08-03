@@ -18,9 +18,13 @@
 # Boston, MA 02110-1301  USA
 
 import numbers
+from keras.utils import to_categorical
 
 #------------------------------------------------------------------------
 # utility functions
+
+def one_hot(vector, categories):
+    return to_categorical(vector, categories)[0].tolist()
 
 def pp(*args):
     if isinstance(args[0], str):

@@ -315,7 +315,7 @@ class Network():
         magnitude = max(min(1/shape[0] * 50, 1.16), 0.06)
         rmin, rmax = -magnitude, magnitude
         span = (rmax - rmin)
-        return np.array(span * np.random.rand(size) - range/2.0,
+        return np.array(span * np.random.rand(size) - span/2.0,
                         dtype='float32').reshape(shape)
 
     def reset(self):
