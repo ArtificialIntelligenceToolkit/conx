@@ -858,7 +858,7 @@ class Network():
         # Go through and build images, compute max_width:
         for level_names in ordering:
             # first make all images at this level
-            total_width = 0
+            total_width = 0 # for this row
             for layer_name in level_names:
                 if not self[layer_name].visible:
                     continue
@@ -891,6 +891,7 @@ class Network():
         cheight = config["border_top"] # top border
         positioning = {}
         for level_names in ordering:
+            # compute width of just pictures for this row:
             row_layer_width = 0
             for layer_name in level_names:
                 if not self[layer_name].visible:
@@ -973,7 +974,7 @@ class Network():
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
                     })
-                cwidth += width + config["hspace"] # spacing between
+                cwidth += width + spacing # spacing between
                 max_height = max(max_height, height)
             cheight += max_height
         cheight += config["border_bottom"]
