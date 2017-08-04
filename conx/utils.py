@@ -33,7 +33,10 @@ def pp(*args):
     else:
         label = ""
         vector = args[0]
-    print(label + "[" + (", ".join(["%.1f" % v for v in vector])) + "]")
+    print(label + ppf(vector))
+
+def ppf(vector, precision=1):
+    return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector]) + "]"
 
 def topological_sort(net, layers):
     ## Initilize all:

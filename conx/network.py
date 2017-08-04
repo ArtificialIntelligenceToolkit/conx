@@ -420,13 +420,13 @@ class Network():
         outputs = self.model.predict(inputs, batch_size=batch_size)
         print("# | inputs | outputs")
         if self.num_input_layers == 1:
-            ins = inputs.tolist()
+            ins = [ppf(x) for x in inputs.tolist()]
         else:
-            ins = np.array(list(zip(*inputs))).tolist()
+            ins = [("[" + ", ".join([ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
         if self.num_target_layers == 1:
-            outs = outputs.tolist()
+            outs = [ppf(x) for x in outputs.tolist()]
         else:
-            outs = np.array(list(zip(*outputs))).tolist()
+            outs = [("[" + ", ".join([ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
         for i in range(len(outs)):
             print(i, "|", ins[i], "|", outs[i])
 
