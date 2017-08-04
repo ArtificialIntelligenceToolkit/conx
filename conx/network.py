@@ -82,6 +82,7 @@ class Network():
         self.model = None
         self.split = 0
         self.prop_from_dict = {}
+        self._svg_counter = 1
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -388,21 +389,28 @@ class Network():
             else:
                 print('   %d test inputs' % len(self.test_inputs[0]))
 
-    def test(self, dataset=None, batch_size=None):
-        if dataset is None:
+    def test(self, inputs=None, batch_size=32):
+        """
+        Requires items in proper internal format.
+        """
+        if inputs is None:
             if self.split == self.num_inputs:
-                dataset = self.train_inputs
+                inputs = self.train_inputs
             else:
-                dataset = self.test_inputs
+                inputs = self.test_inputs
         print("Testing...")
-        if batch_size is not None:
-            outputs = self.model.predict(dataset, batch_size=batch_size)
+        outputs = self.model.predict(inputs, batch_size=batch_size)
+        print("# | inputs | outputs")
+        if self.num_input_layers == 1:
+            ins = inputs.tolist()
         else:
-            outputs = self.model.predict(dataset)
-        if self.num_target_layers > 1:
-            outputs = [[list(y) for y in x] for x in zip(*outputs)]
-        for output in outputs:
-            print(output)
+            ins = np.array(list(zip(*inputs))).tolist()
+        if self.num_target_layers == 1:
+            outs = outputs.tolist()
+        else:
+            outs = np.array(list(zip(*outputs))).tolist()
+        for i in range(len(outs)):
+            print(i, "|", ins[i], "|", outs[i])
 
     def train(self, epochs=1, accuracy=None, batch_size=None,
               report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
@@ -432,10 +440,7 @@ class Network():
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight)
-                if batch_size is not None:
-                    outputs = self.model.predict(validation_inputs, batch_size=batch_size)
-                else:
-                    outputs = self.model.predict(validation_inputs)
+                outputs = self.model.predict(validation_inputs, batch_size=batch_size)
                 if self.num_target_layers == 1:
                     correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                    np.abs(outputs - validation_targets))].count(True)
@@ -463,10 +468,7 @@ class Network():
                                             shuffle=shuffle,
                                             class_weight=class_weight,
                                             sample_weight=sample_weight)
-                    if batch_size is not None:
-                        outputs = self.model.predict(validation_inputs, batch_size=batch_size)
-                    else:
-                        outputs = self.model.predict(validation_inputs)
+                    outputs = self.model.predict(validation_inputs, batch_size=batch_size)
                     if self.num_target_layers == 1:
                         correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                        np.abs(outputs - validation_targets))].count(True)
@@ -588,18 +590,12 @@ class Network():
                 targets.append(list(self.test_targets[c][i]))
             return targets
 
-    def propagate(self, input, batch_size=None):
+    def propagate(self, input, batch_size=32):
         if self.num_input_layers == 1:
-            if batch_size is not None:
-                outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
-            else:
-                outputs = list(self.model.predict(np.array([input]))[0])
+            outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
         else:
             inputs = [np.array(x, "float32") for x in input]
-            if batch_size is not None:
-                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
-            else:
-                outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs)]
+            outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
         if self.visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -607,10 +603,10 @@ class Network():
             for layer in self.layers:
                 image = self.propagate_to_image(layer.name, input, batch_size)
                 data_uri = self._image_to_uri(image)
-                self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
 
-    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=None):
+    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32):
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if output_layer_names is None:
@@ -643,11 +639,7 @@ class Network():
                 # Now we should be able to get the prop_from model:
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
-            if batch_size is None:
-                outputs.append([list(x) for x in prop_model.predict(inputs)][0])
-            else:
-                outputs.append([list(x) for x in prop_model.predict(inputs,
-                                                                    batch_size=batch_size)][0])
+            outputs.append([list(x) for x in prop_model.predict(inputs)][0])
         if self.visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -657,44 +649,35 @@ class Network():
                 vector = model.predict(inputs)[0]
                 image = layer.make_image(vector)
                 data_uri = self._image_to_uri(image)
-                self._comm.send({'id': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if len(output_layer_names) == 1:
             return outputs[0]
         else:
             return outputs
 
-    def propagate_to(self, layer_name, input, batch_size=None):
+    def propagate_to(self, layer_name, inputs, batch_size=32):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
         """
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if self.num_input_layers == 1:
-            if batch_size is not None:
-                outputs = self[layer_name].propagate_to(input, batch_size=batch_size)
-            else:
-                outputs = self[layer_name].propagate_to(input)
+            outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
-            inputs = [np.array(x, "float32") for x in input]
             # get just inputs for this layer, in order:
-            inputs = [inputs[self.input_layer_order.index(name)] for name in self[layer_name].input_names]
-            if len(inputs) == 1:
-                inputs = inputs[0]
-            if batch_size is not None:
-                outputs = self[layer_name].propagate_to(inputs, batch_size=batch_size)
-            else:
-                outputs = self[layer_name].propagate_to(inputs)
+            vector = [np.array(inputs[self.input_layer_order.index(name)]) for name in self[layer_name].input_names]
+            outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
         if self.visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
-            array = np.array(outputs)
-            image = self[layer_name].make_image(array)
+            image = self[layer_name].make_image(outputs[0]) # single vector, as an np.array
             data_uri = self._image_to_uri(image)
-            self._comm.send({'id': "%s_%s" % (self.name, layer_name), "href": data_uri})
+            self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
+        outputs = outputs[0].tolist()
         return outputs
 
-    def propagate_to_image(self, layer_name, input, batch_size=None):
+    def propagate_to_image(self, layer_name, input, batch_size=32):
         """
         Gets an image of activations at a layer.
         """
@@ -843,7 +826,7 @@ class Network():
         config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name})
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}_{svg_counter}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name, "svg_counter": self._svg_counter})
         arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
@@ -944,6 +927,7 @@ class Network():
                 max_height = max(max_height, height)
             cheight += max_height + config["vspace"] # 50 for arrows
         self.visualize = True
+        self._svg_counter += 1
         self._initialize_javascript()
         return ("""
         <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
@@ -961,9 +945,9 @@ require(['base/js/namespace'], function(Jupyter) {
     Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
         comm.on_msg(function(msg) {
             var data = msg["content"]["data"];
-            var image = document.getElementById(data["id"]);
-            if (image) {
-                image.setAttributeNS(null, "href", data["href"]);
+            var images = document.getElementsByClassName(data["class"]);
+            for (var i = 0; i < images.length; i++) {
+                images[i].setAttributeNS(null, "href", data["href"]);
             }
         });
     });

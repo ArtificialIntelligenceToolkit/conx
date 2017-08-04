@@ -83,13 +83,6 @@ class BaseLayer():
     def __repr__(self):
         return "<%s name='%s'>" % (self.CLASS.__name__, self.name)
 
-    def propagate_to(self, input, batch_size=None):
-        if batch_size is not None:
-            output = self.model.predict(np.array([input]), batch_size=batch_size)
-        else:
-            output = self.model.predict(np.array([input]))
-        return output[0].tolist()
-
     def summary(self):
         print("Name: %s (%s) VShape: %s Dropout: %s" %
               (self.name, self.kind(), self.vshape, self.dropout))
