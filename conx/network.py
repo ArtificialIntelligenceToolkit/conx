@@ -641,7 +641,7 @@ class Network():
             if prop_model is None:
                 path = topological_sort(self, self[layer_name].outgoing_connections)
                 # Make a new Input to start here:
-                k = input_k = Input(np.array(input).shape)
+                k = input_k = Input(self[layer_name].shape, name=self[layer_name].name)
                 # So that we can display activations here:
                 self.prop_from_dict[(layer_name, layer_name)] = Model(inputs=input_k,
                                                                       outputs=input_k)
@@ -662,6 +662,7 @@ class Network():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
+            ## Update from start to rest of graph
             for layer in topological_sort(self, [self[layer_name]]):
                 model = self.prop_from_dict[(layer_name, layer.name)]
                 vector = model.predict(inputs)[0]
@@ -673,7 +674,7 @@ class Network():
         else:
             return outputs
 
-    def propagate_to(self, layer_name, inputs, batch_size=32):
+    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=True):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
         """
@@ -685,13 +686,16 @@ class Network():
             # get just inputs for this layer, in order:
             vector = [np.array(inputs[self.input_layer_order.index(name)]) for name in self[layer_name].input_names]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
-        if self.visualize:
+        if self.visualize and visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
-            image = self[layer_name].make_image(outputs[0]) # single vector, as an np.array
-            data_uri = self._image_to_uri(image)
-            self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
+            # Update path from input to output
+            for layer in self.layers: # FIXME??: update all layers for now
+                out = self.propagate_to(layer.name, inputs, visualize=False)
+                image = self[layer.name].make_image(np.array(out)) # single vector, as an np.array
+                data_uri = self._image_to_uri(image)
+                self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         outputs = outputs[0].tolist()
         return outputs
 
@@ -862,17 +866,21 @@ class Network():
             for layer_name in level_names:
                 if not self[layer_name].visible:
                     continue
-                if self.inputs is not None:
-                    v = self.get_input(0)
-                else:
-                    if self.input_layer_order:
-                        v = []
-                        for in_name in self.input_layer_order:
-                            v.append(self[in_name].make_dummy_vector())
+                if self.model: # thus, we can propagate
+                    if self.inputs is not None:
+                        v = self.get_input(0)
                     else:
-                        in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
-                        v = in_layer.make_dummy_vector()
-                image = self.propagate_to_image(layer_name, v)
+                        if self.input_layer_order:
+                            v = []
+                            for in_name in self.input_layer_order:
+                                v.append(self[in_name].make_dummy_vector())
+                        else:
+                            in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
+                            v = in_layer.make_dummy_vector()
+                    image = self.propagate_to_image(layer_name, v)
+                else: # no propagate
+                    # get image based on ontputs
+                    raise Exception("compile model before building svg")
                 (width, height) = image.size
                 max_dim = max(width, height)
                 if max_dim > config["image_maxdim"]:
