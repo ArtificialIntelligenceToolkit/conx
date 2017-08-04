@@ -44,6 +44,7 @@ class BaseLayer():
         params["name"] = name
         self.shape = None
         self.vshape = None
+        self.visible = True
         self.colormap = None
         self.minmax = None
         self.model = None
@@ -59,6 +60,11 @@ class BaseLayer():
                 raise Exception('bad vshape: %s' % (vs,))
             else:
                 self.vshape = vs
+
+        if 'visible' in params:
+            visible = params['visible']
+            del params["visible"] # drop those that are not Keras parameters
+            self.visible = visible
 
         if 'colormap' in params:
             self.colormap = params['colormap']
@@ -239,7 +245,7 @@ class PictureLayer(Layer):
         """
         import PIL
         return PIL.Image.fromarray(vector.astype("uint8")).resize((200,200))
-    
+
 class LSTMLayer(BaseLayer):
     CLASS = keras.layers.LSTM
 

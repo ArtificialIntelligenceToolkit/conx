@@ -23,6 +23,7 @@ from functools import reduce
 import signal
 import numbers
 import base64
+import copy
 import io
 
 import numpy as np
@@ -36,7 +37,7 @@ from .layers import Layer
 #------------------------------------------------------------------------
 
 class Network():
-    def __init__(self, name, *sizes, **kwargs):
+    def __init__(self, name, *sizes, **config):
         """
         Create a neural network.
         if sizes is given, create a full network.
@@ -44,6 +45,23 @@ class Network():
         """
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
+        self.config = {
+            "font_size": 12, # for svg
+            "font_family": "monospace", # for svg
+            "border_top": 25, # for svg
+            "border_bottom": 25, # for svg
+            "hspace": 100, # for svg
+            "vspace": 50, # for svg
+            "image_maxdim": 200, # for svg
+            "activation": "linear", # Dense default, if none specified
+            "arrow_color": "blue",
+            "arrow_width": "2",
+            "border_width": "2",
+            "border_color": "blue",
+            "compile_kwargs": {}, ## WIP
+            "train_kwargs": {},  ## WIP
+        }
+        self.config.update(config)
         self.name = name
         self.layers = []
         self.layer_dict = {}
@@ -58,7 +76,7 @@ class Network():
         for i in range(len(sizes)):
             if i > 0:
                 self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
-                               activation=kwargs.get("activation", "linear")))
+                               activation=self.config["activation"]))
             else:
                 self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
         self.num_input_layers = 0
@@ -808,37 +826,42 @@ class Network():
 
     def build_svg(self, opts={}):
         """
-        opts include:
+        opts - temporary override of config
+
+        includes:
             "font_size": 12,
             "border_top": 25,
+            "border_bottom": 25,
             "hspace": 100,
             "vspace": 50,
-            "image_maxdim": 200,
+            "image_maxdim": 200
+
+        See .config for all options.
         """
         # defaults:
-        config = {
-            "font_size": 12,
-            "border_top": 25,
-            "hspace": 100,
-            "vspace": 50,
-            "image_maxdim": 200,
-        }
+        config = copy.copy(self.config)
         config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:blue;stroke-width:2"/><image id="{netname}_{{name}}_{svg_counter}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(**{"netname": self.name, "svg_counter": self._svg_counter})
-        arrow_svg = """<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="blue" stroke-width="2" marker-end="url(#arrow)"><title>{tooltip}</title></line>"""
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{svg_counter}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+            **{
+                "netname": self.name,
+                "svg_counter": self._svg_counter,
+                "border_color": config["border_color"],
+                "border_width": config["border_width"],
+            })
+        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
-        label_svg = """<text x="{x}" y="{y}" font-family="Verdana" font-size="{size}">{label}</text>"""
-        total_height = config["border_top"] # top border
+        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}">{label}</text>"""
         max_width = 0
         images = {}
-        # Go through and build images, compute size:
+        # Go through and build images, compute max_width:
         for level_names in ordering:
             # first make all images at this level
-            max_height = 0 # per row
             total_width = 0
             for layer_name in level_names:
+                if not self[layer_name].visible:
+                    continue
                 if self.inputs is not None:
                     v = self.get_input(0)
                 else:
@@ -862,8 +885,6 @@ class Network():
                     (width, height) = image.size
                 images[layer_name] = image
                 total_width += width + config["hspace"] # space between
-                max_height = max(max_height, height)
-            total_height += max_height + config["vspace"] # 50 for arrows
             max_width = max(max_width, total_width)
         # Now we go through again and build SVG:
         svg = ""
@@ -872,13 +893,33 @@ class Network():
         for level_names in ordering:
             row_layer_width = 0
             for layer_name in level_names:
+                if not self[layer_name].visible:
+                    continue
                 image = images[layer_name]
                 (width, height) = image.size
                 row_layer_width += width
             spacing = (max_width - row_layer_width) / (len(level_names) + 1)
             cwidth = spacing
-            max_height = 0
+            # See if there are any connections up:
+            any_connections_up = False
+            last_connections_up = False
             for layer_name in level_names:
+                if not self[layer_name].visible:
+                    continue
+                for out in self[layer_name].outgoing_connections:
+                    if out.name not in positioning:
+                        continue
+                    any_connections_up = True
+            if any_connections_up:
+                cheight += config["vspace"] # for arrows
+            else: # give a bit of room:
+                if not last_connections_up:
+                    cheight += 5
+            last_connections_up = any_connections_up
+            max_height = 0 # for row of images
+            for layer_name in level_names:
+                if not self[layer_name].visible:
+                    continue
                 image = images[layer_name]
                 (width, height) = image.size
                 positioning[layer_name] = {"name": layer_name,
@@ -895,6 +936,8 @@ class Network():
                 x1 = cwidth + width/2
                 y1 = cheight - 1
                 for out in self[layer_name].outgoing_connections:
+                    if out.name not in positioning:
+                        continue
                     # draw background to arrows to allow mouseover tooltips:
                     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
                     y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
@@ -909,23 +952,31 @@ class Network():
                                                 "rw": rect_width + rect_extra * 2,
                                                 "rh": abs(y1 - y2) - 2})
                 for out in self[layer_name].outgoing_connections:
+                    if out.name not in positioning:
+                        continue
                     # draw an arrow between layers:
                     tooltip = self.describe_connection_to(self[layer_name], out)
                     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
                     y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                    svg += arrow_svg.format(**{"x1":x1,
-                                               "y1":y1,
-                                               "x2":x2,
-                                               "y2":y2 + 2,
-                                               "tooltip": tooltip})
+                    svg += arrow_svg.format(
+                        **{"x1":x1,
+                           "y1":y1,
+                           "x2":x2,
+                           "y2":y2 + 2,
+                           "tooltip": tooltip
+                        })
                 svg += image_svg.format(**positioning[layer_name])
-                svg += label_svg.format(**{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
-                                           "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
-                                           "label": layer_name,
-                                           "size": config["font_size"]})
+                svg += label_svg.format(
+                    **{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                       "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
+                       "label": layer_name,
+                       "font_size": config["font_size"],
+                       "font_family": config["font_family"],
+                    })
                 cwidth += width + config["hspace"] # spacing between
                 max_height = max(max_height, height)
-            cheight += max_height + config["vspace"] # 50 for arrows
+            cheight += max_height
+        cheight += config["border_bottom"]
         self.visualize = True
         self._svg_counter += 1
         self._initialize_javascript()
@@ -933,10 +984,17 @@ class Network():
         <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L0,6 L9,3 z" fill="blue" />
+          <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
         </marker>
     </defs>
-""".format(**{"width": max_width, "height": total_height, "netname": self.name}) + svg + """</svg>""")
+""".format(
+    **{
+        "width": max_width,
+        "height": cheight,
+        "netname": self.name,
+        "arrow_color": config["arrow_color"],
+        "arrow_width": config["arrow_width"],
+    }) + svg + """</svg>""")
 
     def _initialize_javascript(self):
         from IPython.display import Javascript, display
