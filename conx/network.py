@@ -430,6 +430,25 @@ class Network():
         for i in range(len(outs)):
             print(i, "|", ins[i], "|", outs[i])
 
+    def train_one(self, inputs, targets, batch_size=32):
+        pairs = [(inputs, targets)]
+        if self.num_input_layers == 1:
+            ins = np.array([x for (x, y) in pairs], "float32")
+        else:
+            ins = []
+            for i in range(len(pairs[0][0])):
+                ins.append(np.array([x[i] for (x,y) in pairs], "float32"))
+        if self.num_target_layers == 1:
+            targs = np.array([y for (x, y) in pairs], "float32")
+        else:
+            targs = []
+            for i in range(len(pairs[0][1])):
+                targs.append(np.array([y[i] for (x,y) in pairs], "float32"))
+        history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
+        ## may need to update history?
+        outputs = self.propagate(inputs, batch_size=batch_size)
+        return outputs
+
     def train(self, epochs=1, accuracy=None, batch_size=None,
               report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
               class_weight=None, sample_weight=None):
@@ -1080,6 +1099,103 @@ require(['base/js/namespace'], function(Jupyter) {
                 for w in range(len(weights)):
                     new_weights.append(np.load(fp))
                 layer.set_weights(new_weights)
+
+
+    def make_widget(self):
+        from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
+
+        def dataset_move(position):
+            if control_select.value == "Train":
+                dataset = self.train_inputs
+            elif control_select.value == "Test":
+                dataset = self.test_inputs
+            #### Position it:
+            if position == "begin":
+                control_slider.value = 0
+            elif position == "end":
+                control_slider.value = len(dataset) - 1
+            elif position == "prev":
+                control_slider.value = max(control_slider.value - 1, 0)
+            elif position == "next":
+                control_slider.value = min(control_slider.value + 1, len(dataset) - 1)
+
+        def update_control_slider(change):
+            if control_select.value == "Test":
+                control_slider.value = 0
+                control_slider.min = 0
+                control_slider.max = max(len(self.test_inputs) - 1, 0)
+                if len(self.test_inputs) == 0:
+                    disabled = True
+                else:
+                    disabled = False
+            elif control_select.value == "Train":
+                control_slider.value = 0
+                control_slider.min = 0
+                control_slider.max = max(len(self.train_inputs) - 1, 0)
+                if len(self.train_inputs) == 0:
+                    disabled = True
+                else:
+                    disabled = False
+            control_slider.disabled = disabled
+            for child in control_buttons.children:
+                child.disabled = disabled
+
+        def update_slider_control(change):
+            if change["name"] == "value":
+                if control_select.value == "Train":
+                    output = self.propagate(self.get_train_input(control_slider.value))
+                elif control_select.value == "Test":
+                    output = self.propagate(self.get_test_input(control_slider.value))
+                print(output)
+
+        def train_one(button):
+            if control_select.value == "Train":
+                outputs = self.train_one(self.get_train_input(control_slider.value),
+                                       self.get_train_target(control_slider.value))
+            elif control_select.value == "Test":
+                outputs = self.train_one(self.get_test_input(control_slider.value),
+                                       self.get_test_target(control_slider.value))
+            print(outputs)
+
+        net_svg = HTML(value=self.build_svg(), layout=Layout(width='100%'))
+        button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
+        button_prev = Button(icon="backward", layout=Layout(width='100%'))
+        button_next = Button(icon="forward", layout=Layout(width='100%'))
+        button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
+        button_train = Button(description="Train", layout=Layout(width='100%'))
+        control_buttons = HBox([
+            button_begin,
+            button_prev,
+            button_train,
+            button_next,
+            button_end,
+               ], layout=Layout(width='100%'))
+        control_select = Select(
+            options=['Test', 'Train'],
+            value='Train',
+            description='Dataset:',
+               )
+        control_slider = IntSlider(description="Dataset position",
+                                   continuous_update=False,
+                                   min=0,
+                                   max=len(self.train_inputs) - 1,
+                                   value=0,
+                                   layout=Layout(width='100%'))
+
+        ## Hook them up:
+        button_begin.on_click(lambda button: dataset_move("begin"))
+        button_end.on_click(lambda button: dataset_move("end"))
+        button_next.on_click(lambda button: dataset_move("next"))
+        button_prev.on_click(lambda button: dataset_move("prev"))
+        button_train.on_click(train_one)
+        control_select.observe(update_control_slider)
+        control_slider.observe(update_slider_control)
+        update_slider_control({"name": "value"})
+
+        # Put them together:
+        control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
+        widget = VBox([net_svg, control], layout=Layout(width='100%'))
+        return widget
 
     ## FIXME: add these:
     #def to_array(self):
