@@ -118,7 +118,7 @@ class BaseLayer():
         else:
             return [k]
 
-    def make_image(self, vector, size=25):
+    def make_image(self, vector, size=25, minmax=None, colormap=None):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
@@ -130,14 +130,17 @@ class BaseLayer():
             vector = vector[0]
         if self.vshape != self.shape:
             vector = vector.reshape(self.vshape)
-        minmax = self.get_minmax(vector)
+        if minmax is None:
+            minmax = self.get_minmax(vector)
         vector = self.scale_output_for_image(vector, minmax)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         new_width = vector.shape[0] * size # in, pixels
         new_height = vector.shape[1] * size # in, pixels
-        if self.colormap:
-            cm_hot = cm.get_cmap(self.colormap)
+        if colormap or self.colormap:
+            if colormap is None:
+                colormap = self.colormap
+            cm_hot = cm.get_cmap(colormap)
             vector = cm_hot(vector)
             vector = np.uint8(vector * 255)
             image = PIL.Image.fromarray(vector)

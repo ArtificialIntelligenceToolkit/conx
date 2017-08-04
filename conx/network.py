@@ -50,28 +50,28 @@ class Network():
             "font_family": "monospace", # for svg
             "border_top": 25, # for svg
             "border_bottom": 25, # for svg
-            "hspace": 100, # for svg
-            "vspace": 50, # for svg
+            "hspace": 150, # for svg
+            "vspace": 30, # for svg, arrows
             "image_maxdim": 200, # for svg
             "activation": "linear", # Dense default, if none specified
             "arrow_color": "blue",
             "arrow_width": "2",
             "border_width": "2",
             "border_color": "blue",
-            "compile_kwargs": {}, ## WIP
-            "train_kwargs": {},  ## WIP
+            "show_targets": True,
+            "show_errors": True,
         }
         self.config.update(config)
         self.name = name
         self.layers = []
         self.layer_dict = {}
-        self.inputs = None
+        self.inputs = []
         self.train_inputs = []
         self.train_targets = []
         self.test_inputs = []
         self.test_targets = []
-        self.labels = None
-        self.targets = None
+        self.labels = []
+        self.targets = []
         # If simple feed-forward network:
         for i in range(len(sizes)):
             if i > 0:
@@ -157,12 +157,11 @@ class Network():
     def _cache_dataset_values(self):
         if self.num_input_layers == 1:
             self.inputs_range = (self.inputs.min(), self.inputs.max())
-            self.num_inputs = self.inputs.shape[0]
         else:
             self.inputs_range = (min([x.min() for x in self.inputs]),
                                  max([x.max() for x in self.inputs]))
-            self.num_inputs = self.inputs[0].shape[0]
-        if self.targets is not None:
+        self.num_inputs = self.get_inputs_length()
+        if self.get_targets_length() != 0:
             if self.num_target_layers == 1:
                 self.targets_range = (self.targets.min(), self.targets.max())
             else:
@@ -170,6 +169,9 @@ class Network():
                                       max([x.max() for x in self.targets]))
         else:
             self.targets_range = (0, 0)
+        assert self.get_test_inputs_length() == self.get_test_targets_length(), "test inputs/targets lengths do not match"
+        assert self.get_train_inputs_length() == self.get_train_targets_length(), "train inputs/targets lengths do not match"
+        #assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
 
     def set_dataset(self, pairs, verbose=True):
         if self.num_input_layers == 1:
@@ -186,7 +188,7 @@ class Network():
                 self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         self.labels = None
         self._cache_dataset_values()
-        self.split_dataset(self.num_inputs, verbose=False)
+        self.split_dataset(self.num_inputs, verbose=verbose)
         if verbose:
             self.summary_dataset()
 
@@ -202,7 +204,7 @@ class Network():
         (x_train,y_train), (x_test,y_test) = load_data()
         self.inputs = np.concatenate((x_train,x_test))
         self.labels = np.concatenate((y_train,y_test))
-        self.targets = None
+        self.targets = []
         self._cache_dataset_values()
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
@@ -218,10 +220,10 @@ class Network():
             f = np.load(filename)
             self.inputs = f['data']
             self.labels = f['labels']
-            self.targets = None
-            if len(self.inputs) != len(self.labels):
+            self.targets = []
+            if self.get_inputs_length() != len(self.labels):
                 raise Exception("Dataset contains different numbers of inputs and labels")
-            if len(self.inputs) == 0:
+            if self.get_inputs_length() == 0:
                 raise Exception("Dataset is empty")
             self._cache_dataset_values()
             self.split_dataset(self.num_inputs, verbose=False)
@@ -285,8 +287,8 @@ class Network():
             print("no dataset loaded")
             return
         print('%d train inputs, %d test inputs' %
-              (len(self.train_inputs), len(self.test_inputs)))
-        if self.inputs is not None:
+              (self.get_train_inputs_length(), self.get_test_inputs_length()))
+        if self.get_inputs_length() != 0:
             if self.num_input_layers == 1:
                 print('Set %d inputs and targets' % (self.num_inputs,))
                 print('Input data shape: %s, range: %s, type: %s' %
@@ -299,7 +301,7 @@ class Network():
                        [x[0].dtype for x in self.inputs]))
         else:
             print("No inputs")
-        if self.targets is not None:
+        if self.get_targets_length() != 0:
             if self.num_target_layers == 1:
                 print('Target data shape: %s, range: %s, type: %s' %
                       (self.targets.shape[1:], self.targets_range, self.targets.dtype))
@@ -361,7 +363,7 @@ class Network():
         self.inputs = self.inputs[indices]
         if self.labels is not None:
             self.labels = self.labels[indices]
-        if self.targets is not None:
+        if self.get_targets_length() != 0:
             self.targets = self.targets[indices]
         self.split_dataset(self.split, verbose=False)
         if verbose:
@@ -389,7 +391,7 @@ class Network():
         if self.labels is not None:
             self.train_labels = self.labels[:self.split]
             self.test_labels = self.labels[self.split:]
-        if self.targets is not None:
+        if self.get_targets_length() != 0:
             if self.num_target_layers == 1:
                 self.train_targets = self.targets[:self.split]
                 self.test_targets = self.targets[self.split:]
@@ -398,14 +400,8 @@ class Network():
                 self.test_targets = [col[self.split:] for col in self.targets]
         if verbose:
             print('Split dataset into:')
-            if self.num_input_layers == 1:
-                print('   %d train inputs' % len(self.train_inputs))
-            else:
-                print('   %d train inputs' % len(self.train_inputs[0]))
-            if self.num_input_layers == 1:
-                print('   %d test inputs' % len(self.test_inputs))
-            else:
-                print('   %d test inputs' % len(self.test_inputs[0]))
+            print('   %d train inputs' % self.get_train_inputs_length())
+            print('   %d test inputs' % self.get_test_inputs_length())
 
     def test(self, inputs=None, batch_size=32):
         """
@@ -693,6 +689,21 @@ class Network():
         else:
             return outputs
 
+    def display_component(self, vector, component, minmax=None, colormap=None):
+        """
+        vector is a list, one each per output layer. component is "errors" or "targets"
+        """
+        ## FIXME: this probably isn't going to work with multi-outputs.
+        if self.output_layer_order:
+            output_names = self.output_layer_order
+        else:
+            output_names = [layer.name for layer in self.layers if layer.kind() == "output"]
+        for (target, layer_name) in zip(vector, output_names):
+            array = np.array(target)
+            image = self[layer_name].make_image(array, minmax=minmax, colormap=colormap)
+            data_uri = self._image_to_uri(image)
+            self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
+        
     def propagate_to(self, layer_name, inputs, batch_size=32, visualize=True):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
@@ -878,15 +889,17 @@ class Network():
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}">{label}</text>"""
         max_width = 0
         images = {}
+        row_height = []
         # Go through and build images, compute max_width:
         for level_names in ordering:
             # first make all images at this level
             total_width = 0 # for this row
+            max_height = 0
             for layer_name in level_names:
                 if not self[layer_name].visible:
                     continue
                 if self.model: # thus, we can propagate
-                    if self.inputs is not None:
+                    if self.get_inputs_length() != 0:
                         v = self.get_input(0)
                     else:
                         if self.input_layer_order:
@@ -912,10 +925,88 @@ class Network():
                     (width, height) = image.size
                 images[layer_name] = image
                 total_width += width + config["hspace"] # space between
+                max_height = max(max_height, height)
+            row_height.append(max_height)
             max_width = max(max_width, total_width)
-        # Now we go through again and build SVG:
         svg = ""
         cheight = config["border_top"] # top border
+        ## Display target?
+        if config["show_targets"]:
+            # Find the spacing for row:
+            row_layer_width = 0
+            for layer_name in ordering[0]:
+                if not self[layer_name].visible:
+                    continue
+                image = images[layer_name]
+                (width, height) = image.size
+                row_layer_width += width
+            spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
+            # draw the row of targets:
+            cwidth = spacing
+            for layer_name in ordering[0]:
+                image = images[layer_name]
+                (width, height) = image.size
+                svg += image_svg.format(**{"name": layer_name + "_targets",
+                                           "x": cwidth,
+                                           "y": cheight,
+                                           "image": self._image_to_uri(image),
+                                           "width": width,
+                                           "height": height,
+                                           "tooltip": self[layer_name].tooltip(),
+                                           "rx": cwidth - 1, # based on arrow width
+                                           "ry": cheight - 1,
+                                           "rh": height + 2,
+                                           "rw": width + 2})
+                ## show a label
+                svg += label_svg.format(
+                    **{"x": cwidth + width + 5,
+                       "y": cheight + height/2 + 2,
+                       "label": "targets",
+                       "font_size": config["font_size"],
+                       "font_family": config["font_family"],
+                    })
+                cwidth += width + spacing
+            ## Then we need to add height for output layer again, plus a little bit
+            cheight += row_height[0] + 10 # max height of row, plus some
+        ## Display error?
+        if config["show_errors"]:
+            # Find the spacing for row:
+            row_layer_width = 0
+            for layer_name in ordering[0]:
+                if not self[layer_name].visible:
+                    continue
+                image = images[layer_name]
+                (width, height) = image.size
+                row_layer_width += width
+            spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
+            # draw the row of errors:
+            cwidth = spacing
+            for layer_name in ordering[0]:
+                image = images[layer_name]
+                (width, height) = image.size
+                svg += image_svg.format(**{"name": layer_name + "_errors",
+                                           "x": cwidth,
+                                           "y": cheight,
+                                           "image": self._image_to_uri(image),
+                                           "width": width,
+                                           "height": height,
+                                           "tooltip": self[layer_name].tooltip(),
+                                           "rx": cwidth - 1, # based on arrow width
+                                           "ry": cheight - 1,
+                                           "rh": height + 2,
+                                           "rw": width + 2})
+                ## show a label
+                svg += label_svg.format(
+                    **{"x": cwidth + width + 5,
+                       "y": cheight + height/2 + 2,
+                       "label": "errors",
+                       "font_size": config["font_size"],
+                       "font_family": config["font_family"],
+                    })
+                cwidth += width + spacing
+            ## Then we need to add height for output layer again, plus a little bit
+            cheight += row_height[0] + 10 # max height of row, plus some
+        # Now we go through again and build SVG:
         positioning = {}
         for level_names in ordering:
             # compute width of just pictures for this row:
@@ -1100,39 +1191,80 @@ require(['base/js/namespace'], function(Jupyter) {
                     new_weights.append(np.load(fp))
                 layer.set_weights(new_weights)
 
+    def get_inputs_length(self):
+        if len(self.inputs) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.inputs.shape[0]
+        else:
+            return self.inputs[0].shape[0]
+
+    def get_targets_length(self):
+        if len(self.targets) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.targets.shape[0]
+        else:
+            return self.targets[0].shape[0]
+
+    def get_test_inputs_length(self):
+        if len(self.test_inputs) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.test_inputs.shape[0]
+        else:
+            return self.test_inputs[0].shape[0]
+
+    def get_test_targets_length(self):
+        if len(self.test_targets) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.test_targets.shape[0]
+        else:
+            return self.test_targets[0].shape[0]
+
+    def get_train_inputs_length(self):
+        if len(self.train_inputs) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.train_inputs.shape[0]
+        else:
+            return self.train_inputs[0].shape[0]
+
+    def get_train_targets_length(self):
+        if len(self.train_targets) == 0: return 0
+        if self.num_input_layers == 1:
+            return self.train_targets.shape[0]
+        else:
+            return self.train_targets[0].shape[0]
 
     def make_widget(self):
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
 
         def dataset_move(position):
             if control_select.value == "Train":
-                dataset = self.train_inputs
+                length = self.get_train_inputs_length()
             elif control_select.value == "Test":
-                dataset = self.test_inputs
+                length = self.get_test_inputs_length()
             #### Position it:
             if position == "begin":
                 control_slider.value = 0
             elif position == "end":
-                control_slider.value = len(dataset) - 1
+                control_slider.value = length - 1
             elif position == "prev":
                 control_slider.value = max(control_slider.value - 1, 0)
             elif position == "next":
-                control_slider.value = min(control_slider.value + 1, len(dataset) - 1)
+                control_slider.value = min(control_slider.value + 1, length - 1)
 
         def update_control_slider(change):
             if control_select.value == "Test":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(len(self.test_inputs) - 1, 0)
-                if len(self.test_inputs) == 0:
+                control_slider.max = max(self.get_test_inputs_length() - 1, 0)
+                if self.get_test_inputs_length() == 0:
                     disabled = True
                 else:
                     disabled = False
             elif control_select.value == "Train":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(len(self.train_inputs) - 1, 0)
-                if len(self.train_inputs) == 0:
+                control_slider.max = max(self.get_train_inputs_length() - 1, 0)
+                if self.get_train_inputs_length() == 0:
                     disabled = True
                 else:
                     disabled = False
@@ -1144,9 +1276,18 @@ require(['base/js/namespace'], function(Jupyter) {
             if change["name"] == "value":
                 if control_select.value == "Train":
                     output = self.propagate(self.get_train_input(control_slider.value))
+                    if self.config["show_targets"]:
+                        self.display_component([self.get_train_target(control_slider.value)], "targets", (0, 1))
+                    if self.config["show_errors"]:
+                        errors = np.array(self.get_train_target(control_slider.value)) - np.array(output)
+                        self.display_component([errors.tolist()], "errors", (-1, 1), "hot")
                 elif control_select.value == "Test":
                     output = self.propagate(self.get_test_input(control_slider.value))
-                print(output)
+                    if self.config["show_targets"]:
+                        self.display_component([self.get_test_target(control_slider.value)], "targets", (0, 1))
+                    if self.config["show_errors"]:
+                        errors = np.array(self.get_test_target(control_slider.value)) - np.array(output)
+                        self.display_component([errors.tolist()], "errors", (-1, 1), "hot")
 
         def train_one(button):
             if control_select.value == "Train":
@@ -1155,7 +1296,6 @@ require(['base/js/namespace'], function(Jupyter) {
             elif control_select.value == "Test":
                 outputs = self.train_one(self.get_test_input(control_slider.value),
                                        self.get_test_target(control_slider.value))
-            print(outputs)
 
         net_svg = HTML(value=self.build_svg(), layout=Layout(width='100%'))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
@@ -1178,7 +1318,7 @@ require(['base/js/namespace'], function(Jupyter) {
         control_slider = IntSlider(description="Dataset position",
                                    continuous_update=False,
                                    min=0,
-                                   max=len(self.train_inputs) - 1,
+                                   max=self.get_train_inputs_length() - 1,
                                    value=0,
                                    layout=Layout(width='100%'))
 
@@ -1190,11 +1330,11 @@ require(['base/js/namespace'], function(Jupyter) {
         button_train.on_click(train_one)
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
-        update_slider_control({"name": "value"})
 
         # Put them together:
         control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
         widget = VBox([net_svg, control], layout=Layout(width='100%'))
+        widget.on_displayed(lambda widget: update_slider_control({"name": "value"}))
         return widget
 
     ## FIXME: add these:
