@@ -609,18 +609,18 @@ class Network():
                     val_percent = correct/len(validation_targets)
                     self.val_percent_history.append(val_percent)
                     if self.epoch_count % report_rate == 0:
-                        if verbose: print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                        if verbose: print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
                                           (self.epoch_count, loss, acc, val_percent))
                     if val_percent >= accuracy or handler.interrupted:
                         break
             if handler.interrupted:
                 print("=" * 72)
-                print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+                print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
                       (self.epoch_count, loss, acc, val_percent))
                 raise KeyboardInterrupt
         if verbose:
             print("=" * 72)
-            print("Epoch #%5d | train loss %7.5f | train acc %7.5f | validate%% %7.5f" %
+            print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
                   (self.epoch_count, loss, acc, val_percent))
         else:
             return (self.epoch_count, loss, acc, val_percent)
@@ -835,6 +835,9 @@ class Network():
         for layer in self.layers:
             if layer.kind() == 'unconnected':
                 raise Exception("'%s' layer is unconnected" % layer.name)
+        if "error" in kwargs: # synonym
+            kwargs["loss"] = kwargs["error"]
+            del kwargs["error"]
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or

@@ -1,21 +1,26 @@
 from conx import *
 
 def test_network_constructor():
+    """
+    Network constructor.
+    """
     net = Network("Constructor", 2, 5, 2)
+    net.connect()
     assert net is not None
 
 def test_xor1():
+    """
+    Standard XOR.
+    """
     net = Network("XOR")
     net.add(Layer("input", 2))
     net.add(Layer("hidden", 5))
     net.add(Layer("output", 1))
-
     net.connect("input", "hidden")
     net.connect("hidden", "output")
     net.compile(loss="binary_crossentropy", optimizer="adam")
     net.summary()
     net.model.summary()
-    
     dataset = [[[0, 0], [0]],
                [[0, 1], [1]],
                [[1, 0], [1]],
@@ -24,10 +29,14 @@ def test_xor1():
     net.set_dataset(dataset)
     net.train(epochs=2000, accuracy=1, report_rate=25)
     net.test()
-
+    net.save()
+    net.load()
     assert net is not None
 
 def test_xor2():
+    """
+    Two inputs, two outputs.
+    """
     net = Network("XOR2")
     net.add(Layer("input1", shape=1))
     net.add(Layer("input2", shape=1))
@@ -36,28 +45,68 @@ def test_xor2():
     net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
     net.add(Layer("output1", shape=1, activation="sigmoid"))
     net.add(Layer("output2", shape=1, activation="sigmoid"))
-
     net.connect("input1", "hidden1")
     net.connect("input2", "hidden2")
     net.connect("hidden1", "shared-hidden")
     net.connect("hidden2", "shared-hidden")
     net.connect("shared-hidden", "output1")
     net.connect("shared-hidden", "output2")
-
     net.set_input_layer_order("input1", "input2")
     net.set_output_layer_order("output1", "output2")
-
     net.compile(loss='mean_squared_error',
                 optimizer=SGD(lr=0.3, momentum=0.9))
-
     dataset = [
         ([[0],[0]], [[0],[0]]),
         ([[0],[1]], [[1],[1]]),
         ([[1],[0]], [[1],[1]]),
         ([[1],[1]], [[0],[0]])
     ]
-    
     net.set_dataset(dataset)
     net.train(2000, report_rate=10, accuracy=1)
     net.test()
+    net.propagate_to("shared-hidden", [[1], [1]])
+    net.propagate_to("output1", [[1], [1]])
+    net.propagate_to("output2", [[1], [1]])
+    net.propagate_to("hidden1", [[1], [1]])
+    net.propagate_to("hidden2", [[1], [1]])
+    net.propagate_to("output1", [[1], [1]])
+    net.propagate_to("output2", [[1], [1]])
+    net.save()
+    net.load()
+    net.test()
+    assert net is not None
+
+def test_dataset():
+    """
+    Load MNIST dataset after network creation.
+    """
+    net = Network("MNIST")
+    net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
+    net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("output", shape=10, activation='softmax'))
+    net.connect('input', 'hidden1')
+    net.connect('hidden1', 'hidden2')
+    net.connect('hidden2', 'output')
+    net.compile(optimizer="adam", loss="binary_crossentropy")
+
+    net.load_mnist_dataset()
+    assert net is not None
+
+def test_dataset2():
+    """
+    Load data before adding network.
+    """
+    net = Network("MNIST")
+    net.load_mnist_dataset()
+    net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
+    net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("output", shape=10, activation='softmax'))
+    net.connect('input', 'hidden1')
+    net.connect('hidden1', 'hidden2')
+    net.connect('hidden2', 'output')
+    net.compile(optimizer="adam", loss="binary_crossentropy")
+    net.split_dataset(100)
+    net.slice_dataset(100)
     assert net is not None
