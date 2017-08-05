@@ -46,6 +46,7 @@ class BaseLayer():
         params["name"] = name
         self.shape = None
         self.vshape = None
+        self.image_maxdim = None
         self.visible = True
         self.colormap = None
         self.minmax = None
@@ -62,6 +63,14 @@ class BaseLayer():
                 raise Exception('bad vshape: %s' % (vs,))
             else:
                 self.vshape = vs
+
+        if 'image_maxdim' in params:
+            imd = params['image_maxdim']
+            del params["image_maxdim"] # drop those that are not Keras parameters
+            if not isinstance(imd, numbers.Integral):
+                raise Exception('bad image_maxdim: %s' % (imd,))
+            else:
+                self.image_maxdim = imd
 
         if 'visible' in params:
             visible = params['visible']
@@ -126,13 +135,33 @@ class BaseLayer():
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
+        import keras.backend as K
         from matplotlib import cm
         import PIL
-        ## FIXME: grabbing a couple of dimensions
-        while len(vector.shape) > 2:
-            vector = vector[0]
-        if self.vshape != self.shape:
+        if self.vshape and self.vshape != self.shape:
             vector = vector.reshape(self.vshape)
+        if len(vector.shape) > 2:
+            ## Drop dimensions of vector:
+            s = slice(None, None)
+            args = []
+            if K.image_data_format() == 'channels_last':
+                for d in range(len(vector.shape)):
+                    if d in [0, 1]:
+                        args.append(s) # keep the first two
+                    else:
+                        args.append(0)
+            else:
+                count = 0
+                for d in range(len(vector.shape)):
+                    if d in [0]:
+                        args.append(0) # drop the first
+                    else:
+                        if count < 2:
+                            args.append(s)
+                            count += 1
+                        else:
+                            args.append(0)
+            vector = vector[args]
         minmax = config.get("minmax")
         if minmax is None:
             minmax = self.get_minmax(vector)
@@ -253,9 +282,9 @@ class PictureLayer(Layer):
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
+        ## see K.image_data_format() == 'channels_last': above
         import PIL
-        image_maxdim = config["image_maxdim"]
-        return PIL.Image.fromarray(vector.astype("uint8")).resize((image_maxdim,image_maxdim))
+        return PIL.Image.fromarray(vector.astype("uint8")).resize(self.vshape)
 
 ## Dynamically load all of the keras layers, making a conx layer:
 ## Al of these will have BaseLayer as their superclass:

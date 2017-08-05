@@ -62,7 +62,7 @@ class Network():
             "minmax": None,
             "colormap": None,
             "show_errors": True,
-            "pixels_per_unit": 25,
+            "pixels_per_unit": 1,
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -328,7 +328,7 @@ class Network():
         self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
         self.split_dataset(self.split, verbose=False)
         if verbose:
-            self.summary_dataset(verbose=verbose)
+            self.summary_dataset()
 
     def set_input_layer_order(self, *layer_names):
         if len(layer_names) == 1:
@@ -973,10 +973,9 @@ class Network():
         config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{svg_counter}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
                 "netname": self.name,
-                "svg_counter": self._svg_counter,
                 "border_color": config["border_color"],
                 "border_width": config["border_width"],
             })
@@ -985,6 +984,7 @@ class Network():
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}">{label}</text>"""
         max_width = 0
         images = {}
+        image_dims = {}
         row_height = []
         # Go through and build images, compute max_width:
         for level_names in ordering:
@@ -1010,16 +1010,17 @@ class Network():
                     # get image based on ontputs
                     raise Exception("compile model before building svg")
                 (width, height) = image.size
+                images[layer_name] = image ## little image
                 max_dim = max(width, height)
-                if max_dim > config["image_maxdim"]:
-                    ## FIXME: probably a zero dim; do better!
-                    try:
-                        image = image.resize((int(width/max_dim * config["image_maxdim"]),
-                                              int(height/max_dim * config["image_maxdim"])))
-                    except:
-                        image = image.resize((config["image_maxdim"], 25))
-                    (width, height) = image.size
-                images[layer_name] = image
+                if self[layer_name].image_maxdim:
+                    image_maxdim = self[layer_name].image_maxdim
+                else:
+                    image_maxdim = config["image_maxdim"]
+                width, height = (int(width/max_dim * image_maxdim),
+                                 int(height/max_dim * image_maxdim))
+                if min(width, height) < 25:
+                    width, height = (image_maxdim, 25)
+                image_dims[layer_name] = (width, height)
                 total_width += width + config["hspace"] # space between
                 max_height = max(max_height, height)
             row_height.append(max_height)
@@ -1034,15 +1035,16 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 row_layer_width += width
             spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
             # draw the row of targets:
             cwidth = spacing
             for layer_name in ordering[0]:
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 svg += image_svg.format(**{"name": layer_name + "_targets",
+                                           "svg_counter": self._svg_counter,
                                            "x": cwidth,
                                            "y": cheight,
                                            "image": self._image_to_uri(image),
@@ -1072,15 +1074,16 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 row_layer_width += width
             spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
             # draw the row of errors:
             cwidth = spacing
             for layer_name in ordering[0]:
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 svg += image_svg.format(**{"name": layer_name + "_errors",
+                                           "svg_counter": self._svg_counter,
                                            "x": cwidth,
                                            "y": cheight,
                                            "image": self._image_to_uri(image),
@@ -1111,7 +1114,7 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 row_layer_width += width
             spacing = (max_width - row_layer_width) / (len(level_names) + 1)
             cwidth = spacing
@@ -1136,8 +1139,9 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
-                (width, height) = image.size
+                (width, height) = image_dims[layer_name]
                 positioning[layer_name] = {"name": layer_name,
+                                           "svg_counter": self._svg_counter,
                                            "x": cwidth,
                                            "y": cheight,
                                            "image": self._image_to_uri(image),
@@ -1190,13 +1194,13 @@ class Network():
                     })
                 cwidth += width + spacing # spacing between
                 max_height = max(max_height, height)
+                self._svg_counter += 1
             cheight += max_height
         cheight += config["border_bottom"]
         self.visualize = True
-        self._svg_counter += 1
         self._initialize_javascript()
         return ("""
-        <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}">
+        <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
@@ -1335,7 +1339,7 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             return self.train_targets.shape[0]
 
-    def make_widget(self):
+    def make_widget(self, width="100%", height="550px"):
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
 
         def dataset_move(position):
@@ -1399,7 +1403,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 outputs = self.train_one(self.get_test_input(control_slider.value),
                                        self.get_test_target(control_slider.value))
 
-        net_svg = HTML(value=self.build_svg(), layout=Layout(width='100%'))
+        net_svg = HTML(value=self.build_svg(), layout=Layout(width=width, height=height, overflow_x='auto'))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
         button_next = Button(icon="forward", layout=Layout(width='100%'))
