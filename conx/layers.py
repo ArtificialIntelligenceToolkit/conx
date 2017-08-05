@@ -111,6 +111,7 @@ class BaseLayer():
         return keras.layers.Input(self.shape, *self.args, **self.params)
 
     def make_keras_function(self):
+        ## This is for all Keras layers:
         return self.CLASS(*self.args, **self.params)
 
     def make_keras_functions(self):
@@ -240,6 +241,7 @@ class Layer(BaseLayer):
             print("Connected to:", [layer.name for layer in self.outgoing_connections])
 
     def make_keras_function(self):
+        ## This is only for Dense:
         return self.CLASS(self.size, **self.params)
 
 class PictureLayer(Layer):
@@ -252,11 +254,13 @@ class PictureLayer(Layer):
         return PIL.Image.fromarray(vector.astype("uint8")).resize((200,200))
 
 ## Dynamically load all of the keras layers, making a conx layer:
+## Al of these will have BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
-        locals()[new_name] = type(new_name, (obj,), {"CLASS": obj})
+        locals()[new_name] = type(new_name, (BaseLayer,), {"CLASS": obj})
 
 ## Overwrite, or make a more specific version manually:
 InputLayer = Layer
+DenseLayer = Layer
