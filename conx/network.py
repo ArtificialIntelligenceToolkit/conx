@@ -1,11 +1,3 @@
-## FIXME: need standard format for train/test/inputs/targets
-
-## BUT! multi-inputs/-targets needs to be a list?!
-
-## [[np.array(), np.array()], ...]
-## np.array() .. array of single inputs/targets
-
-
 # conx - a neural network library
 #
 # Copyright (c) Douglas S. Blank <doug.blank@gmail.com>
@@ -174,6 +166,36 @@ class Network():
         if verbose:
             self.summary_dataset()
 
+    def slice_dataset(self, start=None, stop=None, verbose=True):
+        if start is not None:
+            if stop is None: # (#, None)
+                stop = start
+                start = 0
+            else: #  (#, #)
+                pass # ok
+        else:
+            if stop is None: # (None, None)
+                start = 0
+                stop = len(self.inputs)
+            else: # (None, #)
+                start = 0
+        if verbose:
+            print("Slicing dataset %d:%d..." % (start, stop))
+        if self.multi_inputs:
+            self.inputs = [np.array([vector for vector in row[start:stop]]) for row in self.inputs]
+        else:
+            self.inputs = self.inputs[start:stop] # ok
+        if self.multi_targets:
+            self.targets = [np.array([vector for vector in row[start:stop]]) for row in self.targets]
+        else:
+            self.targets = self.targets[start:stop]
+        if len(self.labels) > 0:
+            self.labels = self.labels[start:stop]
+        self._cache_dataset_values()
+        self.split_dataset(self.num_inputs, verbose=False)
+        if verbose:
+            self.summary_dataset()
+
     def _cache_dataset_values(self):
         self.num_inputs = self.get_inputs_length()
         if self.num_inputs > 0:
@@ -193,11 +215,22 @@ class Network():
                 self.targets_range = (self.targets.min(), self.targets.max())
         else:
             self.targets_range = (0, 0)
+        # Clear any previous settings:
+        self.train_inputs = []
+        self.train_targets = []
+        self.test_inputs = []
+        self.test_targets = []
+        # Final checks:
         assert self.get_test_inputs_length() == self.get_test_targets_length(), "test inputs/targets lengths do not match"
         assert self.get_train_inputs_length() == self.get_train_targets_length(), "train inputs/targets lengths do not match"
         assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
 
     def set_dataset(self, pairs, verbose=True):
+        """
+        Set the human-specified dataset to a proper keras dataset.
+
+        Multi-inputs or multi-outputs must be: [vector, vector, ...] for each layer input/target pairing.
+        """
         ## Either the inputs/targets are a list of a list -> np.array(...) (np.array() of vectors)
         ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
         self.multi_inputs = len(np.array(pairs[0][0]).shape) > 1
@@ -214,13 +247,16 @@ class Network():
                 self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
             self.targets = np.array([y for (x, y) in pairs], "float32")
-        self.labels = None
+        self.labels = []
         self._cache_dataset_values()
         self.split_dataset(self.num_inputs, verbose=verbose)
         if verbose:
             self.summary_dataset()
 
     def load_mnist_dataset(self, verbose=True):
+        """
+        Load the Keras MNIST dataset and format it as images.
+        """
         from keras.datasets import mnist
         from keras.utils import to_categorical
         import keras.backend as K
@@ -274,6 +310,9 @@ class Network():
     #         raise Exception("couldn't load .npz dataset %s" % filename)
 
     def reshape_inputs(self, new_shape, verbose=True):
+        ## FIXME: multi
+        if self.multi_inputs:
+            raise Exception("reshape_inputs does not yet work on multi-input patterns")
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         if not valid_shape(new_shape):
@@ -282,7 +321,6 @@ class Network():
             new_size = self.num_inputs * new_shape
         else:
             new_size = self.num_inputs * reduce(operator.mul, new_shape)
-        ## FIXME: work on multi-inputs?
         if new_size != self.inputs.size:
             raise Exception("shape %s is incompatible with inputs" % (new_shape,))
         if isinstance(new_shape, numbers.Integral):
@@ -290,8 +328,7 @@ class Network():
         self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
         self.split_dataset(self.split, verbose=False)
         if verbose:
-            print('Input data shape: %s, range: %s, type: %s' %
-                  (self.inputs.shape[1:], self.inputs_range, self.inputs.dtype))
+            self.summary_dataset(verbose=verbose)
 
     def set_input_layer_order(self, *layer_names):
         if len(layer_names) == 1:
@@ -314,6 +351,9 @@ class Network():
                 raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
 
     def set_targets_to_categories(self, num_classes):
+        ## FIXME: multi
+        if self.multi_targets:
+            raise Exception("set_targets_to_categories does not yet work on multi-target patterns")
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
@@ -330,9 +370,9 @@ class Network():
         print('   testing : %d' % (self.get_test_inputs_length(),))
         if self.get_inputs_length() != 0:
             if self.multi_targets:
-                print('   shape  : %s' % ([x.shape for x in self.inputs[0]],))
+                print('   shape  : %s' % ([x[0].shape for x in self.inputs],))
             else:
-                print('   shape  : %s' % ([0],))
+                print('   shape  : %s' % (self.inputs[0].shape,))
             print('   range  : %s' % (self.inputs_range,))
         print('Target Summary:')
         print('   length  : %d' % (self.get_targets_length(),))
@@ -340,15 +380,17 @@ class Network():
         print('   testing : %d' % (self.get_test_targets_length(),))
         if self.get_targets_length() != 0:
             if self.multi_targets:
-                print('   shape  : %s' % ([x.shape for x in self.targets[0]],))
+                print('   shape  : %s' % ([x[0].shape for x in self.targets],))
             else:
-                print('   shape  : %s' % (self.targets[0],))
+                print('   shape  : %s' % (self.targets[0].shape,))
             print('   range  : %s' % (self.targets_range,))
 
     def rescale_inputs(self, old_range, new_range, new_dtype):
+        ## FIXME: multi
+        if self.multi_inputs:
+            raise Exception("rescale_inputs does not yet work on multi-input patterns")
         old_min, old_max = old_range
         new_min, new_max = new_range
-        ## FIXME: work on multi-inputs?
         if self.inputs.min() < old_min or self.inputs.max() > old_max:
             raise Exception('range %s is incompatible with inputs' % (old_range,))
         if old_min > old_max:
@@ -389,6 +431,9 @@ class Network():
                 layer.set_weights(new_weights)
 
     def shuffle_dataset(self, verbose=True):
+        ## FIXME: multi
+        if self.multi_inputs or self.multi_targets:
+            raise Exception("shuffle_dataset does not yet work on multi-input/-target patterns")
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         indices = np.random.permutation(self.num_inputs)
@@ -414,22 +459,22 @@ class Network():
             self.split = int(self.num_inputs * split)
         else:
             raise Exception("invalid split: %s" % split)
-        if self.num_input_layers == 1:
-            self.train_inputs = self.inputs[:self.split]
-            self.test_inputs = self.inputs[self.split:]
-        else:
+        if self.multi_inputs:
             self.train_inputs = [col[:self.split] for col in self.inputs]
             self.test_inputs = [col[self.split:] for col in self.inputs]
-        if self.labels is not None:
+        else:
+            self.train_inputs = self.inputs[:self.split]
+            self.test_inputs = self.inputs[self.split:]
+        if len(self.labels) != 0:
             self.train_labels = self.labels[:self.split]
             self.test_labels = self.labels[self.split:]
         if self.get_targets_length() != 0:
-            if self.num_target_layers == 1:
-                self.train_targets = self.targets[:self.split]
-                self.test_targets = self.targets[self.split:]
-            else:
+            if self.multi_targets:
                 self.train_targets = [col[:self.split] for col in self.targets]
                 self.test_targets = [col[self.split:] for col in self.targets]
+            else:
+                self.train_targets = self.targets[:self.split]
+                self.test_targets = self.targets[self.split:]
         if verbose:
             print('Split dataset into:')
             print('   %d train inputs' % self.get_train_inputs_length())
@@ -1269,7 +1314,7 @@ require(['base/js/namespace'], function(Jupyter) {
     def get_test_targets_length(self):
         if len(self.test_targets) == 0:
             return 0
-        if self.multi_inputs:
+        if self.multi_targets:
             return self.test_targets[0].shape[0]
         else:
             return self.test_targets.shape[0]
@@ -1285,7 +1330,7 @@ require(['base/js/namespace'], function(Jupyter) {
     def get_train_targets_length(self):
         if len(self.train_targets) == 0:
             return 0
-        if self.multi_inputs:
+        if self.multi_targets:
             return self.train_targets[0].shape[0]
         else:
             return self.train_targets.shape[0]
