@@ -67,7 +67,10 @@ class Network():
             "border_width": "2",
             "border_color": "blue",
             "show_targets": True,
+            "minmax": None,
+            "colormap": None,
             "show_errors": True,
+            "pixels_per_unit": 25,
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -721,7 +724,7 @@ class Network():
             for layer in topological_sort(self, [self[layer_name]]):
                 model = self.prop_from_dict[(layer_name, layer.name)]
                 vector = model.predict(inputs)[0]
-                image = layer.make_image(vector)
+                image = layer.make_image(vector, self.config)
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if len(output_layer_names) == 1:
@@ -729,10 +732,12 @@ class Network():
         else:
             return outputs
 
-    def display_component(self, vector, component, minmax=None, colormap=None):
+    def display_component(self, vector, component, **opts): #minmax=None, colormap=None):
         """
         vector is a list, one each per output layer. component is "errors" or "targets"
         """
+        config = copy.copy(self.config)
+        config.update(opts)
         ## FIXME: this probably isn't going to work with multi-outputs.
         if self.output_layer_order:
             output_names = self.output_layer_order
@@ -740,10 +745,10 @@ class Network():
             output_names = [layer.name for layer in self.layers if layer.kind() == "output"]
         for (target, layer_name) in zip(vector, output_names):
             array = np.array(target)
-            image = self[layer_name].make_image(array, minmax=minmax, colormap=colormap)
+            image = self[layer_name].make_image(array, config) # minmax=minmax, colormap=colormap)
             data_uri = self._image_to_uri(image)
             self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
-        
+
     def propagate_to(self, layer_name, inputs, batch_size=32, visualize=True):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
@@ -763,7 +768,7 @@ class Network():
             # Update path from input to output
             for layer in self.layers: # FIXME??: update all layers for now
                 out = self.propagate_to(layer.name, inputs, visualize=False)
-                image = self[layer.name].make_image(np.array(out)) # single vector, as an np.array
+                image = self[layer.name].make_image(np.array(out), self.config) # single vector, as an np.array
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         outputs = outputs[0].tolist()
@@ -775,7 +780,7 @@ class Network():
         """
         outputs = self.propagate_to(layer_name, input, batch_size)
         array = np.array(outputs)
-        image = self[layer_name].make_image(array)
+        image = self[layer_name].make_image(array, self.config)
         return image
 
     def compile(self, **kwargs):
@@ -1329,17 +1334,17 @@ require(['base/js/namespace'], function(Jupyter) {
                 if control_select.value == "Train":
                     output = self.propagate(self.get_train_input(control_slider.value))
                     if self.config["show_targets"]:
-                        self.display_component([self.get_train_target(control_slider.value)], "targets", (0, 1))
+                        self.display_component([self.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.get_train_target(control_slider.value)) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", (-1, 1), "hot")
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
                 elif control_select.value == "Test":
                     output = self.propagate(self.get_test_input(control_slider.value))
                     if self.config["show_targets"]:
-                        self.display_component([self.get_test_target(control_slider.value)], "targets", (0, 1))
+                        self.display_component([self.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.get_test_target(control_slider.value)) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", (-1, 1), "hot")
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
 
         def train_one(button):
             if control_select.value == "Train":

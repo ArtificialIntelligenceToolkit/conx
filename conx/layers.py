@@ -121,7 +121,7 @@ class BaseLayer():
         else:
             return [k]
 
-    def make_image(self, vector, size=25, minmax=None, colormap=None):
+    def make_image(self, vector, config={}):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
@@ -133,13 +133,16 @@ class BaseLayer():
             vector = vector[0]
         if self.vshape != self.shape:
             vector = vector.reshape(self.vshape)
+        minmax = config.get("minmax")
         if minmax is None:
             minmax = self.get_minmax(vector)
         vector = self.scale_output_for_image(vector, minmax)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
+        size = config["pixels_per_unit"]
         new_width = vector.shape[0] * size # in, pixels
         new_height = vector.shape[1] * size # in, pixels
+        colormap = config.get("colormap")
         if colormap or self.colormap:
             if colormap is None:
                 colormap = self.colormap
@@ -245,13 +248,14 @@ class Layer(BaseLayer):
         return self.CLASS(self.size, **self.params)
 
 class PictureLayer(Layer):
-    def make_image(self, vector):
+    def make_image(self, vector, config={}):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
         import PIL
-        return PIL.Image.fromarray(vector.astype("uint8")).resize((200,200))
+        image_maxdim = config["image_maxdim"]
+        return PIL.Image.fromarray(vector.astype("uint8")).resize((image_maxdim,image_maxdim))
 
 ## Dynamically load all of the keras layers, making a conx layer:
 ## Al of these will have BaseLayer as their superclass:
