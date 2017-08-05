@@ -22,6 +22,8 @@
 import numbers
 import operator
 from functools import reduce
+import sys
+import inspect
 
 import numpy as np
 import keras
@@ -249,17 +251,12 @@ class PictureLayer(Layer):
         import PIL
         return PIL.Image.fromarray(vector.astype("uint8")).resize((200,200))
 
-class LSTMLayer(BaseLayer):
-    CLASS = keras.layers.LSTM
+## Dynamically load all of the keras layers, making a conx layer:
+keras_module = sys.modules["keras.layers"]
+for (name, obj) in inspect.getmembers(keras_module):
+    if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
+        new_name = "%sLayer" % name
+        locals()[new_name] = type(new_name, (obj,), {"CLASS": obj})
 
-class Conv2DLayer(BaseLayer):
-    CLASS = keras.layers.Conv2D
-
-class MaxPooling2DLayer(BaseLayer):
-    CLASS = keras.layers.MaxPooling2D
-
-class FlattenLayer(BaseLayer):
-    CLASS = keras.layers.Flatten
-
-DenseLayer = Layer
+## Overwrite, or make a more specific version manually:
 InputLayer = Layer

@@ -28,8 +28,6 @@ import io
 
 import numpy as np
 import keras
-from keras.models import Model
-from keras.layers import Input
 
 from .utils import *
 from .layers import Layer
@@ -37,6 +35,8 @@ from .layers import Layer
 #------------------------------------------------------------------------
 
 class Network():
+    OPTIMIZERS = ("sgd", "rmsprop", "adagrad", "adadelta", "adam",
+                  "adamax", "nadam", "tfoptimizer")
     def __init__(self, name, *sizes, **config):
         """
         Create a neural network.
@@ -192,16 +192,25 @@ class Network():
         if verbose:
             self.summary_dataset()
 
-    def load_keras_dataset(self, name, verbose=True):
-        available_datasets = [x for x in dir(keras.datasets) if '__' not in x and x != 'absolute_import']
-        if name not in available_datasets:
-            s = "unknown keras dataset: %s" % name
-            s += "\navailable datasets: %s" % ','.join(available_datasets)
-            raise Exception(s)
-        if verbose:
-            print('Loading %s dataset...' % name)
-        load_data = importlib.import_module('keras.datasets.' + name).load_data
-        (x_train,y_train), (x_test,y_test) = load_data()
+    def load_mnist_dataset(self, verbose=False):
+        from keras.datasets import mnist
+        import keras.backend as K
+        # input image dimensions
+        img_rows, img_cols = 28, 28
+        # the data, shuffled and split between train and test sets
+        (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        if K.image_data_format() == 'channels_first':
+            x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
+            x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
+            input_shape = (1, img_rows, img_cols)
+        else:
+            x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+            x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+            input_shape = (img_rows, img_cols, 1)
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        x_train /= 255
+        x_test /= 255
         self.inputs = np.concatenate((x_train,x_test))
         self.labels = np.concatenate((y_train,y_test))
         self.targets = []
@@ -656,10 +665,10 @@ class Network():
             if prop_model is None:
                 path = topological_sort(self, self[layer_name].outgoing_connections)
                 # Make a new Input to start here:
-                k = input_k = Input(self[layer_name].shape, name=self[layer_name].name)
+                k = input_k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
                 # So that we can display activations here:
-                self.prop_from_dict[(layer_name, layer_name)] = Model(inputs=input_k,
-                                                                      outputs=input_k)
+                self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
+                                                                                   outputs=input_k)
                 for layer in path:
                     k = self.prop_from_dict.get((layer_name, layer.name), None)
                     if k is None:
@@ -667,8 +676,8 @@ class Network():
                         fs = layer.make_keras_functions()
                         for f in fs:
                             k = f(k)
-                    self.prop_from_dict[(layer_name, layer.name)] = Model(inputs=input_k,
-                                                                          outputs=k)
+                    self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
+                                                                                       outputs=k)
                 # Now we should be able to get the prop_from model:
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
@@ -745,6 +754,11 @@ class Network():
         for layer in self.layers:
             if layer.kind() == 'unconnected':
                 raise Exception("'%s' layer is unconnected" % layer.name)
+        if "optimizer" in kwargs:
+            optimizer = kwargs["optimizer"]
+            if (isinstance(optimizer, str) and optimizer not in self.OPTIMIZERS):
+                raise Exception("invalid optimizer '%s'; use one of %s" %
+                                (optimizer, Network.OPTIMIZER,))
         input_layers = [layer for layer in self.layers if layer.kind() == "input"]
         if len(input_layers) == 1 and len(self.input_layer_order) == 0:
             pass # ok!
@@ -770,7 +784,7 @@ class Network():
             if layer.kind() == 'input':
                 layer.k = layer.make_input_layer_k()
                 layer.input_names = [layer.name]
-                layer.model = Model(inputs=layer.k, outputs=layer.k) # identity
+                layer.model = keras.models.Model(inputs=layer.k, outputs=layer.k) # identity
             else:
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
@@ -789,10 +803,10 @@ class Network():
                 layer.k = k
                 ## get the inputs to this branch, in order:
                 input_ks = self._get_input_ks_in_order(layer.input_names)
-                layer.model = Model(inputs=input_ks, outputs=layer.k)
+                layer.model = keras.models.Model(inputs=input_ks, outputs=layer.k)
         output_k_layers = self._get_ordered_output_layers()
         input_k_layers = self._get_ordered_input_layers()
-        self.model = Model(inputs=input_k_layers, outputs=output_k_layers)
+        self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
         self.model.compile(**kwargs)
 
