@@ -1,12 +1,14 @@
 # conx
 
-Neural Network Library for Cognitive Scientists
+## Deep Learning for Simple Folk
 
-Built in Python on Keras
+Built in Python on Keras.
 
 [![CircleCI](https://circleci.com/gh/Calysto/conx/tree/master.svg?style=svg)](https://circleci.com/gh/Calysto/conx/tree/master) [![codecov](https://codecov.io/gh/Calysto/conx/branch/master/graph/badge.svg)](https://codecov.io/gh/Calysto/conx)
 
-Networks implement neural network algorithms. Networks can have as many hidden layers as you desire.
+Read the documentation at [conx.readthedocs.io](http://conx.readthedocs.io/)
+
+Implements Deep Learning neural network algorithms using a simple interface. Built on top of Keras, which can use either TensorFlow or Theano.
 
 The network is specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
 
@@ -22,7 +24,7 @@ dataset = [[[0, 0], [0]],
           [[1, 0], [1]],
           [[1, 1], [0]]]
 
-net = Network("XOR", 2, 2, 1, activation="sigmoid")
+net = Network("XOR", 2, 5, 1, activation="sigmoid")
 net.set_dataset(dataset)
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))

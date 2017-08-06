@@ -24,9 +24,16 @@ from keras.utils import to_categorical
 # utility functions
 
 def one_hot(vector, categories):
+    """
+    Given a vector of integers (i.e. labels), return a numpy array of one-hot vectors.
+    """
     return to_categorical(vector, categories)[0].tolist()
 
 def topological_sort(net, layers):
+    """
+    Given a conx network and list of layers, produce a topological
+    sorted list, from input(s) to output(s).
+    """
     ## Initilize all:
     for layer in net.layers:
         layer.visited = False
@@ -39,6 +46,9 @@ def topological_sort(net, layers):
     return stack
 
 def visit(layer, stack):
+    """
+    Utility function for topological_sort.
+    """
     layer.visited = True
     for outgoing_layer in layer.outgoing_connections:
         if not outgoing_layer.visited:
@@ -46,6 +56,10 @@ def visit(layer, stack):
     stack.append(layer)
 
 def autoname(index, sizes):
+    """
+    Given an index and list of sizes, return a
+    name for the layer.
+    """
     if index == 0:
         n = "input"
     elif index == sizes - 1:
@@ -57,14 +71,24 @@ def autoname(index, sizes):
     return n
 
 def valid_shape(x):
+    """
+    Is this a valid shape for Keras layers?
+    """
     return isinstance(x, numbers.Integral) and x > 0 \
         or isinstance(x, (tuple, list)) and len(x) > 1 and all([isinstance(n, numbers.Integral) and n > 0 for n in x])
 
 def valid_vshape(x):
+    """
+    Is this a valid shape (i.e., size) to display vectors using PIL?
+    """
     # vshape must be a single int or a 2-dimensional tuple
     return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) == 2)
 
 def rescale_numpy_array(a, old_range, new_range, new_dtype):
+    """
+    Given a vector, old min/max, a new min/max and a numpy type,
+    create a new vector scaling the old values.
+    """
     assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range
     if a.min() < old_min or a.max() > old_max:
