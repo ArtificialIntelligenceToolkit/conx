@@ -17,6 +17,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
+"""
+The conx.layers module contains the code for all of the layers.
+In addition, it dynamically loads all of the Keras layers and
+wraps them as a conx layer.
+"""
+
 #------------------------------------------------------------------------
 
 import numbers
@@ -34,10 +40,16 @@ from .utils import *
 #------------------------------------------------------------------------
 
 class BaseLayer():
+    """
+    The base class for all conx layers.
+    """
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
     CLASS = None
 
     def __init__(self, name, *args, **params):
+        """
+        All conx layers require the name as first argument.
+        """
         if not (isinstance(name, str) and len(name) > 0):
             raise Exception('bad layer name: %s' % (name,))
         self.name = name
@@ -101,12 +113,19 @@ class BaseLayer():
         return "<%s name='%s'>" % (self.CLASS.__name__, self.name)
 
     def summary(self):
+        """
+        Print out a representation of the layer.
+        """
         print("Name: %s (%s) VShape: %s Dropout: %s" %
               (self.name, self.kind(), self.vshape, self.dropout))
         if len(self.outgoing_connections) > 0:
             print("Connected to:", [layer.name for layer in self.outgoing_connections])
 
     def kind(self):
+        """
+        Determines whether a layer is a "input", "hidden", or "output" layer based on
+        its connections. If no connections, then it is "unconnected".
+        """
         if len(self.incoming_connections) == 0 and len(self.outgoing_connections) == 0:
             return 'unconnected'
         elif len(self.incoming_connections) > 0 and len(self.outgoing_connections) > 0:
@@ -117,13 +136,24 @@ class BaseLayer():
             return 'input'
 
     def make_input_layer_k(self):
+        """
+        Make an input layer for this type of layer. This allows Layers to have
+        special kinds of input layers. Would need to be overrided in subclass.
+        """
         return keras.layers.Input(self.shape, *self.args, **self.params)
 
     def make_keras_function(self):
+        """
+        This makes the Keras function for the functional interface.
+        """
         ## This is for all Keras layers:
         return self.CLASS(*self.args, **self.params)
 
     def make_keras_functions(self):
+        """
+        Make all Keras functions for this layer, including its own,
+        dropout, etc.
+        """
         k = self.make_keras_function() # can override
         if self.dropout > 0:
             return [k, keras.layers.Dropout(self.dropout)]
@@ -202,6 +232,10 @@ class BaseLayer():
         return v.tolist()
 
     def get_minmax(self, vector):
+        """
+        Get the min/max for an input vector to this
+        layer. Attempts to guess based on activation function.
+        """
         if self.minmax:
             return self.minmax
         # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
@@ -240,6 +274,10 @@ class Layer(BaseLayer):
     """
     CLASS = keras.layers.Dense
     def __init__(self, name, shape, **params):
+        """
+        This class represents either an InputLayer or a DenseLayer
+        depending on the kind of layer (input vs. hidden/output).
+        """
         super().__init__(name, **params)
         if not valid_shape(shape):
             raise Exception('bad shape: %s' % (shape,))
@@ -267,16 +305,25 @@ class Layer(BaseLayer):
             self.name, self.shape, self.activation)
 
     def summary(self):
+        """
+        Print a summary of the dense/input layer.
+        """
         print("Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" %
               (self.name, self.kind(), self.shape, self.size, self.vshape, self.activation, self.dropout))
         if len(self.outgoing_connections) > 0:
             print("Connected to:", [layer.name for layer in self.outgoing_connections])
 
     def make_keras_function(self):
+        """
+        For all Keras-based functions. Returns the Keras class.
+        """
         ## This is only for Dense:
         return self.CLASS(self.size, **self.params)
 
 class PictureLayer(Layer):
+    """
+    A class for pictures. WIP.
+    """
     def make_image(self, vector, config={}):
         """
         Given an activation name (or function), and an output vector, display
@@ -292,7 +339,9 @@ keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
-        locals()[new_name] = type(new_name, (BaseLayer,), {"CLASS": obj})
+        locals()[new_name] = type(new_name, (BaseLayer,),
+                                  {"CLASS": obj,
+                                   "__doc__": obj.__doc__})
 
 ## Overwrite, or make a more specific version manually:
 InputLayer = Layer

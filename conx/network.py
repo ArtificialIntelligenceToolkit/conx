@@ -17,6 +17,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
+"""
+The network module contains the code for the Network class.
+"""
+
 import operator
 import importlib
 from functools import reduce
@@ -40,6 +44,9 @@ except:
 #------------------------------------------------------------------------
 
 class Network():
+    """
+    The main class for the conx neural network package.
+    """
     OPTIMIZERS = ("sgd", "rmsprop", "adagrad", "adadelta", "adam",
                   "adamax", "nadam", "tfoptimizer")
     def __init__(self, name, *sizes, **config):
@@ -135,12 +142,21 @@ class Network():
         return "<Network name='%s'>" % self.name
 
     def add(self, layer):
+        """
+        Add a layer to the network layer connections. Order is not
+        important, unless using the default net.connect() form.
+        """
         if layer.name in self.layer_dict:
             raise Exception("duplicate layer name '%s'" % layer.name)
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
 
     def connect(self, from_layer_name=None, to_layer_name=None):
+        """
+        Connect two layers together if called with arguments. If
+        called with no arguments, then it will make a sequential
+        run through the layers in order added.
+        """
         if from_layer_name is None and to_layer_name is None:
             for i in range(len(self.layers) - 1):
                 self.connect(self.layers[i].name, self.layers[i+1].name)
@@ -159,10 +175,25 @@ class Network():
             self.num_target_layers = len(target_layers)
 
     def summary(self):
+        """
+        Print out a summary of the network.
+        """
         for layer in self.layers:
             layer.summary()
 
     def set_dataset_direct(self, inputs, targets, verbose=True):
+        """
+        Set the inputs/targets in the specific internal format:
+
+        [input-vector, input-vector, ...] if single input layer
+
+        [[input-layer-1-vectors ...], [input-layer-2-vectors ...], ...] if input target layers
+
+        [target-vector, target-vector, ...] if single output layer
+
+        [[target-layer-1-vectors], [target-layer-2-vectors], ...] if multi target layers
+
+        """
         ## Better be in correct format!
         ## each is either: list of np.arrays() [multi], or np.array() [single]
         self.inputs = inputs
@@ -176,6 +207,12 @@ class Network():
             self.summary_dataset()
 
     def slice_dataset(self, start=None, stop=None, verbose=True):
+        """
+        Cut out some input/targets.
+            
+        net.slice_dataset(100) - reduce to first 100 inputs/targets
+        net.slice_dataset(100, 200) - reduce to second 100 inputs/targets
+        """
         if start is not None:
             if stop is None: # (#, None)
                 stop = start
@@ -319,6 +356,9 @@ class Network():
     #         raise Exception("couldn't load .npz dataset %s" % filename)
 
     def reshape_inputs(self, new_shape, verbose=True):
+        """
+        Reshape the input vectors. WIP.
+        """
         ## FIXME: allow working on multi inputs
         if self.multi_inputs:
             raise Exception("reshape_inputs does not yet work on multi-input patterns")
@@ -340,6 +380,9 @@ class Network():
             self.summary_dataset()
 
     def set_input_layer_order(self, *layer_names):
+        """
+        When multiple input banks, you must set this.
+        """
         if len(layer_names) == 1:
             raise Exception("set_input_layer_order cannot be a single layer")
         self.input_layer_order = []
@@ -350,6 +393,9 @@ class Network():
                 raise Exception("duplicate name in set_input_layer_order: '%s'" % layer_name)
 
     def set_output_layer_order(self, *layer_names):
+        """
+        When multiple output banks, you must set this.
+        """
         if len(layer_names) == 1:
             raise Exception("set_output_layer_order cannot be a single layer")
         self.output_layer_order = []
@@ -360,6 +406,9 @@ class Network():
                 raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
 
     def set_targets_to_categories(self, num_classes):
+        """
+        Given net.labels are integers, set the net.targets to one_hot() categories.
+        """
         ## FIXME: allow working on multi-targets
         if self.multi_targets:
             raise Exception("set_targets_to_categories does not yet work on multi-target patterns")
@@ -373,6 +422,9 @@ class Network():
         print('Generated %d target vectors from labels' % self.num_inputs)
 
     def summary_dataset(self):
+        """
+        Print out a summary of the dataset.
+        """
         print('Input Summary:')
         print('   length  : %d' % (self.get_inputs_length(),))
         print('   training: %d' % (self.get_train_inputs_length(),))
@@ -395,6 +447,9 @@ class Network():
             print('   range  : %s' % (self.targets_range,))
 
     def rescale_inputs(self, old_range, new_range, new_dtype):
+        """
+        Rescale the inputs. WIP.
+        """
         ## FIXME: allow working on multi-inputs
         if self.multi_inputs:
             raise Exception("rescale_inputs does not yet work on multi-input patterns")
@@ -440,6 +495,9 @@ class Network():
                 layer.set_weights(new_weights)
 
     def shuffle_dataset(self, verbose=True):
+        """
+        Shuffle the inputs/targets. WIP.
+        """
         ## FIXME: allow working on multi-inputs/-targets
         if self.multi_inputs or self.multi_targets:
             raise Exception("shuffle_dataset does not yet work on multi-input/-target patterns")
@@ -456,6 +514,9 @@ class Network():
             print('Shuffled all %d inputs' % self.num_inputs)
 
     def split_dataset(self, split=0.50, verbose=True):
+        """
+        Split the inputs/targets into training/test datasets.
+        """
         if self.num_inputs == 0:
             raise Exception("no dataset loaded")
         if isinstance(split, numbers.Integral):
@@ -539,6 +600,9 @@ class Network():
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
     def train_one(self, inputs, targets, batch_size=32):
+        """
+        Train on one input/target pair. Requires internal format.
+        """
         pairs = [(inputs, targets)]
         if self.num_input_layers == 1:
             ins = np.array([x for (x, y) in pairs], "float32")
@@ -567,6 +631,9 @@ class Network():
     def train(self, epochs=1, accuracy=None, batch_size=None,
               report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
               class_weight=None, sample_weight=None):
+        """
+        Train the network.
+        """
         ## IDEA: train_options could be a history of dicts
         ## to keep track of a schedule of learning over time
         self.train_options = {
@@ -705,7 +772,7 @@ class Network():
 
     def get_train_input(self, i):
         """
-        Get an input from the internal dataset and
+        Get a training input from the internal dataset and
         format it in the human API.
         """
         if self.num_input_layers == 1:
@@ -718,7 +785,7 @@ class Network():
 
     def get_train_target(self, i):
         """
-        Get a target from the internal dataset and
+        Get a training target from the internal dataset and
         format it in the human API.
         """
         if self.num_target_layers == 1:
@@ -731,7 +798,7 @@ class Network():
 
     def get_test_input(self, i):
         """
-        Get an input from the internal dataset and
+        Get a test input from the internal dataset and
         format it in the human API.
         """
         if self.num_input_layers == 1:
@@ -744,7 +811,7 @@ class Network():
 
     def get_test_target(self, i):
         """
-        Get a target from the internal dataset and
+        Get a test target from the internal dataset and
         format it in the human API.
         """
         if self.num_target_layers == 1:
@@ -756,6 +823,10 @@ class Network():
             return targets
 
     def propagate(self, input, batch_size=32):
+        """
+        Propagate an input (in human API) through the network.
+        If visualizing, the network image will be updated.
+        """
         if self.num_input_layers == 1:
             outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
         else:
@@ -772,6 +843,9 @@ class Network():
         return outputs
 
     def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32):
+        """
+        Propagate activations from the given layer name to the output layers.
+        """
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if output_layer_names is None:
@@ -873,6 +947,9 @@ class Network():
         return image
 
     def compile(self, **kwargs):
+        """
+        Check and compile the network.
+        """
         ## Error checking:
         if len(self.layers) == 0:
             raise Exception("network has no layers")
@@ -1306,6 +1383,9 @@ require(['base/js/namespace'], function(Jupyter) {
         return ordering
 
     def describe_connection_to(self, layer1, layer2):
+        """
+        Returns a textual description of the weights for the SVG tooltip.
+        """
         retval = "Weights from %s to %s" % (layer1.name, layer2.name)
         for klayer in self.model.layers:
             if klayer.name == layer2.name:
@@ -1341,6 +1421,9 @@ require(['base/js/namespace'], function(Jupyter) {
                 layer.set_weights(new_weights)
 
     def get_inputs_length(self):
+        """
+        Get the number of input patterns.
+        """
         if len(self.inputs) == 0:
             return 0
         if self.multi_inputs:
@@ -1349,6 +1432,9 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.inputs.shape[0]
 
     def get_targets_length(self):
+        """
+        Get the number of target patterns.
+        """
         if len(self.targets) == 0:
             return 0
         if self.multi_targets:
@@ -1357,6 +1443,9 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.targets.shape[0]
 
     def get_test_inputs_length(self):
+        """
+        Get the number of test input patterns.
+        """
         if len(self.test_inputs) == 0:
             return 0
         if self.multi_inputs:
@@ -1365,6 +1454,9 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.test_inputs.shape[0]
 
     def get_test_targets_length(self):
+        """
+        Get the number of test target patterns.
+        """
         if len(self.test_targets) == 0:
             return 0
         if self.multi_targets:
@@ -1373,6 +1465,9 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.test_targets.shape[0]
 
     def get_train_inputs_length(self):
+        """
+        Get the number of training input patterns.
+        """
         if len(self.train_inputs) == 0:
             return 0
         if self.multi_inputs:
@@ -1381,6 +1476,9 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.train_inputs.shape[0]
 
     def get_train_targets_length(self):
+        """
+        Get the number of training target patterns.
+        """
         if len(self.train_targets) == 0:
             return 0
         if self.multi_targets:
@@ -1389,6 +1487,10 @@ require(['base/js/namespace'], function(Jupyter) {
             return self.train_targets.shape[0]
 
     def build_widget(self, width="100%", height="550px"):
+        """
+        Build the control-panel for Jupyter widgets. Requires running
+        in a notebook/jupyterlab.
+        """
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
 
         def dataset_move(position):
@@ -1493,6 +1595,9 @@ require(['base/js/namespace'], function(Jupyter) {
         return widget
 
     def pp(self, *args, **opts):
+        """
+        Pretty-print a vector.
+        """
         if isinstance(args[0], str):
             label = args[0]
             vector = args[1]
@@ -1502,6 +1607,9 @@ require(['base/js/namespace'], function(Jupyter) {
         print(label + self.ppf(vector[:20], **opts))
 
     def ppf(self, vector, **opts):
+        """
+        Pretty-format a vector.
+        """
         config = copy.copy(self.config)
         config.update(opts)
         max_length = config["pp_max_length"]
@@ -1514,6 +1622,10 @@ require(['base/js/namespace'], function(Jupyter) {
     #def from_array(self):
 
 class InterruptHandler():
+    """
+    Class for handling interrupts so that state is not left
+    in inconsistant situation.
+    """
     def __init__(self, sig=signal.SIGINT):
         self.sig = sig
 
@@ -1523,7 +1635,7 @@ class InterruptHandler():
         self.original_handler = signal.getsignal(self.sig)
 
         def handler(signum, frame):
-            self.release()
+            self._release()
             if self.interrupted:
                 raise KeyboardInterrupt
             print("\nStopping at end of epoch... (^C again to quit now)...")
@@ -1533,9 +1645,9 @@ class InterruptHandler():
         return self
 
     def __exit__(self, type, value, tb):
-        self.release()
+        self._release()
 
-    def release(self):
+    def _release(self):
         if self.released:
             return False
         signal.signal(self.sig, self.original_handler)
