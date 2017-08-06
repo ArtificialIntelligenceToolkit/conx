@@ -63,10 +63,14 @@ class Network():
             "colormap": None,
             "show_errors": True,
             "pixels_per_unit": 1,
+            "pp_max_length": 20,
+            "pp_precision": 1,
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
         self.config.update(config)
+        self.compile_options = {}
+        self.train_options = {}
         self.name = name
         self.layers = []
         self.layer_dict = {}
@@ -310,7 +314,7 @@ class Network():
     #         raise Exception("couldn't load .npz dataset %s" % filename)
 
     def reshape_inputs(self, new_shape, verbose=True):
-        ## FIXME: multi
+        ## FIXME: allow working on multi inputs
         if self.multi_inputs:
             raise Exception("reshape_inputs does not yet work on multi-input patterns")
         if self.num_inputs == 0:
@@ -351,7 +355,7 @@ class Network():
                 raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
 
     def set_targets_to_categories(self, num_classes):
-        ## FIXME: multi
+        ## FIXME: allow working on multi-targets
         if self.multi_targets:
             raise Exception("set_targets_to_categories does not yet work on multi-target patterns")
         if self.num_inputs == 0:
@@ -386,7 +390,7 @@ class Network():
             print('   range  : %s' % (self.targets_range,))
 
     def rescale_inputs(self, old_range, new_range, new_dtype):
-        ## FIXME: multi
+        ## FIXME: allow working on multi-inputs
         if self.multi_inputs:
             raise Exception("rescale_inputs does not yet work on multi-input patterns")
         old_min, old_max = old_range
@@ -431,7 +435,7 @@ class Network():
                 layer.set_weights(new_weights)
 
     def shuffle_dataset(self, verbose=True):
-        ## FIXME: multi
+        ## FIXME: allow working on multi-inputs/-targets
         if self.multi_inputs or self.multi_targets:
             raise Exception("shuffle_dataset does not yet work on multi-input/-target patterns")
         if self.num_inputs == 0:
@@ -480,39 +484,54 @@ class Network():
             print('   %d train inputs' % self.get_train_inputs_length())
             print('   %d test inputs' % self.get_test_inputs_length())
 
-    def test(self, inputs=None, targets=None, batch_size=32):
+    def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1):
         """
-        Requires items in proper internal format.
+        Requires items in proper internal format, if given (for now).
         """
+        ## FIXME: allow human format of inputs, if given
+        dataset_name = "provided"
         if inputs is None:
             if self.split == self.num_inputs:
+
                 inputs = self.train_inputs
+                dataset_name = "training"
             else:
                 inputs = self.test_inputs
+                dataset_name = "testing"
         if targets is None:
             if self.split == self.num_targets:
                 targets = self.train_targets
             else:
                 targets = self.test_targets
-        print("Testing...")
+        print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
-        print("# | inputs | targets | outputs")
         if self.num_input_layers == 1:
-            ins = [ppf(x) for x in inputs.tolist()]
+            ins = [self.ppf(x) for x in inputs.tolist()]
         else:
-            ins = [("[" + ", ".join([ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
+            ins = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
         ## targets:
         if self.num_target_layers == 1:
-            targs = [ppf(x) for x in targets.tolist()]
+            targs = [self.ppf(x) for x in targets.tolist()]
         else:
-            targs = [("[" + ", ".join([ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*targets))).tolist()]
+            targs = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*targets))).tolist()]
         ## outputs:
         if self.num_target_layers == 1:
-            outs = [ppf(x) for x in outputs.tolist()]
+            outs = [self.ppf(x) for x in outputs.tolist()]
         else:
-            outs = [("[" + ", ".join([ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
+            outs = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
+        ## correct?
+        if self.num_target_layers == 1:
+            correct = [all(x) for x in map(lambda v: v <= tolerance,
+                                           np.abs(outputs - targets))]
+        else:
+            outs = np.array(list(zip(*[out.flatten().tolist() for out in outputs])))
+            targs = np.array(list(zip(*[out.flatten().tolist() for out in targets])))
+            correct = [all(row) for row in (np.abs(outs - targs) < tolerance)]
+        print("# | inputs | targets | outputs | result")
         for i in range(len(outs)):
-            print(i, "|", ins[i], "|", targs[i], "|", outs[i])
+            print(i, "|", ins[i], "|", targs[i], "|", outs[i], "|", "correct" if correct[i] else "X")
+        print("Total count:", len(correct))
+        print("Total percentage correct:", list(correct).count(True)/len(correct))
 
     def train_one(self, inputs, targets, batch_size=32):
         pairs = [(inputs, targets)]
@@ -533,9 +552,29 @@ class Network():
         outputs = self.propagate(inputs, batch_size=batch_size)
         return outputs
 
+    def retrain(self, **overrides):
+        """
+        Call network.train() again with same options as last call, unless overrides.
+        """
+        self.train_options.update(overrides)
+        self.train(**self.train_options)
+
     def train(self, epochs=1, accuracy=None, batch_size=None,
               report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
               class_weight=None, sample_weight=None):
+        ## IDEA: train_options could be a history of dicts
+        ## to keep track of a schedule of learning over time
+        self.train_options = {
+            "epochs": epochs,
+            "accuracy": accuracy,
+            "batch_size": batch_size,
+            "report_rate": report_rate,
+            "tolerance": tolerance,
+            "verbose": verbose,
+            "shuffle": shuffle,
+            "class_weight": class_weight,
+            "sample_weight": sample_weight,
+            }
         if batch_size is None:
             if self.num_input_layers == 1:
                 batch_size = self.train_inputs.shape[0]
@@ -609,18 +648,18 @@ class Network():
                     val_percent = correct/len(validation_targets)
                     self.val_percent_history.append(val_percent)
                     if self.epoch_count % report_rate == 0:
-                        if verbose: print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
+                        if verbose: print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
                                           (self.epoch_count, loss, acc, val_percent))
                     if val_percent >= accuracy or handler.interrupted:
                         break
             if handler.interrupted:
                 print("=" * 72)
-                print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
+                print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
                       (self.epoch_count, loss, acc, val_percent))
                 raise KeyboardInterrupt
         if verbose:
             print("=" * 72)
-            print("Epoch #%5d | train error %7.5f | train acc %7.5f | validate%% %7.5f" %
+            print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
                   (self.epoch_count, loss, acc, val_percent))
         else:
             return (self.epoch_count, loss, acc, val_percent)
@@ -783,7 +822,7 @@ class Network():
         """
         config = copy.copy(self.config)
         config.update(opts)
-        ## FIXME: this probably isn't going to work with multi-outputs.
+        ## FIXME: this doesn't work on multi-targets/outputs
         if self.output_layer_order:
             output_names = self.output_layer_order
         else:
@@ -893,6 +932,7 @@ class Network():
         input_k_layers = self._get_ordered_input_layers()
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
+        self.compile_options = kwargs
         self.model.compile(**kwargs)
 
     def _get_input_ks_in_order(self, layer_names):
@@ -1266,7 +1306,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 weights = klayer.get_weights()
                 for w in range(len(klayer.weights)):
                     retval += "\n %s has shape %s" % (klayer.weights[w], weights[w].shape)
-        ## FIXME: how to show merged weights?
+        ## FIXME: how to show merged layer weights?
         return retval
 
     def save(self, filename=None):
@@ -1445,6 +1485,23 @@ require(['base/js/namespace'], function(Jupyter) {
         widget = VBox([net_svg, control], layout=Layout(width='100%'))
         widget.on_displayed(lambda widget: update_slider_control({"name": "value"}))
         return widget
+
+    def pp(self, *args, **opts):
+        if isinstance(args[0], str):
+            label = args[0]
+            vector = args[1]
+        else:
+            label = ""
+            vector = args[0]
+        print(label + self.ppf(vector[:20], **opts))
+
+    def ppf(self, vector, **opts):
+        config = copy.copy(self.config)
+        config.update(opts)
+        max_length = config["pp_max_length"]
+        precision = config["pp_precision"]
+        truncated = len(vector) > max_length
+        return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
 
     ## FIXME: add these:
     #def to_array(self):

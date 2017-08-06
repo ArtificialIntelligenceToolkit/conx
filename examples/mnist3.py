@@ -115,12 +115,12 @@ net.connect('hidden2', 'output')
 net.compile(loss='mean_squared_error',
             optimizer='sgd')
 
-net.load_keras_dataset('mnist')
-net.rescale_inputs((0,255), (0,1), 'float32')
-net.shuffle_dataset()
+net.load_mnist_dataset()
+#net.rescale_inputs((0,255), (0,1), 'float32')
+#net.shuffle_dataset()
 net.reshape_inputs(784)
-net.split_dataset(100)
-net.set_targets_to_categories(10)
+net.slice_dataset(100)
+#net.set_targets_to_categories(10)
 net.summary_dataset()
 
 net.train(10)

@@ -26,18 +26,6 @@ from keras.utils import to_categorical
 def one_hot(vector, categories):
     return to_categorical(vector, categories)[0].tolist()
 
-def pp(*args):
-    if isinstance(args[0], str):
-        label = args[0]
-        vector = args[1]
-    else:
-        label = ""
-        vector = args[0]
-    print(label + ppf(vector))
-
-def ppf(vector, precision=1):
-    return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector]) + "]"
-
 def topological_sort(net, layers):
     ## Initilize all:
     for layer in net.layers:
