@@ -31,6 +31,7 @@ def test_xor1():
     net.test()
     net.save()
     net.load()
+    svg = net.build_svg()
     assert net is not None
 
 def test_xor2():
@@ -74,6 +75,7 @@ def test_xor2():
     net.save()
     net.load()
     net.test()
+    svg = net.build_svg()
     assert net is not None
 
 def test_dataset():
@@ -89,7 +91,6 @@ def test_dataset():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", loss="binary_crossentropy")
-
     net.load_mnist_dataset()
     assert net is not None
 
@@ -110,3 +111,19 @@ def test_dataset2():
     net.split_dataset(100)
     net.slice_dataset(100)
     assert net is not None
+
+
+def test_images():
+    net = Network("MNIST")
+    net.load_mnist_dataset()
+    net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
+    net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("output", shape=10, activation='softmax'))
+    net.connect('input', 'hidden1')
+    net.connect('hidden1', 'hidden2')
+    net.connect('hidden2', 'output')
+    net.compile(optimizer="adam", loss="binary_crossentropy")
+    ## FIXME:
+    #svg = net.build_svg()
+    #assert svg is not None
