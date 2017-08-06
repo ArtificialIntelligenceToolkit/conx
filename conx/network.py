@@ -32,6 +32,11 @@ import keras
 from .utils import *
 from .layers import Layer
 
+try:
+    from IPython import get_ipython
+except:
+    get_ipython = lambda: None
+
 #------------------------------------------------------------------------
 
 class Network():
@@ -162,9 +167,9 @@ class Network():
         ## each is either: list of np.arrays() [multi], or np.array() [single]
         self.inputs = inputs
         self.targets = targets
-        self.labels = None
-        self.multi_inputs = isinstance(self.inputs, [list, tuple])
-        self.multi_targets = isinstance(self.targets, [list, tuple])
+        self.labels = []
+        self.multi_inputs = isinstance(self.inputs, (list, tuple))
+        self.multi_targets = isinstance(self.targets, (list, tuple))
         self._cache_dataset_values()
         self.split_dataset(self.num_inputs, verbose=False)
         if verbose:
@@ -442,7 +447,7 @@ class Network():
             raise Exception("no dataset loaded")
         indices = np.random.permutation(self.num_inputs)
         self.inputs = self.inputs[indices]
-        if self.labels is not None:
+        if len(self.labels) != 0:
             self.labels = self.labels[indices]
         if self.get_targets_length() != 0:
             self.targets = self.targets[indices]
@@ -756,7 +761,7 @@ class Network():
         else:
             inputs = [np.array(x, "float32") for x in input]
             outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
-        if self.visualize:
+        if self.visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -800,7 +805,7 @@ class Network():
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
-        if self.visualize:
+        if self.visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -845,7 +850,7 @@ class Network():
             # get just inputs for this layer, in order:
             vector = [np.array(inputs[self.input_layer_order.index(name)]) for name in self[layer_name].input_names]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
-        if self.visualize and visualize:
+        if self.visualize and visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -1241,7 +1246,8 @@ class Network():
             cheight += max_height
         cheight += config["border_bottom"]
         self.visualize = True
-        self._initialize_javascript()
+        if get_ipython():
+            self._initialize_javascript()
         return ("""
         <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">
     <defs>
@@ -1382,7 +1388,7 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             return self.train_targets.shape[0]
 
-    def make_widget(self, width="100%", height="550px"):
+    def build_widget(self, width="100%", height="550px"):
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
 
         def dataset_move(position):
@@ -1423,14 +1429,14 @@ require(['base/js/namespace'], function(Jupyter) {
 
         def update_slider_control(change):
             if change["name"] == "value":
-                if control_select.value == "Train":
+                if control_select.value == "Train" and self.get_train_targets_length() > 0:
                     output = self.propagate(self.get_train_input(control_slider.value))
                     if self.config["show_targets"]:
                         self.display_component([self.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.get_train_target(control_slider.value)) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
-                elif control_select.value == "Test":
+                elif control_select.value == "Test" and self.get_test_targets_length() > 0:
                     output = self.propagate(self.get_test_input(control_slider.value))
                     if self.config["show_targets"]:
                         self.display_component([self.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
@@ -1439,10 +1445,10 @@ require(['base/js/namespace'], function(Jupyter) {
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
 
         def train_one(button):
-            if control_select.value == "Train":
+            if control_select.value == "Train" and self.get_train_targets_length() > 0:
                 outputs = self.train_one(self.get_train_input(control_slider.value),
                                        self.get_train_target(control_slider.value))
-            elif control_select.value == "Test":
+            elif control_select.value == "Test" and self.get_test_targets_length() > 0:
                 outputs = self.train_one(self.get_test_input(control_slider.value),
                                        self.get_test_target(control_slider.value))
 
@@ -1467,7 +1473,7 @@ require(['base/js/namespace'], function(Jupyter) {
         control_slider = IntSlider(description="Dataset position",
                                    continuous_update=False,
                                    min=0,
-                                   max=self.get_train_inputs_length() - 1,
+                                   max=max(self.get_train_inputs_length() - 1, 0),
                                    value=0,
                                    layout=Layout(width='100%'))
 

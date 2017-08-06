@@ -113,17 +113,81 @@ def test_dataset2():
     assert net is not None
 
 
-def test_images():
-    net = Network("MNIST")
-    net.load_mnist_dataset()
-    net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
-    net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-    net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-    net.add(Layer("output", shape=10, activation='softmax'))
-    net.connect('input', 'hidden1')
-    net.connect('hidden1', 'hidden2')
-    net.connect('hidden2', 'output')
-    net.compile(optimizer="adam", loss="binary_crossentropy")
-    ## FIXME:
-    #svg = net.build_svg()
-    #assert svg is not None
+## FIXME: doesn't work
+# def test_images():
+#     net = Network("MNIST")
+#     net.load_mnist_dataset()
+#     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
+#     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+#     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+#     net.add(Layer("output", shape=10, activation='softmax'))
+#     net.connect('input', 'hidden1')
+#     net.connect('hidden1', 'hidden2')
+#     net.connect('hidden2', 'output')
+#     net.compile(optimizer="adam", loss="binary_crossentropy")
+#     svg = net.build_svg() ## FAIL!
+#     assert svg is not None
+
+def test_cifar10():
+    import keras
+    from keras.datasets import cifar10
+    from keras.preprocessing.image import ImageDataGenerator
+    import os
+    import pickle
+    import numpy as np
+    from conx import Network, Layer, Conv2DLayer, MaxPool2DLayer, FlattenLayer
+
+    batch_size = 32
+    num_classes = 10
+    epochs = 200
+    data_augmentation = True
+    num_predictions = 20
+    save_dir = os.path.join(os.getcwd(), 'saved_models')
+    model_name = 'keras_cifar10_trained_model.h5'
+
+    # The data, shuffled and split between train and test sets:
+    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+    print('x_train shape:', x_train.shape)
+    print(x_train.shape[0], 'train samples')
+    print(x_test.shape[0], 'test samples')
+
+    # Convert class vectors to binary class matrices.
+    y_train = keras.utils.to_categorical(y_train, num_classes)
+    y_test = keras.utils.to_categorical(y_test, num_classes)
+
+
+    net = Network("CIRAR10")
+    net.add(Layer("input", (32, 32, 3)))
+    net.add(Conv2DLayer("conv1", 32, (3, 3), padding='same', activation='relu'))
+    net.add(Conv2DLayer("conv2", 32, (3, 3), activation='relu'))
+    net.add(MaxPool2DLayer("pool1", pool_size=(2, 2), dropout=0.25))
+    net.add(Conv2DLayer("conv3", 64, (3, 3), padding='same', activation='relu'))
+    net.add(Conv2DLayer("conv4", 64, (3, 3), activation='relu'))
+    net.add(MaxPool2DLayer("pool2", pool_size=(2, 2), dropout=0.25))
+    net.add(FlattenLayer("flatten"))
+    net.add(Layer("hidden1", 512, activation='relu', vshape=(16, 32), dropout=0.5))
+    net.add(Layer("output", num_classes, activation='softmax'))
+    net.connect()
+
+    # initiate RMSprop optimizer
+    opt = RMSprop(lr=0.0001, decay=1e-6)
+
+    net.compile(loss='categorical_crossentropy',
+                optimizer=opt)
+
+    # Let's train the model using RMSprop
+    net.compile(loss='categorical_crossentropy',
+                optimizer=opt,
+                metrics=['accuracy'])
+    model = net.model
+
+    net.build_widget()
+
+    x_train = x_train.astype('float32')
+    x_test = x_test.astype('float32')
+    x_train /= 255
+    x_test /= 255
+
+    net.propagate(x_train[0])
+    net.set_dataset_direct(x_train, y_train)
+    net.propagate(x_test[0])

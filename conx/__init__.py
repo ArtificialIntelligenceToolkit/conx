@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 from .network import *
 from .layers import *
