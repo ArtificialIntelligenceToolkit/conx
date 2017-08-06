@@ -1,0 +1,4 @@
+name: conx
+type: sphinx
+python:
+  version: 3
