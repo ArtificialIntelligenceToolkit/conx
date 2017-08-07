@@ -14,7 +14,7 @@ with io.open('conx/_version.py', encoding='utf-8') as fid:
             break
 
 with io.open('README.md', encoding='utf-8') as fp:
-    long_desc = fp.read().decode('utf-8')
+    long_desc = fp.read()
     if pypandoc is not None:
         try:
             long_desc = pypandoc.convert(long_desc, "rst", "markdown_github")
