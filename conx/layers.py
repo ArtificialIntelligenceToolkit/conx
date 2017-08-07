@@ -343,11 +343,9 @@ def process_class_docstring(docstring):
     docstring = re.sub(r'\n    # (.*)\n',
                        r'\n    __\1__\n\n',
                        docstring)
-
     docstring = re.sub(r'    ([^\s\\\(]+):(.*)\n',
                        r'    - __\1__:\2\n',
                        docstring)
-
     docstring = docstring.replace('    ' * 5, '\t\t')
     docstring = docstring.replace('    ' * 3, '\t')
     docstring = docstring.replace('    ', '')
@@ -358,13 +356,12 @@ def process_class_docstring(docstring):
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
+        new_name = "%sLayer" % name
         try:
-            docstring_md  = '    **' + obj.__name__ + '**\n\n'
-            docstring_md += '    ' + obj.__doc__
+            docstring_md  = '    **%sLayer**\n\n' % (new_name,)
             docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
         except:
             docstring = obj.__doc__
-        new_name = "%sLayer" % name
         locals()[new_name] = type(new_name, (BaseLayer,),
                                   {"CLASS": obj,
                                    "__doc__": docstring})
