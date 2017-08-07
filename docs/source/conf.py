@@ -39,6 +39,7 @@ extensions = [
     'sphinx.ext.githubpages',
     'nbsphinx',
     'jupyter_sphinx.embed_widgets',
+    'sphinxcontrib.napoleon',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

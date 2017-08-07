@@ -209,7 +209,7 @@ class Network():
     def slice_dataset(self, start=None, stop=None, verbose=True):
         """
         Cut out some input/targets.
-            
+
         net.slice_dataset(100) - reduce to first 100 inputs/targets
         net.slice_dataset(100, 200) - reduce to second 100 inputs/targets
         """
@@ -572,19 +572,19 @@ class Network():
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         if self.num_input_layers == 1:
-            ins = [self.ppf(x) for x in inputs.tolist()]
+            ins = [self.pf(x) for x in inputs.tolist()]
         else:
-            ins = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
+            ins = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
         ## targets:
         if self.num_target_layers == 1:
-            targs = [self.ppf(x) for x in targets.tolist()]
+            targs = [self.pf(x) for x in targets.tolist()]
         else:
-            targs = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*targets))).tolist()]
+            targs = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*targets))).tolist()]
         ## outputs:
         if self.num_target_layers == 1:
-            outs = [self.ppf(x) for x in outputs.tolist()]
+            outs = [self.pf(x) for x in outputs.tolist()]
         else:
-            outs = [("[" + ", ".join([self.ppf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
+            outs = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
         ## correct?
         if self.num_target_layers == 1:
             correct = [all(x) for x in map(lambda v: v <= tolerance,
@@ -1616,11 +1616,30 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             label = ""
             vector = args[0]
-        print(label + self.ppf(vector[:20], **opts))
+        print(label + self.pf(vector[:20], **opts))
 
-    def ppf(self, vector, **opts):
+    def pf(self, vector, **opts):
         """
-        Pretty-format a vector.
+        Pretty-format a vector. Returns string.
+
+        Args:
+            vector (list): The first parameter.
+            pp_max_length (int): Number of decimal places to show for each
+                value in vector.
+
+        Returns:
+            str: Returns the vector formatted as a short string.
+
+        Examples:
+            These examples demonstrate the net.pf formatting function:
+
+            >>> import conx
+            >>> net = Network("Test")
+            >>> net.pf([1])
+            '[1.0]'
+
+            >>> net.pf(range(10), pp_max_length=5)
+            '[0.0, 1.0, 2.0, 3.0, 4.0...]'
         """
         config = copy.copy(self.config)
         config.update(opts)
