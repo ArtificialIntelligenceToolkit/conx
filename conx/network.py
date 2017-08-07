@@ -1486,7 +1486,7 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             return self.train_targets.shape[0]
 
-    def build_widget(self, width="100%", height="550px"):
+    def build_widget(self, width="100%", max_height="550px"):
         """
         Build the control-panel for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
@@ -1554,7 +1554,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 outputs = self.train_one(self.get_test_input(control_slider.value),
                                        self.get_test_target(control_slider.value))
 
-        net_svg = HTML(value=self.build_svg(), layout=Layout(width=width, height=height, overflow_x='auto'))
+        net_svg = HTML(value=self.build_svg(), layout=Layout(width=width, height="100%", max_height=max_height, overflow_x='auto'))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
         button_next = Button(icon="forward", layout=Layout(width='100%'))
