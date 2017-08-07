@@ -358,7 +358,7 @@ for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         try:
-            docstring_md  = '    **%sLayer**\n\n' % (new_name,)
+            docstring_md  = '    **%s**\n\n' % (new_name,)
             docstring_md += obj.__doc__
             docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
         except:
