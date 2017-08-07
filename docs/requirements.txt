@@ -6,3 +6,5 @@ Pillow
 IPython
 tensorflow
 theano
+pypandoc
+sphinx_rtd_theme
