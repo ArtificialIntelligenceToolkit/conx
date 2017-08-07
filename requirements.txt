@@ -4,4 +4,3 @@ matplotlib
 ipywidgets
 Pillow
 IPython
-pypandoc

@@ -31,18 +31,31 @@ from functools import reduce
 import sys
 import inspect
 import re
+import os
 
 import numpy as np
 import keras
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
-try:
-    import pypandoc
-except:
-    pypandoc = None
+#------------------------------------------------------------------------
+
+ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
+
+#------------------------------------------------------------------------
+
+pypandoc = None
+if ON_RTD:
+    try:
+        import pypandoc
+    except:
+        pass # won't turn Keras comments into rft for documentation
 
 from .utils import *
+#------------------------------------------------------------------------
+
+ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
+
 #------------------------------------------------------------------------
 
 class BaseLayer():
@@ -357,16 +370,18 @@ keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
-        try:
-            docstring_md  = '    **%s**\n\n' % (new_name,)
-            docstring_md += obj.__doc__
-            docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
-        except:
-            docstring = obj.__doc__
+        docstring = obj.__doc__
+        if pypandoc:
+            try:
+                docstring_md  = '    **%s**\n\n' % (new_name,)
+                docstring_md += obj.__doc__
+                docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
+            except:
+                pass
         locals()[new_name] = type(new_name, (BaseLayer,),
                                   {"CLASS": obj,
                                    "__doc__": docstring})
 
-## Overwrite, or make a more specific version manually:
-InputLayer = Layer
-DenseLayer = Layer
+## Overwrite, or make more specific versions manually:
+InputLayer = Layer # overwrites Keras InputLayer
+DenseLayer = Layer # for consistency
