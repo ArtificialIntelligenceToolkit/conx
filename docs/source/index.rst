@@ -10,7 +10,15 @@ Welcome to conx's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   BasicExample
+   XOR
+   Autoencoder
+   MNIST
+   LSTM
+   CIFAR10_CNN
+   MovingFromKeras
    modules
+   
 
 
 

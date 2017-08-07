@@ -8,3 +8,5 @@ tensorflow
 theano
 pypandoc
 sphinx_rtd_theme
+nbsphinx
+jupyter_sphinx
