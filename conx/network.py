@@ -1648,9 +1648,54 @@ require(['base/js/namespace'], function(Jupyter) {
         truncated = len(vector) > max_length
         return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
 
-    ## FIXME: add these:
-    #def to_array(self):
-    #def from_array(self):
+    def to_array(self):
+        """
+        Get the weights of a network as a flat, one-dimensional list.
+
+        Example:
+            >>> from conx import Network
+            >>> net = Network("Deep", 3, 4, 5, 2, 3, 4, 5)
+            >>> net.compile(optimizer="adam", error="mse")
+            >>> array = net.to_array()
+            >>> len(array)
+            103
+
+        Returns:
+            list: All of weights in a single, flat list.
+        """
+        array = []
+        for layer in self.model.layers:
+            for weight in layer.get_weights():
+                array.extend(weight.flatten())
+        return array
+
+    def from_array(self, array):
+        """
+        Load the weights from a list.
+
+        Args:
+            array (list) - a sequence (e.g., list, np.array) of numbers
+
+        Example:
+            >>> from conx import Network
+            >>> net = Network("Deep", 3, 4, 5, 2, 3, 4, 5)
+            >>> net.compile(optimizer="adam", error="mse")
+            >>> net.from_array([0] * 103)
+            >>> array = net.to_array()
+            >>> len(array)
+            103
+        """
+        position = 0
+        for layer in self.model.layers:
+            weights = layer.get_weights()
+            new_weights = []
+            for i in range(len(weights)):
+                w = weights[i]
+                size = reduce(operator.mul, w.shape)
+                new_w = np.array(array[position:position + size]).reshape(w.shape)
+                new_weights.append(new_w)
+                position += size
+            layer.set_weights(new_weights)
 
 class InterruptHandler():
     """
