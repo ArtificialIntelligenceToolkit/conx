@@ -359,6 +359,7 @@ for (name, obj) in inspect.getmembers(keras_module):
         new_name = "%sLayer" % name
         try:
             docstring_md  = '    **%sLayer**\n\n' % (new_name,)
+            docstring_md += obj.__doc__
             docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
         except:
             docstring = obj.__doc__
