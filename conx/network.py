@@ -1572,7 +1572,7 @@ require(['base/js/namespace'], function(Jupyter) {
             value='Train',
             description='Dataset:',
                )
-        control_slider = IntSlider(description="Dataset position",
+        control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,
                                    max=max(self.get_train_inputs_length() - 1, 0),

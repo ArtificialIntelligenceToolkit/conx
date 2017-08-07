@@ -7,8 +7,18 @@
 import io
 import os
 import sys
+import glob
+import shutil
+
 sys.path.insert(0, os.path.abspath('../..'))
 
+## dependencies: get ../../notebooks/*.ipynb files
+
+print("Copying source notebooks...")
+for filename in glob.glob("../../notebooks/*.ipynb"):
+    path, dst = os.path.split(filename)
+    shutil.copyfile(filename, dst)
+    print("   ", dst)
 
 # -- General configuration ------------------------------------------------
 
