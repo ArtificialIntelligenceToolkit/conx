@@ -594,6 +594,7 @@ class Network():
             targs = np.array(list(zip(*[out.flatten().tolist() for out in targets])))
             correct = [all(row) for row in (np.abs(outs - targs) < tolerance)]
         print("# | inputs | targets | outputs | result")
+        print("---------------------------------------")
         for i in range(len(outs)):
             print(i, "|", ins[i], "|", targs[i], "|", outs[i], "|", "correct" if correct[i] else "X")
         print("Total count:", len(correct))
@@ -619,7 +620,12 @@ class Network():
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size)
-        return outputs
+        errors = np.array(targets) - np.array(outputs) # FIXME: multi outputs?
+        if self.config["show_targets"]:
+            self.display_component([targets], "targets") # FIXME: use output layers' minmax
+        if self.config["show_errors"]:
+            self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
+        return (outputs, errors)
 
     def retrain(self, **overrides):
         """
@@ -1504,9 +1510,15 @@ require(['base/js/namespace'], function(Jupyter) {
             elif position == "end":
                 control_slider.value = length - 1
             elif position == "prev":
-                control_slider.value = max(control_slider.value - 1, 0)
+                if control_slider.value - 1 < 0:
+                    control_slider.value = length - 1 # wrap around
+                else:
+                    control_slider.value = max(control_slider.value - 1, 0)
             elif position == "next":
-                control_slider.value = min(control_slider.value + 1, length - 1)
+                if control_slider.value + 1 > length - 1:
+                    control_slider.value = 0 # wrap around
+                else:
+                    control_slider.value = min(control_slider.value + 1, length - 1)
 
         def update_control_slider(change):
             if control_select.value == "Test":
@@ -1537,14 +1549,14 @@ require(['base/js/namespace'], function(Jupyter) {
                         self.display_component([self.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.get_train_target(control_slider.value)) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
                 elif control_select.value == "Test" and self.get_test_targets_length() > 0:
                     output = self.propagate(self.get_test_input(control_slider.value))
                     if self.config["show_targets"]:
                         self.display_component([self.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.get_test_target(control_slider.value)) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="hot")
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
 
         def train_one(button):
             if control_select.value == "Train" and self.get_train_targets_length() > 0:
