@@ -36,6 +36,8 @@ import keras
 from .utils import *
 from .layers import Layer
 
+from typing import Any
+
 try:
     from IPython import get_ipython
 except:
@@ -46,15 +48,73 @@ except:
 class Network():
     """
     The main class for the conx neural network package.
+
+    Arguments:
+        name: Required. The name of the network.
+        sizes: Optional numbers. Defines the sizes of layers of a sequential
+           network. These will be created, added, and connected automatically.
+        config: Configuration overrides for the network.
+
+    Note:
+        To have a complete, operating network, you must do the following items:
+
+        1. create a network
+        2. add layers
+        3. connect the layers
+        4. compile the network
+
+        See also :any:`Layer`, :any:`Network.add`, :any:`Network.connect`,
+        and :any:`Network.compile`.
+
+    Examples:
+        >>> net = Network("XOR1", 2, 5, 2)
+        >>> len(net.layers)
+        3
+
+        >>> net = Network("XOR2")
+        >>> net.add(Layer("input", 2))
+        >>> net.add(Layer("hidden", 5))
+        >>> net.add(Layer("output", 2))
+        >>> net.connect()
+        >>> len(net.layers)
+        3
+
+        >>> net = Network("XOR3")
+        >>> net.add(Layer("input", 2))
+        >>> net.add(Layer("hidden", 5))
+        >>> net.add(Layer("output", 2))
+        >>> net.connect("input", "hidden")
+        >>> net.connect("hidden", "output")
+        >>> len(net.layers)
+        3
+
+        >>> net = Network("NMIST")
+        >>> net.name
+        'NMIST'
+        >>> len(net.layers)
+        0
+
+        >>> net = Network("NMIST", 10, 5, 1)
+        >>> len(net.layers)
+        3
+
+        >>> net = Network("NMIST", 10, 5, 5, 1, activation="sigmoid")
+        >>> net.config["activation"]
+        'sigmoid'
+        >>> net["output"].activation == "sigmoid"
+        True
+        >>> net["hidden1"].activation == "sigmoid"
+        True
+        >>> net["hidden2"].activation == "sigmoid"
+        True
+        >>> net["input"].activation is None
+        True
+        >>> net.layers[0].name == "input"
+        True
     """
     OPTIMIZERS = ("sgd", "rmsprop", "adagrad", "adadelta", "adam",
                   "adamax", "nadam", "tfoptimizer")
-    def __init__(self, name, *sizes, **config):
-        """
-        Create a neural network.
-        if sizes is given, create a full network.
-        Optional keywork: activation
-        """
+    def __init__(self, name: str, *sizes: int, **config: Any):
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.config = {
@@ -141,21 +201,58 @@ class Network():
     def __repr__(self):
         return "<Network name='%s'>" % self.name
 
-    def add(self, layer):
+    def add(self, layer: Layer):
         """
         Add a layer to the network layer connections. Order is not
-        important, unless using the default net.connect() form.
+        important, unless calling :any:`Network.connect` without any
+        arguments.
+
+        Arguments:
+            layer: A layer instance.
+
+        Examples:
+            >>> net = Network("XOR2")
+            >>> net.add(Layer("input", 2))
+            >>> len(net.layers)
+            1
+
+            >>> net = Network("XOR3")
+            >>> net.add(Layer("input", 2))
+            >>> net.add(Layer("hidden", 5))
+            >>> net.add(Layer("output", 2))
+            >>> len(net.layers)
+            3
+
+        Note:
+            See :any:`Network` for more information.
         """
         if layer.name in self.layer_dict:
             raise Exception("duplicate layer name '%s'" % layer.name)
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
 
-    def connect(self, from_layer_name=None, to_layer_name=None):
+    def connect(self, from_layer_name:str=None, to_layer_name:str=None):
         """
         Connect two layers together if called with arguments. If
         called with no arguments, then it will make a sequential
         run through the layers in order added.
+
+        Arguments:
+            from_layer_name: Name of layer where connect begins.
+            to_layer_name: Name of layer where connection ends.
+
+            If both from_layer_name and to_layer_name are None, then
+            all of the layers are connected sequentially in the order
+            added.
+
+        Examples:
+            >>> net = Network("XOR2")
+            >>> net.add(Layer("input", 2))
+            >>> net.add(Layer("hidden", 5))
+            >>> net.add(Layer("output", 2))
+            >>> net.connect()
+            >>> [layer.name for layer in net["input"].outgoing_connections]
+            ['hidden']
         """
         if from_layer_name is None and to_layer_name is None:
             for i in range(len(self.layers) - 1):
@@ -669,7 +766,7 @@ class Network():
             validation_inputs = self.test_inputs
             validation_targets = self.test_targets
         if verbose: print("Training...")
-        with InterruptHandler() as handler:
+        with _InterruptHandler() as handler:
             if accuracy is None: # train them all using fit
                 result = self.model.fit(self.train_inputs, self.train_targets,
                                         batch_size=batch_size,
@@ -955,6 +1052,8 @@ class Network():
     def compile(self, **kwargs):
         """
         Check and compile the network.
+
+        See https://keras.io/ `Model.compile()` method for more details.
         """
         ## Error checking:
         if len(self.layers) == 0:
@@ -1622,7 +1721,7 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         Pretty-format a vector. Returns string.
 
-        Args:
+        Parameters:
             vector (list): The first parameter.
             pp_max_length (int): Number of decimal places to show for each
                 value in vector.
@@ -1648,7 +1747,7 @@ require(['base/js/namespace'], function(Jupyter) {
         truncated = len(vector) > max_length
         return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
 
-    def to_array(self):
+    def to_array(self) -> list:
         """
         Get the weights of a network as a flat, one-dimensional list.
 
@@ -1661,7 +1760,7 @@ require(['base/js/namespace'], function(Jupyter) {
             103
 
         Returns:
-            list: All of weights in a single, flat list.
+            All of weights and biases of the network in a single, flat list.
         """
         array = []
         for layer in self.model.layers:
@@ -1669,12 +1768,12 @@ require(['base/js/namespace'], function(Jupyter) {
                 array.extend(weight.flatten())
         return array
 
-    def from_array(self, array):
+    def from_array(self, array: list):
         """
         Load the weights from a list.
 
-        Args:
-            array (list) - a sequence (e.g., list, np.array) of numbers
+        Arguments:
+            array: a sequence (e.g., list, np.array) of numbers
 
         Example:
             >>> from conx import Network
@@ -1697,7 +1796,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 position += size
             layer.set_weights(new_weights)
 
-class InterruptHandler():
+class _InterruptHandler():
     """
     Class for handling interrupts so that state is not left
     in inconsistant situation.

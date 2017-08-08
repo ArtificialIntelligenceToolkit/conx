@@ -58,17 +58,16 @@ ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
 
 #------------------------------------------------------------------------
 
-class BaseLayer():
+class _BaseLayer():
     """
     The base class for all conx layers.
+
+    See :any:`Layer` for more details.
     """
     ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
     CLASS = None
 
     def __init__(self, name, *args, **params):
-        """
-        All conx layers require the name as first argument.
-        """
         if not (isinstance(name, str) and len(name) > 0):
             raise Exception('bad layer name: %s' % (name,))
         self.name = name
@@ -287,16 +286,37 @@ class BaseLayer():
             retval += "\n %s = %s" % (key, self.params[key])
         return retval
 
-class Layer(BaseLayer):
+class Layer(_BaseLayer):
     """
-    For Dense and Input type layers.
+    The default layer type. Will create either an InputLayer, or DenseLayer,
+    depending on its context after :any:`Network.connect`.
+
+    Arguments:
+        name: The name of the layer. Must be unique in this network.
+
+    Examples:
+        >>> layer = Layer("input", 10)
+        >>> layer.name
+        'input'
+
+        >>> from conx import Network
+        >>> net = Network("XOR2")
+        >>> net.add(Layer("input", 2))
+        >>> net.add(Layer("hidden", 5))
+        >>> net.add(Layer("output", 2))
+        >>> net.connect()
+        >>> net["input"].kind()
+        'input'
+        >>> net["output"].kind()
+        'output'
+
+    Note:
+        See also: :any:`Network`, :any:`Network.add`, and :any:`Network.connect`
+        for more information. See https://keras.io/ for more information on
+        Keras layers.
     """
     CLASS = keras.layers.Dense
-    def __init__(self, name, shape, **params):
-        """
-        This class represents either an InputLayer or a DenseLayer
-        depending on the kind of layer (input vs. hidden/output).
-        """
+    def __init__(self, name: str, shape, **params):
         super().__init__(name, **params)
         if not valid_shape(shape):
             raise Exception('bad shape: %s' % (shape,))
@@ -365,7 +385,7 @@ def process_class_docstring(docstring):
     return docstring
 
 ## Dynamically load all of the keras layers, making a conx layer:
-## Al of these will have BaseLayer as their superclass:
+## Al of these will have _BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
@@ -378,7 +398,7 @@ for (name, obj) in inspect.getmembers(keras_module):
                 docstring = pypandoc.convert(process_class_docstring(docstring_md), "rst", "markdown_github")
             except:
                 pass
-        locals()[new_name] = type(new_name, (BaseLayer,),
+        locals()[new_name] = type(new_name, (_BaseLayer,),
                                   {"CLASS": obj,
                                    "__doc__": docstring})
 
