@@ -29,6 +29,7 @@ import numbers
 import base64
 import copy
 import io
+import PIL
 
 import numpy as np
 import keras
@@ -373,9 +374,9 @@ class Network():
         assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
 
     ## FIXME: add these for users' convenience:
-    #def image_to_channels_last(self, matrix):
+    #def matrix_to_channels_last(self, matrix): ## vecteor
     # x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-    #def image_to_channels_first(self, matrix):
+    #def matrix_to_channels_first(self, matrix):
     # x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
 
     def set_dataset(self, pairs, verbose=True):
@@ -387,7 +388,7 @@ class Network():
         Note:
             If you have images in your dataset, they must match K.image_data_format().
 
-        See also :any:`image_to_channels_last` and :any:`image_to_channels_first`.
+        See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
         """
         ## Either the inputs/targets are a list of a list -> np.array(...) (np.array() of vectors)
         ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
@@ -1002,10 +1003,17 @@ class Network():
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
         """
+        import keras.backend as K
         if isinstance(input, dict):
             input = [input[name] for name in self.get_input_layer_order()]
             if self.num_input_layers == 1:
                 input = input[0]
+        elif isinstance(input, PIL.Image.Image):
+            input = np.array(input)
+            if len(input.shape) == 2:
+                input = input.reshape(input.shape + (1,))
+            if K.image_data_format() == 'channels_first':
+                input = self.matrix_to_channels_first(input)
         if self.num_input_layers == 1:
             outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
         else:
