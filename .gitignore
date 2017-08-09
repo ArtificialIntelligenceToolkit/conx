@@ -87,3 +87,9 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+## conx specific:
+
+docs/source/*.ipynb
+tmp/
+Makefile

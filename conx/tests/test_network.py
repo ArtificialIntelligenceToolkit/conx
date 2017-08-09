@@ -29,8 +29,8 @@ def test_xor1():
     net.set_dataset(dataset)
     net.train(epochs=2000, accuracy=1, report_rate=25)
     net.test()
-    net.save()
-    net.load()
+    net.save("/tmp/XOR.wts")
+    net.load("/tmp/XOR.wts")
     svg = net.build_svg()
     assert net is not None
 
@@ -72,8 +72,8 @@ def test_xor2():
     net.propagate_to("hidden2", [[1], [1]])
     net.propagate_to("output1", [[1], [1]])
     net.propagate_to("output2", [[1], [1]])
-    net.save()
-    net.load()
+    net.save("/tmp/XOR2.wts")
+    net.load("/tmp/XOR2.wts")
     net.test()
     svg = net.build_svg()
     assert net is not None

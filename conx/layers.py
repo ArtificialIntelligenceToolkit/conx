@@ -38,23 +38,12 @@ import keras
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
-#------------------------------------------------------------------------
-
-ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
-
-#------------------------------------------------------------------------
-
 pypandoc = None
-if ON_RTD:
-    try:
-        import pypandoc
-    except:
-        pass # won't turn Keras comments into rft for documentation
-
+try:
+    import pypandoc
+except:
+    pass # won't turn Keras comments into rft for documentation
 from .utils import *
-#------------------------------------------------------------------------
-
-ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
 
 #------------------------------------------------------------------------
 

@@ -14,11 +14,21 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 ## dependencies: get ../../notebooks/*.ipynb files
 
-print("Copying source notebooks...")
+print("Copying updated ../../notebooks/*.ipynb ...")
 for filename in glob.glob("../../notebooks/*.ipynb"):
     path, dst = os.path.split(filename)
-    shutil.copyfile(filename, dst)
-    print("   ", dst)
+    if os.path.isfile(dst): # dst exists here
+        dst_time = os.path.getmtime(dst)
+        src_time = os.path.getmtime(filename)
+        if src_time > dst_time: # the src time > dst time
+            copy_it = True # it is updated
+        else:
+            copy_it = False # not updated
+    else:
+        copy_it = True # doesn't exist
+    if copy_it:
+        shutil.copyfile(filename, dst)
+        print("   ", dst)
 
 # -- General configuration ------------------------------------------------
 
