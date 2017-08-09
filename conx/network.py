@@ -199,7 +199,8 @@ class Network():
             return None
 
     def __repr__(self):
-        return "<Network name='%s'>" % self.name
+        return "<Network name='%s' (%s)>" % (
+            self.name, ("uncompiled" if not self.model else "compiled"))
 
     def add(self, layer: Layer):
         """
@@ -275,6 +276,9 @@ class Network():
         """
         Print out a summary of the network.
         """
+        print("Network Summary")
+        print("---------------")
+        print("Network name:", self.name)
         for layer in self.layers:
             layer.summary()
 
@@ -368,11 +372,22 @@ class Network():
         assert self.get_train_inputs_length() == self.get_train_targets_length(), "train inputs/targets lengths do not match"
         assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
 
+    ## FIXME: add these for users' convenience:
+    #def image_to_channels_last(self, matrix):
+    # x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+    #def image_to_channels_first(self, matrix):
+    # x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
+
     def set_dataset(self, pairs, verbose=True):
         """
         Set the human-specified dataset to a proper keras dataset.
 
         Multi-inputs or multi-outputs must be: [vector, vector, ...] for each layer input/target pairing.
+
+        Note:
+            If you have images in your dataset, they must match K.image_data_format().
+
+        See also :any:`image_to_channels_last` and :any:`image_to_channels_first`.
         """
         ## Either the inputs/targets are a list of a list -> np.array(...) (np.array() of vectors)
         ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
@@ -407,6 +422,8 @@ class Network():
         img_rows, img_cols = 28, 28
         # the data, shuffled and split between train and test sets
         (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        ## We need to convert the data to images, but which format?
+        ## We ask this Keras instance what it wants, and convert:
         if K.image_data_format() == 'channels_first':
             x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
             x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
@@ -535,9 +552,7 @@ class Network():
         Print out a summary of the dataset.
         """
         print('Input Summary:')
-        print('   length  : %d' % (self.get_inputs_length(),))
-        print('   training: %d' % (self.get_train_inputs_length(),))
-        print('   testing : %d' % (self.get_test_inputs_length(),))
+        print('   count  : %d' % (self.get_inputs_length(),))
         if self.get_inputs_length() != 0:
             if self.multi_targets:
                 print('   shape  : %s' % ([x[0].shape for x in self.inputs],))
@@ -545,9 +560,7 @@ class Network():
                 print('   shape  : %s' % (self.inputs[0].shape,))
             print('   range  : %s' % (self.inputs_range,))
         print('Target Summary:')
-        print('   length  : %d' % (self.get_targets_length(),))
-        print('   training: %d' % (self.get_train_targets_length(),))
-        print('   testing : %d' % (self.get_test_targets_length(),))
+        print('   count  : %d' % (self.get_targets_length(),))
         if self.get_targets_length() != 0:
             if self.multi_targets:
                 print('   shape  : %s' % ([x[0].shape for x in self.targets],))
@@ -641,8 +654,8 @@ class Network():
                 self.test_targets = self.targets[self.split:]
         if verbose:
             print('Split dataset into:')
-            print('   %d train inputs' % self.get_train_inputs_length())
-            print('   %d test inputs' % self.get_test_inputs_length())
+            print('   train set count: %d' % self.get_train_inputs_length())
+            print('   test set count : %d' % self.get_test_inputs_length())
 
     def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1):
         """

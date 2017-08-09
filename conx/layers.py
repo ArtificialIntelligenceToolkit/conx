@@ -119,6 +119,10 @@ class _BaseLayer():
             self.dropout = dropout
         else:
             self.dropout = 0
+
+        if 'activation' in params: # let's keep a copy of it
+            self.activation = params["activation"]
+
         self.incoming_connections = []
         self.outgoing_connections = []
 
@@ -129,10 +133,11 @@ class _BaseLayer():
         """
         Print out a representation of the layer.
         """
-        print("Name: %s (%s) VShape: %s Dropout: %s" %
-              (self.name, self.kind(), self.vshape, self.dropout))
+        print("    Layer name: '%s' (%s)" % (self.name, self.kind()))
+        print("        VShape:", self.vshape)
+        print("        Dropout:", self.dropout)
         if len(self.outgoing_connections) > 0:
-            print("Connected to:", [layer.name for layer in self.outgoing_connections])
+            print("        Connected to:", [layer.name for layer in self.outgoing_connections])
 
     def kind(self):
         """
@@ -187,6 +192,11 @@ class _BaseLayer():
             ## Drop dimensions of vector:
             s = slice(None, None)
             args = []
+            # The data is in the same format as Keras
+            # so we can ask Keras what that format is:
+            # ASSUMES: that the network that loaded the
+            # dataset has the same image_data_format as
+            # now:
             if K.image_data_format() == 'channels_last':
                 for d in range(len(vector.shape)):
                     if d in [0, 1]:
@@ -331,8 +341,6 @@ class Layer(_BaseLayer):
             if not (callable(act) or act in Layer.ACTIVATION_FUNCTIONS):
                 raise Exception('unknown activation function: %s' % (act,))
             self.activation = act
-        self.incoming_connections = []
-        self.outgoing_connections = []
 
     def __repr__(self):
         return "<Layer name='%s', shape=%s, act='%s'>" % (
@@ -342,10 +350,9 @@ class Layer(_BaseLayer):
         """
         Print a summary of the dense/input layer.
         """
-        print("Name: %s (%s) Shape: %s Size: %d VShape: %s Activation function: %s Dropout: %s" %
-              (self.name, self.kind(), self.shape, self.size, self.vshape, self.activation, self.dropout))
-        if len(self.outgoing_connections) > 0:
-            print("Connected to:", [layer.name for layer in self.outgoing_connections])
+        super().summary()
+        print("        Activation function:", self.activation)
+        print("        Dropout percent:", self.dropout)
 
     def make_keras_function(self):
         """
@@ -354,17 +361,32 @@ class Layer(_BaseLayer):
         ## This is only for Dense:
         return self.CLASS(self.size, **self.params)
 
-class PictureLayer(Layer):
+class ImageLayer(Layer):
     """
-    A class for pictures. WIP.
+    A class for images. WIP.
     """
+    def __init__(self, name, dimensions, depth, **params):
+        super().__init__(name, dimensions, **params)
+        if self.vshape is None:
+            self.vshape = self.shape
+        self.dimensions = dimensions
+        self.depth = depth
+        if K.image_data_format() == "channels_last":
+            self.shape = tuple(list(self.shape) + [depth])
+            self.image_indexes = (0, 1)
+        else:
+            self.shape = tuple([depth] + list(self.shape))
+            self.image_indexes = (1, 2)
+
     def make_image(self, vector, config={}):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
         """
         ## see K.image_data_format() == 'channels_last': above
+        ## We keep the dataset data in the right format.
         import PIL
+        ## FIXME: select the right dimensions:
         return PIL.Image.fromarray(vector.astype("uint8")).resize(self.vshape)
 
 def process_class_docstring(docstring):
