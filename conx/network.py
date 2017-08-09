@@ -1752,7 +1752,7 @@ require(['base/js/namespace'], function(Jupyter) {
         button_next = Button(icon="forward", layout=Layout(width='100%'))
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
-        button_train = Button(icon="Train", layout=Layout(width='100%'))
+        button_train = Button(description="Train", layout=Layout(width='100%'))
         control_buttons = HBox([
             button_begin,
             button_prev,
