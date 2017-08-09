@@ -1744,16 +1744,19 @@ require(['base/js/namespace'], function(Jupyter) {
         def prop_one(button):
             update_slider_control({"name": "value"})
 
-        net_svg = HTML(value=self.build_svg(), layout=Layout(width=width, height="100%", max_height=max_height, overflow_x='auto'))
+        net_svg = HTML(value=self.build_svg(), layout=Layout(
+            width=width, height="100%", max_height=max_height, overflow_x='auto',
+            justify_content="center"))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
         button_next = Button(icon="forward", layout=Layout(width='100%'))
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
-        button_prop = Button(description="Propagate", layout=Layout(width='100%'))
+        #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
+        button_train = Button(icon="Train", layout=Layout(width='100%'))
         control_buttons = HBox([
             button_begin,
             button_prev,
-            button_prop,
+            button_train,
             button_next,
             button_end,
                ], layout=Layout(width='100%'))
@@ -1774,7 +1777,8 @@ require(['base/js/namespace'], function(Jupyter) {
         button_end.on_click(lambda button: dataset_move("end"))
         button_next.on_click(lambda button: dataset_move("next"))
         button_prev.on_click(lambda button: dataset_move("prev"))
-        button_prop.on_click(prop_one)
+        #button_prop.on_click(prop_one)
+        button_train.on_click(train_one)
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
 
