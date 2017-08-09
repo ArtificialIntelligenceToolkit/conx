@@ -1203,7 +1203,7 @@ class Network():
         config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
                 "netname": self.name,
                 "border_color": config["border_color"],
@@ -1248,6 +1248,7 @@ class Network():
                     image_maxdim = config["image_maxdim"]
                 width, height = (int(width/max_dim * image_maxdim),
                                  int(height/max_dim * image_maxdim))
+                # make sure not too small:
                 if min(width, height) < 25:
                     width, height = (image_maxdim, 25)
                 image_dims[layer_name] = (width, height)
@@ -1665,16 +1666,19 @@ require(['base/js/namespace'], function(Jupyter) {
                 outputs = self.train_one(self.get_test_input(control_slider.value),
                                        self.get_test_target(control_slider.value))
 
+        def prop_one(button):
+            update_slider_control({"name": "value"})
+
         net_svg = HTML(value=self.build_svg(), layout=Layout(width=width, height="100%", max_height=max_height, overflow_x='auto'))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
         button_next = Button(icon="forward", layout=Layout(width='100%'))
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
-        button_train = Button(description="Train", layout=Layout(width='100%'))
+        button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         control_buttons = HBox([
             button_begin,
             button_prev,
-            button_train,
+            button_prop,
             button_next,
             button_end,
                ], layout=Layout(width='100%'))
@@ -1695,7 +1699,7 @@ require(['base/js/namespace'], function(Jupyter) {
         button_end.on_click(lambda button: dataset_move("end"))
         button_next.on_click(lambda button: dataset_move("next"))
         button_prev.on_click(lambda button: dataset_move("prev"))
-        button_train.on_click(train_one)
+        button_prop.on_click(prop_one)
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
 

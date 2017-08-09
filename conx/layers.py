@@ -38,11 +38,17 @@ import keras
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
+#------------------------------------------------------------------------
+ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
+#------------------------------------------------------------------------
+
 pypandoc = None
-try:
-    import pypandoc
-except:
-    pass # won't turn Keras comments into rft for documentation
+if ON_RTD:  ## takes too long to load, unless really needed
+    try:
+        import pypandoc
+    except:
+        pass # won't turn Keras comments into rft for documentation
+
 from .utils import *
 
 #------------------------------------------------------------------------
