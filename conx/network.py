@@ -476,6 +476,12 @@ class Network():
         if verbose:
             self.summary_dataset()
 
+    def get_input_layer_order(self):
+        if self.input_layer_order:
+            return self.input_layer_order
+        else:
+            return [layer.name for layer in self.layers if layer.kind() == "input"] # just one
+
     def set_input_layer_order(self, *layer_names):
         """
         When multiple input banks, you must set this.
@@ -488,6 +494,12 @@ class Network():
                 self.input_layer_order.append(layer_name)
             else:
                 raise Exception("duplicate name in set_input_layer_order: '%s'" % layer_name)
+
+    def get_output_layer_order(self):
+        if self.output_layer_order:
+            return self.output_layer_order
+        else:
+            return [layer.name for layer in self.layers if layer.kind() == "output"] # just one
 
     def set_output_layer_order(self, *layer_names):
         """
@@ -685,7 +697,68 @@ class Network():
     def train_one(self, inputs, targets, batch_size=32):
         """
         Train on one input/target pair. Requires internal format.
+
+        Examples:
+
+            >>> from conx import Network, Layer, SGD
+            >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
+            >>> dataset = [[[0, 0], [0]],
+            ...            [[0, 1], [1]],
+            ...            [[1, 0], [1]],
+            ...            [[1, 1], [0]]]
+            >>> net.set_dataset(dataset, verbose=False)
+            >>> net.compile(loss='mean_squared_error',
+            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            >>> out, err = net.train_one({"input": [0, 0]},
+            ...                          {"output": [0]})
+            >>> len(out)
+            1
+            >>> len(err)
+            1
+
+            >>> from conx import Network, Layer, SGD
+            >>> net = Network("XOR2")
+            >>> net.add(Layer("input1", shape=1))
+            >>> net.add(Layer("input2", shape=1))
+            >>> net.add(Layer("hidden1", shape=2, activation="sigmoid"))
+            >>> net.add(Layer("hidden2", shape=2, activation="sigmoid"))
+            >>> net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
+            >>> net.add(Layer("output1", shape=1, activation="sigmoid"))
+            >>> net.add(Layer("output2", shape=1, activation="sigmoid"))
+            >>> net.connect("input1", "hidden1")
+            >>> net.connect("input2", "hidden2")
+            >>> net.connect("hidden1", "shared-hidden")
+            >>> net.connect("hidden2", "shared-hidden")
+            >>> net.connect("shared-hidden", "output1")
+            >>> net.connect("shared-hidden", "output2")
+            >>> net.set_input_layer_order("input1", "input2")
+            >>> net.set_output_layer_order("output1", "output2")
+            >>> net.compile(loss='mean_squared_error',
+            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            >>> dataset = [
+            ...            ([[0],[0]], [[0],[0]]),
+            ...            ([[0],[1]], [[1],[1]]),
+            ...            ([[1],[0]], [[1],[1]]),
+            ...            ([[1],[1]], [[0],[0]])
+            ...            ]
+            >>> net.set_dataset(dataset, verbose=False)
+            >>> net.compile(loss='mean_squared_error',
+            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            >>> out, err = net.train_one({"input1": [0], "input2": [0]},
+            ...                          {"output1": [0], "output2": [0]})
+            >>> len(out)
+            2
+            >>> len(err)
+            2
         """
+        if isinstance(inputs, dict):
+            inputs = [inputs[name] for name in self.get_input_layer_order()]
+            if self.num_input_layers == 1:
+                inputs = inputs[0]
+        if isinstance(targets, dict):
+            targets = [targets[name] for name in self.get_output_layer_order()]
+            if self.num_target_layers == 1:
+                targets = targets[0]
         pairs = [(inputs, targets)]
         if self.num_input_layers == 1:
             ins = np.array([x for (x, y) in pairs], "float32")
@@ -702,11 +775,12 @@ class Network():
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size)
-        errors = np.array(targets) - np.array(outputs) # FIXME: multi outputs?
-        if self.config["show_targets"]:
-            self.display_component([targets], "targets") # FIXME: use output layers' minmax
-        if self.config["show_errors"]:
-            self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
+        errors = (np.array(targets) - np.array(outputs)).tolist() # FIXME: multi outputs?
+        if self.visualize:
+            if self.config["show_targets"]:
+                self.display_component([targets], "targets") # FIXME: use output layers' minmax
+            if self.config["show_errors"]:
+                self.display_component([errors], "errors", minmax=(-1, 1), colormap="RdGy")
         return (outputs, errors)
 
     def retrain(self, **overrides):
@@ -915,6 +989,10 @@ class Network():
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
         """
+        if isinstance(input, dict):
+            input = [input[name] for name in self.get_input_layer_order()]
+            if self.num_input_layers == 1:
+                input = input[0]
         if self.num_input_layers == 1:
             outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
         else:
@@ -936,6 +1014,10 @@ class Network():
         """
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
+        if isinstance(input, dict):
+            input = [input[name] for name in self.get_input_layer_order()]
+            if self.num_input_layers == 1:
+                input = input[0]
         if output_layer_names is None:
             if self.num_target_layers == 1:
                 output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
@@ -1006,6 +1088,10 @@ class Network():
         """
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
+        if isinstance(inputs, dict):
+            inputs = [inputs[name] for name in self.get_input_layer_order()]
+            if self.num_input_layers == 1:
+                inputs = inputs[0]
         if self.num_input_layers == 1:
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
@@ -1029,6 +1115,10 @@ class Network():
         """
         Gets an image of activations at a layer.
         """
+        if isinstance(input, dict):
+            input = [input[name] for name in self.get_input_layer_order()]
+            if self.num_input_layers == 1:
+                input = input[0]
         outputs = self.propagate_to(layer_name, input, batch_size)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, self.config)
