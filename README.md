@@ -8,7 +8,7 @@ Built in Python on Keras.
 
 Read the documentation at [conx.readthedocs.io](http://conx.readthedocs.io/)
 
-Implements Deep Learning neural network algorithms using a simple interface. Built on top of Keras, which can use either TensorFlow or Theano.
+Implements Deep Learning neural network algorithms using a simple interface with easy visualizations and useful analytical. Built on top of Keras, which can use either [TensorFlow](https://www.tensorflow.org/), [Theano](http://www.deeplearning.net/software/theano/), or [CNTK](https://www.cntk.ai/pythondocs/).
 
 The network is specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
 
@@ -38,7 +38,7 @@ net.test()
 pip install conx -U
 ```
 
-You will need to decide whether to use Theano or Tensorflow. Pick one:
+You will need to decide whether to use Theano, TensorFlow, or CNTK. Pick one. See [docs.microsoft.com](https://docs.microsoft.com/en-us/cognitive-toolkit/Setup-CNTK-on-your-machine) for installing CNTK on Windows or Linux. All platforms can also install either of the others using pip:
 
 ```shell
 pip install theano
@@ -50,7 +50,9 @@ or
 pip install tensorflow
 ```
 
-To use Theano as the Keras backend rather than TensorFlow, edit (or create) `~/.keras/kerson.json` to:
+Note: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
+
+To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.json`, like:
 
 ```json
 {
@@ -63,4 +65,4 @@ To use Theano as the Keras backend rather than TensorFlow, edit (or create) `~/.
 
 ## Examples
 
-See the examples and notebooks folders for additional examples.
+See the [notebooks folder](https://github.com/Calysto/conx/tree/master/notebooks) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
