@@ -563,17 +563,6 @@ class Network():
         print('Inputs rescaled to %s values in the range %s - %s' %
               (self.inputs.dtype, new_min, new_max))
 
-    def _make_weights(self, shape):
-        """
-        Makes a vector/matrix of random weights centered around 0.0.
-        """
-        size = reduce(operator.mul, shape) # (in, out)
-        magnitude = max(min(1/shape[0] * 50, 1.16), 0.06)
-        rmin, rmax = -magnitude, magnitude
-        span = (rmax - rmin)
-        return np.array(span * np.random.rand(size) - span/2.0,
-                        dtype='float32').reshape(shape)
-
     def reset(self):
         """
         Reset all of the weights/biases in a network.
@@ -584,12 +573,8 @@ class Network():
         self.loss_history = []
         self.val_percent_history = []
         if self.model:
-            for layer in self.model.layers:
-                weights = layer.get_weights()
-                new_weights = []
-                for weight in weights:
-                    new_weights.append(self._make_weights(weight.shape))
-                layer.set_weights(new_weights)
+            # Compile the whole model again:
+            self.compile(**self.compile_options)
 
     def shuffle_dataset(self, verbose=True):
         """
@@ -1119,7 +1104,7 @@ class Network():
         input_k_layers = self._get_ordered_input_layers()
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
-        self.compile_options = kwargs
+        self.compile_options = copy.copy(kwargs)
         self.model.compile(**kwargs)
 
     def _get_input_ks_in_order(self, layer_names):
