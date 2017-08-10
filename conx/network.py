@@ -27,6 +27,7 @@ from functools import reduce
 import signal
 import numbers
 import base64
+import html
 import copy
 import io
 import PIL
@@ -51,7 +52,8 @@ class Network():
     The main class for the conx neural network package.
 
     Arguments:
-        name: Required. The name of the network.
+        name: Required. The name of the network. Should not contain special HTML
+           characters.
         sizes: Optional numbers. Defines the sizes of layers of a sequential
            network. These will be created, added, and connected automatically.
         config: Configuration overrides for the network.
@@ -1491,7 +1493,7 @@ class Network():
                     rect_extra = 0
                     if rect_width < 20:
                         rect_extra = 10
-                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                     svg += arrow_rect.format(**{"tooltip": tooltip,
                                                 "rx": min(x2, x1) - rect_extra,
                                                 "ry": min(y2, y1) + 2, # bring down
@@ -1501,7 +1503,7 @@ class Network():
                     if out.name not in positioning:
                         continue
                     # draw an arrow between layers:
-                    tooltip = self.describe_connection_to(self[layer_name], out)
+                    tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
                     y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
                     svg += arrow_svg.format(

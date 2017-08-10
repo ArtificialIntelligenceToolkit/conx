@@ -30,6 +30,7 @@ import operator
 from functools import reduce
 import sys
 import inspect
+import html
 import re
 import os
 
@@ -289,7 +290,7 @@ class _BaseLayer():
             if key in ["name"]:
                 continue
             retval += "\n %s = %s" % (key, self.params[key])
-        return retval
+        return html.escape(retval)
 
 class Layer(_BaseLayer):
     """
@@ -297,7 +298,8 @@ class Layer(_BaseLayer):
     depending on its context after :any:`Network.connect`.
 
     Arguments:
-        name: The name of the layer. Must be unique in this network.
+        name: The name of the layer. Must be unique in this network. Should
+           not contain special HTML characters.
 
     Examples:
         >>> layer = Layer("input", 10)
