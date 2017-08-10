@@ -1595,7 +1595,8 @@ require(['base/js/namespace'], function(Jupyter) {
             if klayer.name == layer2.name:
                 weights = klayer.get_weights()
                 for w in range(len(klayer.weights)):
-                    retval += "\n %s has shape %s" % (klayer.weights[w], weights[w].shape)
+                    retval += "\n %s has shape %s" % (
+                        klayer.weights[w].name, weights[w].shape)
         ## FIXME: how to show merged layer weights?
         return retval
 
