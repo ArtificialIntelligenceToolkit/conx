@@ -80,7 +80,9 @@ class _BaseLayer():
         self.decode_model = None
         self.input_names = []
         # used to determine image ranges:
-        self.activation = params.get("activation", None) # make a copy, if one
+        self.activation = params.get("activation", None) # make a copy, if one, and str
+        if not isinstance(self.activation, str):
+            self.activation = None
         # set visual shape for display purposes
         if 'vshape' in params:
             vs = params['vshape']
@@ -123,6 +125,8 @@ class _BaseLayer():
 
         if 'activation' in params: # let's keep a copy of it
             self.activation = params["activation"]
+            if not isinstance(self.activation, str):
+                self.activation = None
 
         self.incoming_connections = []
         self.outgoing_connections = []
@@ -343,6 +347,8 @@ class Layer(_BaseLayer):
             if not (callable(act) or act in Layer.ACTIVATION_FUNCTIONS):
                 raise Exception('unknown activation function: %s' % (act,))
             self.activation = act
+            if not isinstance(self.activation, str):
+                self.activation = None
 
     def __repr__(self):
         return "<Layer name='%s', shape=%s, act='%s'>" % (
