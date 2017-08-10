@@ -181,7 +181,7 @@ def test_cifar10():
                 metrics=['accuracy'])
     model = net.model
 
-    net.build_widget()
+    net.dashboard()
 
     x_train = x_train.astype('float32')
     x_test = x_test.astype('float32')

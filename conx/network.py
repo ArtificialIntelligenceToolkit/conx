@@ -1688,12 +1688,12 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             return self.train_targets.shape[0]
 
-    def build_widget(self, width="100%", max_height="550px"):
+    def dashboard(self, width="100%", max_height="550px", iwidth="800px"): ## FIXME: iwidth hack
         """
-        Build the control-panel for Jupyter widgets. Requires running
+        Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
-        from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout
+        from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout, Tab
 
         def dataset_move(position):
             if control_select.value == "Train":
@@ -1805,9 +1805,20 @@ require(['base/js/namespace'], function(Jupyter) {
 
         # Put them together:
         control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
-        widget = VBox([net_svg, control], layout=Layout(width='100%'))
-        widget.on_displayed(lambda widget: update_slider_control({"name": "value"}))
-        return widget
+        net_page = VBox([net_svg, control], layout=Layout(width='100%'))
+        graph_page = VBox()
+        analysis_page = VBox()
+        camera_page = VBox([Button(description="Turn on webcamera")])
+        help_page = HTML('<iframe style="width: %s" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>' % (iwidth, max_height),
+                         layout=Layout(width="100%"))
+        net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
+        tabs = [("Network", net_page), ("Graphs", graph_page), ("Analysis", analysis_page),
+                ("Camera", camera_page), ("Help", help_page)]
+        tab = Tab([t[1] for t in tabs])
+        for i in range(len(tabs)):
+            name, widget = tabs[i]
+            tab.set_title(i, name)
+        return tab
 
     def pp(self, *args, **opts):
         """

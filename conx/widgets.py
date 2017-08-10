@@ -24,6 +24,7 @@ import io
 from IPython.display import Javascript, display
 from ipywidgets import Widget, register, widget_serialization, DOMWidget
 from traitlets import Bool, Dict, Int, Float, Unicode, List, Instance
+import matplotlib.pyplot as plt
 
 @register("Camera")
 class Camera(DOMWidget):
@@ -51,9 +52,9 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
             audio: false,
             video: true,
         }),
-        
+
         initialize: function() {
-            
+
             var div = document.createElement('div');
             var el = document.createElement('video');
             el.setAttribute('id', "video_widget");
@@ -69,7 +70,7 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
             var button = document.createElement('button');
             button.innerHTML = "Take a Picture";
             var that = this;
-            button.onclick = function(b) { 
+            button.onclick = function(b) {
                 var video = document.querySelector("#video_widget");
                 var canvas = document.querySelector("#video_canvas");
                 if (video) {
@@ -85,7 +86,7 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
             this.setElement(div);
             CameraView.__super__.initialize.apply(this, arguments);
         },
-        
+
         render: function() {
             var that = this;
              that.model.stream.then(function(stream) {
@@ -93,8 +94,8 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
                  that.el.children[0].play();
              });
         }
-    });    
-    
+    });
+
     var CameraModel = widgets.DOMWidgetModel.extend({
         defaults: _.extend({}, widgets.DOMWidgetModel.prototype.defaults, {
             _model_name: 'CameraModel',
@@ -102,7 +103,7 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
             audio: false,
             video: true
         }),
-        
+
         initialize: function() {
             CameraModel.__super__.initialize.apply(this, arguments);
             // Get the camera permissions
@@ -143,3 +144,31 @@ def uri_to_image(image_str, width=320, height=240):
     image_binary = base64.b64decode(image_b64)
     image = PIL.Image.open(io.BytesIO(image_binary)).resize((width, height))
     return image
+
+def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
+    """
+    SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
+             ylabel="error",
+             xlabel="hello"))
+    """
+    plt.rcParams['figure.figsize'] = (width, height)
+    fig = plt.figure()
+    for (label, symbol, data) in lines:
+        kwargs = {}
+        args = [data]
+        if label:
+            kwargs["label"] = label
+        if symbol:
+            args.append(symbol)
+        plt.plot(*args, **kwargs)
+    if any([line[0] for line in lines]):
+        plt.legend()
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    bytes = io.BytesIO()
+    plt.savefig(bytes, format='svg')
+    svg = bytes.getvalue()
+    plt.close(fig)
+    return svg.decode()
