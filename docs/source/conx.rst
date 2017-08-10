@@ -4,14 +4,6 @@ conx package
 Submodules
 ----------
 
-conx\.layers module
--------------------
-
-.. automodule:: conx.layers
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 conx\.network module
 --------------------
 
@@ -20,10 +12,26 @@ conx\.network module
     :undoc-members:
     :show-inheritance:
 
+conx\.layers module
+-------------------
+
+.. automodule:: conx.layers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 conx\.utils module
 ------------------
 
 .. automodule:: conx.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+conx\.wdigets module
+------------------
+
+.. automodule:: conx.widgets
     :members:
     :undoc-members:
     :show-inheritance:
