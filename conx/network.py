@@ -1380,19 +1380,18 @@ class Network():
         ## Display target?
         if config["show_targets"]:
             # Find the spacing for row:
-            row_layer_width = 0
             for layer_name in ordering[0]:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-                row_layer_width += width
-            spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
+            spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of targets:
-            cwidth = spacing
+            cwidth = 0
             for layer_name in ordering[0]:
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
+                cwidth += (spacing - width/2)
                 svg += image_svg.format(**{"name": layer_name + "_targets",
                                            "svg_counter": self._svg_counter,
                                            "x": cwidth,
@@ -1413,25 +1412,24 @@ class Network():
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
                     })
-                cwidth += width + spacing
+                cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
             cheight += row_height[0] + 10 # max height of row, plus some
         ## Display error?
         if config["show_errors"]:
             # Find the spacing for row:
-            row_layer_width = 0
             for layer_name in ordering[0]:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-                row_layer_width += width
-            spacing = (max_width - row_layer_width) / (len(ordering[0]) + 1)
+            spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of errors:
-            cwidth = spacing
+            cwidth = 0
             for layer_name in ordering[0]:
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
+                cwidth += (spacing - (width/2))
                 svg += image_svg.format(**{"name": layer_name + "_errors",
                                            "svg_counter": self._svg_counter,
                                            "x": cwidth,
@@ -1452,22 +1450,20 @@ class Network():
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
                     })
-                cwidth += width + spacing
+                cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
             cheight += row_height[0] + 10 # max height of row, plus some
         # Now we go through again and build SVG:
         positioning = {}
         for level_names in ordering:
             # compute width of just pictures for this row:
-            row_layer_width = 0
             for layer_name in level_names:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-                row_layer_width += width
-            spacing = (max_width - row_layer_width) / (len(level_names) + 1)
-            cwidth = spacing
+            spacing = max_width / (len(level_names) + 1)
+            cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
             last_connections_up = False
@@ -1490,6 +1486,7 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
+                cwidth += (spacing - (width/2))
                 positioning[layer_name] = {"name": layer_name,
                                            "svg_counter": self._svg_counter,
                                            "x": cwidth,
@@ -1542,7 +1539,7 @@ class Network():
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
                     })
-                cwidth += width + spacing # spacing between
+                cwidth += width/2
                 max_height = max(max_height, height)
                 self._svg_counter += 1
             cheight += max_height
