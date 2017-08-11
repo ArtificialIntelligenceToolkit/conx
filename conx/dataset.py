@@ -118,6 +118,8 @@ class Dataset():
                 "train_inputs", "train_targets",
         ]:
             return _DataVector(self, item)
+        else:
+            raise AttributeError()
 
     def load_direct(self, inputs=None, targets=None, labels=None):
         """
