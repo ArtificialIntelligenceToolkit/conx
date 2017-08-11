@@ -1,9 +1,11 @@
-from conx import Network, SGD
+from conx import Network, SGD, Dataset
 
-dataset = [[[0, 0], [0]],
-           [[0, 1], [1]],
-           [[1, 0], [1]],
-           [[1, 1], [0]]]
+dataset = Dataset([["input", 2]], [["output", 1]])
+
+dataset.load([[[0, 0], [0]],
+              [[0, 1], [1]],
+              [[1, 0], [1]],
+              [[1, 1], [0]]])
 
 net = Network("XOR", 2, 2, 1, activation="sigmoid")
 

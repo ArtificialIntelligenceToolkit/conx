@@ -147,18 +147,12 @@ class Network():
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
         self.config.update(config)
+        self.dataset = None
         self.compile_options = {}
         self.train_options = {}
         self.name = name
         self.layers = []
         self.layer_dict = {}
-        self.inputs = []
-        self.train_inputs = []
-        self.train_targets = []
-        self.test_inputs = []
-        self.test_targets = []
-        self.labels = []
-        self.targets = []
         # If simple feed-forward network:
         for i in range(len(sizes)):
             if i > 0:
@@ -166,8 +160,6 @@ class Network():
                                activation=self.config["activation"]))
             else:
                 self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
-        self.num_input_layers = 0
-        self.num_target_layers = 0
         # Connect them together:
         for i in range(len(sizes) - 1):
             self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
@@ -175,22 +167,14 @@ class Network():
         self.acc_history = []
         self.loss_history = []
         self.val_percent_history = []
-        self.input_layer_order = []
-        self.output_layer_order = []
-        self.num_inputs = 0
-        self.num_targets = 0
-        self.multi_inputs = False
-        self.multi_targets = False
         self.visualize = False
         self._comm = None
-        self.inputs_range = (0,0)
-        self.targets_range = (0,0)
-        self.test_labels = []
-        self.train_labels = []
         self.model = None
-        self.split = 0
         self.prop_from_dict = {}
         self._svg_counter = 1
+
+    def set_dataset(self, dataset):
+        self.dataset = dataset
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -288,312 +272,6 @@ class Network():
         for layer in self.layers:
             layer.summary()
 
-    def set_dataset_direct(self, inputs, targets, verbose=True):
-        """
-        Set the inputs/targets in the specific internal format:
-
-        [input-vector, input-vector, ...] if single input layer
-
-        [[input-layer-1-vectors ...], [input-layer-2-vectors ...], ...] if input target layers
-
-        [target-vector, target-vector, ...] if single output layer
-
-        [[target-layer-1-vectors], [target-layer-2-vectors], ...] if multi target layers
-
-        """
-        ## Better be in correct format!
-        ## each is either: list of np.arrays() [multi], or np.array() [single]
-        self.inputs = inputs
-        self.targets = targets
-        self.labels = []
-        self.multi_inputs = isinstance(self.inputs, (list, tuple))
-        self.multi_targets = isinstance(self.targets, (list, tuple))
-        self._cache_dataset_values()
-        self.split_dataset(self.num_inputs, verbose=False)
-        if verbose:
-            self.summary_dataset()
-
-    def slice_dataset(self, start=None, stop=None, verbose=True):
-        """
-        Cut out some input/targets.
-
-        net.slice_dataset(100) - reduce to first 100 inputs/targets
-        net.slice_dataset(100, 200) - reduce to second 100 inputs/targets
-        """
-        if start is not None:
-            if stop is None: # (#, None)
-                stop = start
-                start = 0
-            else: #  (#, #)
-                pass # ok
-        else:
-            if stop is None: # (None, None)
-                start = 0
-                stop = len(self.inputs)
-            else: # (None, #)
-                start = 0
-        if verbose:
-            print("Slicing dataset %d:%d..." % (start, stop))
-        if self.multi_inputs:
-            self.inputs = [np.array([vector for vector in row[start:stop]]) for row in self.inputs]
-        else:
-            self.inputs = self.inputs[start:stop] # ok
-        if self.multi_targets:
-            self.targets = [np.array([vector for vector in row[start:stop]]) for row in self.targets]
-        else:
-            self.targets = self.targets[start:stop]
-        if len(self.labels) > 0:
-            self.labels = self.labels[start:stop]
-        self._cache_dataset_values()
-        self.split_dataset(self.num_inputs, verbose=False)
-        if verbose:
-            self.summary_dataset()
-
-    def _cache_dataset_values(self):
-        self.num_inputs = self.get_inputs_length()
-        if self.num_inputs > 0:
-            if self.multi_inputs:
-                self.inputs_range = (min([x.min() for x in self.inputs]),
-                                     max([x.max() for x in self.inputs]))
-            else:
-                self.inputs_range = (self.inputs.min(), self.inputs.max())
-        else:
-            self.inputs_range = (0,0)
-        self.num_targets = self.get_targets_length()
-        if self.num_inputs > 0:
-            if self.multi_targets:
-                self.targets_range = (min([x.min() for x in self.targets]),
-                                      max([x.max() for x in self.targets]))
-            else:
-                self.targets_range = (self.targets.min(), self.targets.max())
-        else:
-            self.targets_range = (0, 0)
-        # Clear any previous settings:
-        self.train_inputs = []
-        self.train_targets = []
-        self.test_inputs = []
-        self.test_targets = []
-        # Final checks:
-        assert self.get_test_inputs_length() == self.get_test_targets_length(), "test inputs/targets lengths do not match"
-        assert self.get_train_inputs_length() == self.get_train_targets_length(), "train inputs/targets lengths do not match"
-        assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
-
-    ## FIXME: add these for users' convenience:
-    #def matrix_to_channels_last(self, matrix): ## vecteor
-    # x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-    #def matrix_to_channels_first(self, matrix):
-    # x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
-
-    def set_dataset(self, pairs, verbose=True):
-        """
-        Set the human-specified dataset to a proper keras dataset.
-
-        Multi-inputs or multi-outputs must be: [vector, vector, ...] for each layer input/target pairing.
-
-        Note:
-            If you have images in your dataset, they must match K.image_data_format().
-
-        See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
-        """
-        ## Either the inputs/targets are a list of a list -> np.array(...) (np.array() of vectors)
-        ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
-        self.multi_inputs = len(np.array(pairs[0][0]).shape) > 1
-        self.multi_targets = len(np.array(pairs[0][1]).shape) > 1
-        if self.multi_inputs:
-            self.inputs = []
-            for i in range(len(pairs[0][0])):
-                self.inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
-        else:
-            self.inputs = np.array([x for (x, y) in pairs], "float32")
-        if self.multi_targets:
-            self.targets = []
-            for i in range(len(pairs[0][1])):
-                self.targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
-        else:
-            self.targets = np.array([y for (x, y) in pairs], "float32")
-        self.labels = []
-        self._cache_dataset_values()
-        self.split_dataset(self.num_inputs, verbose=verbose)
-        if verbose:
-            self.summary_dataset()
-
-    def load_mnist_dataset(self, verbose=True):
-        """
-        Load the Keras MNIST dataset and format it as images.
-        """
-        from keras.datasets import mnist
-        from keras.utils import to_categorical
-        import keras.backend as K
-        # input image dimensions
-        img_rows, img_cols = 28, 28
-        # the data, shuffled and split between train and test sets
-        (x_train, y_train), (x_test, y_test) = mnist.load_data()
-        ## We need to convert the data to images, but which format?
-        ## We ask this Keras instance what it wants, and convert:
-        if K.image_data_format() == 'channels_first':
-            x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
-            x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
-            input_shape = (1, img_rows, img_cols)
-        else:
-            x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-            x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
-            input_shape = (img_rows, img_cols, 1)
-        x_train = x_train.astype('float32')
-        x_test = x_test.astype('float32')
-        x_train /= 255
-        x_test /= 255
-        self.inputs = np.concatenate((x_train,x_test))
-        self.labels = np.concatenate((y_train,y_test))
-        self.targets = to_categorical(self.labels)
-        self.multi_targets = False
-        self.multi_inputs = False
-        self._cache_dataset_values()
-        self.split_dataset(self.num_inputs, verbose=False)
-        if verbose:
-            self.summary_dataset()
-
-    ## FIXME: Define when we have a specific file to test on:
-    # def load_npz_dataset(self, filename, verbose=True):
-    #     """loads a dataset from an .npz file and returns data, labels"""
-    #     if filename[-4:] != '.npz':
-    #         raise Exception("filename must end in .npz")
-    #     if verbose:
-    #         print('Loading %s dataset...' % filename)
-    #     try:
-    #         f = np.load(filename)
-    #         self.inputs = f['data']
-    #         self.labels = f['labels']
-    #         self.targets = []
-    #         if self.get_inputs_length() != len(self.labels):
-    #             raise Exception("Dataset contains different numbers of inputs and labels")
-    #         if self.get_inputs_length() == 0:
-    #             raise Exception("Dataset is empty")
-    #         self._cache_dataset_values()
-    #         self.split_dataset(self.num_inputs, verbose=False)
-    #         if verbose:
-    #             self.summary_dataset()
-    #     except:
-    #         raise Exception("couldn't load .npz dataset %s" % filename)
-
-    def reshape_inputs(self, new_shape, verbose=True):
-        """
-        Reshape the input vectors. WIP.
-        """
-        ## FIXME: allow working on multi inputs
-        if self.multi_inputs:
-            raise Exception("reshape_inputs does not yet work on multi-input patterns")
-        if self.num_inputs == 0:
-            raise Exception("no dataset loaded")
-        if not valid_shape(new_shape):
-            raise Exception("bad shape: %s" % (new_shape,))
-        if isinstance(new_shape, numbers.Integral):
-            new_size = self.num_inputs * new_shape
-        else:
-            new_size = self.num_inputs * reduce(operator.mul, new_shape)
-        if new_size != self.inputs.size:
-            raise Exception("shape %s is incompatible with inputs" % (new_shape,))
-        if isinstance(new_shape, numbers.Integral):
-            new_shape = (new_shape,)
-        self.inputs = self.inputs.reshape((self.num_inputs,) + new_shape)
-        self.split_dataset(self.split, verbose=False)
-        if verbose:
-            self.summary_dataset()
-
-    def get_input_layer_order(self):
-        if self.input_layer_order:
-            return self.input_layer_order
-        else:
-            return [layer.name for layer in self.layers if layer.kind() == "input"] # just one
-
-    def set_input_layer_order(self, *layer_names):
-        """
-        When multiple input banks, you must set this.
-        """
-        if len(layer_names) == 1:
-            raise Exception("set_input_layer_order cannot be a single layer")
-        self.input_layer_order = []
-        for layer_name in layer_names:
-            if layer_name not in self.input_layer_order:
-                self.input_layer_order.append(layer_name)
-            else:
-                raise Exception("duplicate name in set_input_layer_order: '%s'" % layer_name)
-
-    def get_output_layer_order(self):
-        if self.output_layer_order:
-            return self.output_layer_order
-        else:
-            return [layer.name for layer in self.layers if layer.kind() == "output"] # just one
-
-    def set_output_layer_order(self, *layer_names):
-        """
-        When multiple output banks, you must set this.
-        """
-        if len(layer_names) == 1:
-            raise Exception("set_output_layer_order cannot be a single layer")
-        self.output_layer_order = []
-        for layer_name in layer_names:
-            if layer_name not in self.output_layer_order:
-                self.output_layer_order.append(layer_name)
-            else:
-                raise Exception("duplicate name in set_output_layer_order: '%s'" % layer_name)
-
-    def set_targets_to_categories(self, num_classes):
-        """
-        Given net.labels are integers, set the net.targets to one_hot() categories.
-        """
-        ## FIXME: allow working on multi-targets
-        if self.multi_targets:
-            raise Exception("set_targets_to_categories does not yet work on multi-target patterns")
-        if self.num_inputs == 0:
-            raise Exception("no dataset loaded")
-        if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
-            raise Exception("number of classes must be a positive integer")
-        self.targets = keras.utils.to_categorical(self.labels, num_classes).astype("uint8")
-        self.train_targets = self.targets[:self.split]
-        self.test_targets = self.targets[self.split:]
-        print('Generated %d target vectors from labels' % self.num_inputs)
-
-    def summary_dataset(self):
-        """
-        Print out a summary of the dataset.
-        """
-        print('Input Summary:')
-        print('   count  : %d' % (self.get_inputs_length(),))
-        if self.get_inputs_length() != 0:
-            if self.multi_targets:
-                print('   shape  : %s' % ([x[0].shape for x in self.inputs],))
-            else:
-                print('   shape  : %s' % (self.inputs[0].shape,))
-            print('   range  : %s' % (self.inputs_range,))
-        print('Target Summary:')
-        print('   count  : %d' % (self.get_targets_length(),))
-        if self.get_targets_length() != 0:
-            if self.multi_targets:
-                print('   shape  : %s' % ([x[0].shape for x in self.targets],))
-            else:
-                print('   shape  : %s' % (self.targets[0].shape,))
-            print('   range  : %s' % (self.targets_range,))
-
-    def rescale_inputs(self, old_range, new_range, new_dtype):
-        """
-        Rescale the inputs. WIP.
-        """
-        ## FIXME: allow working on multi-inputs
-        if self.multi_inputs:
-            raise Exception("rescale_inputs does not yet work on multi-input patterns")
-        old_min, old_max = old_range
-        new_min, new_max = new_range
-        if self.inputs.min() < old_min or self.inputs.max() > old_max:
-            raise Exception('range %s is incompatible with inputs' % (old_range,))
-        if old_min > old_max:
-            raise Exception('range %s is out of order' % (old_range,))
-        if new_min > new_max:
-            raise Exception('range %s is out of order' % (new_range,))
-        self.inputs = rescale_numpy_array(self.inputs, old_range, new_range, new_dtype)
-        self.inputs_range = (self.inputs.min(), self.inputs.max())
-        print('Inputs rescaled to %s values in the range %s - %s' %
-              (self.inputs.dtype, new_min, new_max))
-
     def reset(self):
         """
         Reset all of the weights/biases in a network.
@@ -607,62 +285,6 @@ class Network():
             # Compile the whole model again:
             self.compile(**self.compile_options)
 
-    def shuffle_dataset(self, verbose=True):
-        """
-        Shuffle the inputs/targets. WIP.
-        """
-        ## FIXME: allow working on multi-inputs/-targets
-        if self.multi_inputs or self.multi_targets:
-            raise Exception("shuffle_dataset does not yet work on multi-input/-target patterns")
-        if self.num_inputs == 0:
-            raise Exception("no dataset loaded")
-        indices = np.random.permutation(self.num_inputs)
-        self.inputs = self.inputs[indices]
-        if len(self.labels) != 0:
-            self.labels = self.labels[indices]
-        if self.get_targets_length() != 0:
-            self.targets = self.targets[indices]
-        self.split_dataset(self.split, verbose=False)
-        if verbose:
-            print('Shuffled all %d inputs' % self.num_inputs)
-
-    def split_dataset(self, split=0.50, verbose=True):
-        """
-        Split the inputs/targets into training/test datasets.
-        """
-        if self.num_inputs == 0:
-            raise Exception("no dataset loaded")
-        if isinstance(split, numbers.Integral):
-            if not 0 <= split <= self.num_inputs:
-                raise Exception("split out of range: %d" % split)
-            self.split = split
-        elif isinstance(split, numbers.Real):
-            if not 0 <= split <= 1:
-                raise Exception("split is not in the range 0-1: %s" % split)
-            self.split = int(self.num_inputs * split)
-        else:
-            raise Exception("invalid split: %s" % split)
-        if self.multi_inputs:
-            self.train_inputs = [col[:self.split] for col in self.inputs]
-            self.test_inputs = [col[self.split:] for col in self.inputs]
-        else:
-            self.train_inputs = self.inputs[:self.split]
-            self.test_inputs = self.inputs[self.split:]
-        if len(self.labels) != 0:
-            self.train_labels = self.labels[:self.split]
-            self.test_labels = self.labels[self.split:]
-        if self.get_targets_length() != 0:
-            if self.multi_targets:
-                self.train_targets = [col[:self.split] for col in self.targets]
-                self.test_targets = [col[self.split:] for col in self.targets]
-            else:
-                self.train_targets = self.targets[:self.split]
-                self.test_targets = self.targets[self.split:]
-        if verbose:
-            print('Split dataset into:')
-            print('   train set count: %d' % self.get_train_inputs_length())
-            print('   test set count : %d' % self.get_test_inputs_length())
-
     def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1):
         """
         Requires items in proper internal format, if given (for now).
@@ -670,18 +292,18 @@ class Network():
         ## FIXME: allow human format of inputs, if given
         dataset_name = "provided"
         if inputs is None:
-            if self.split == self.num_inputs:
+            if self.dataset._split == self.dataset.num_inputs:
 
-                inputs = self.train_inputs
+                inputs = self.dataset.train_inputs
                 dataset_name = "training"
             else:
-                inputs = self.test_inputs
+                inputs = self.dataset.test_inputs
                 dataset_name = "testing"
         if targets is None:
-            if self.split == self.num_targets:
-                targets = self.train_targets
+            if self.dataset._split == self.dataset.num_targets:
+                targets = self.dataset.train_targets
             else:
-                targets = self.test_targets
+                targets = self.dataset.test_targets
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         if self.num_input_layers == 1:
@@ -719,13 +341,14 @@ class Network():
 
         Examples:
 
-            >>> from conx import Network, Layer, SGD
+            >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
-            >>> dataset = [[[0, 0], [0]],
-            ...            [[0, 1], [1]],
-            ...            [[1, 0], [1]],
-            ...            [[1, 1], [0]]]
-            >>> net.set_dataset(dataset, verbose=False)
+            >>> dataset = Dataset([["input", 2]], [["output", 1]])
+            >>> dataset.load([[[0, 0], [0]],
+            ...               [[0, 1], [1]],
+            ...               [[1, 0], [1]],
+            ...               [[1, 1], [0]]])
+            >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> out, err = net.train_one({"input": [0, 0]},
@@ -735,7 +358,7 @@ class Network():
             >>> len(err)
             1
 
-            >>> from conx import Network, Layer, SGD
+            >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR2")
             >>> net.add(Layer("input1", shape=1))
             >>> net.add(Layer("input2", shape=1))
@@ -750,17 +373,17 @@ class Network():
             >>> net.connect("hidden2", "shared-hidden")
             >>> net.connect("shared-hidden", "output1")
             >>> net.connect("shared-hidden", "output2")
-            >>> net.set_input_layer_order("input1", "input2")
-            >>> net.set_output_layer_order("output1", "output2")
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
-            >>> dataset = [
-            ...            ([[0],[0]], [[0],[0]]),
-            ...            ([[0],[1]], [[1],[1]]),
-            ...            ([[1],[0]], [[1],[1]]),
-            ...            ([[1],[1]], [[0],[0]])
-            ...            ]
-            >>> net.set_dataset(dataset, verbose=False)
+            >>> dataset = Dataset([["input1", 1], ["input2", 1]], 
+            ...                   [["output1", 1], ["output2", 1]])
+            >>> dataset.load([
+            ...               ([[0],[0]], [[0],[0]]),
+            ...               ([[0],[1]], [[1],[1]]),
+            ...               ([[1],[0]], [[1],[1]]),
+            ...               ([[1],[1]], [[0],[0]])
+            ...              ])
+            >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> out, err = net.train_one({"input1": [0], "input2": [0]},
@@ -771,11 +394,11 @@ class Network():
             2
         """
         if isinstance(inputs, dict):
-            inputs = [inputs[name] for name in self.get_input_layer_order()]
+            inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 inputs = inputs[0]
         if isinstance(targets, dict):
-            targets = [targets[name] for name in self.get_output_layer_order()]
+            targets = [targets[name] for name in self.output_bank_order]
             if self.num_target_layers == 1:
                 targets = targets[0]
         pairs = [(inputs, targets)]
@@ -830,23 +453,24 @@ class Network():
             }
         if batch_size is None:
             if self.num_input_layers == 1:
-                batch_size = self.train_inputs.shape[0]
+                batch_size = self.dataset.train_inputs.shape[0]
             else:
-                batch_size = self.train_inputs[0].shape[0]
+                batch_size = self.dataset.train_inputs[0].shape[0]
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
-        if self.split == self.num_inputs:
-            validation_inputs = self.train_inputs
-            validation_targets = self.train_targets
+        if self.dataset._split == self.dataset.num_inputs:
+            validation_inputs = self.dataset.train_inputs
+            validation_targets = self.dataset.train_targets
         else:
-            validation_inputs = self.test_inputs
-            validation_targets = self.test_targets
+            validation_inputs = self.dataset.test_inputs
+            validation_targets = self.dataset.test_targets
         if verbose: print("Training...")
         with _InterruptHandler() as handler:
             if accuracy is None: # train them all using fit
-                result = self.model.fit(self.train_inputs, self.train_targets,
+                result = self.model.fit(self.dataset.train_inputs,
+                                        self.dataset.train_targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         verbose=verbose,
@@ -874,7 +498,7 @@ class Network():
                 self.val_percent_history.append(val_percent)
             else:
                 for e in range(1, epochs+1):
-                    result = self.model.fit(self.train_inputs, self.train_targets,
+                    result = self.model.fit(self.dataset.train_inputs, self.dataset.train_targets,
                                             batch_size=batch_size,
                                             epochs=1,
                                             verbose=0,
@@ -925,84 +549,6 @@ class Network():
         # #print('Most recent weights saved in model.weights')
         # #self.model.save_weights('model.weights')
 
-    def get_input(self, i):
-        """
-        Get an input from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_input_layers == 1:
-            return list(self.inputs[i])
-        else:
-            inputs = []
-            for c in range(self.num_input_layers):
-                inputs.append(list(self.inputs[c][i]))
-            return inputs
-
-    def get_target(self, i):
-        """
-        Get a target from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_target_layers == 1:
-            return list(self.targets[i])
-        else:
-            targets = []
-            for c in range(self.num_target_layers):
-                targets.append(list(self.targets[c][i]))
-            return targets
-
-    def get_train_input(self, i):
-        """
-        Get a training input from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_input_layers == 1:
-            return list(self.train_inputs[i])
-        else:
-            inputs = []
-            for c in range(self.num_input_layers):
-                inputs.append(list(self.train_inputs[c][i]))
-            return inputs
-
-    def get_train_target(self, i):
-        """
-        Get a training target from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_target_layers == 1:
-            return list(self.train_targets[i])
-        else:
-            targets = []
-            for c in range(self.num_target_layers):
-                targets.append(list(self.train_targets[c][i]))
-            return targets
-
-    def get_test_input(self, i):
-        """
-        Get a test input from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_input_layers == 1:
-            return list(self.test_inputs[i])
-        else:
-            inputs = []
-            for c in range(self.num_input_layers):
-                inputs.append(list(self.test_inputs[c][i]))
-            return inputs
-
-    def get_test_target(self, i):
-        """
-        Get a test target from the internal dataset and
-        format it in the human API.
-        """
-        if self.num_target_layers == 1:
-            return list(self.test_targets[i])
-        else:
-            targets = []
-            for c in range(self.num_target_layers):
-                targets.append(list(self.test_targets[c][i]))
-            return targets
-
     def get_weights(self, layer_name):
         """
         Get the weights from the model in an easy to read format.
@@ -1018,7 +564,7 @@ class Network():
         """
         import keras.backend as K
         if isinstance(input, dict):
-            input = [input[name] for name in self.get_input_layer_order()]
+            input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
@@ -1050,14 +596,14 @@ class Network():
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if isinstance(input, dict):
-            input = [input[name] for name in self.get_input_layer_order()]
+            input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
         if output_layer_names is None:
             if self.num_target_layers == 1:
                 output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
             else:
-                output_layer_names = self.output_layer_order
+                output_layer_names = self.output_bank_order
         else:
             if isinstance(output_layer_names, str):
                 output_layer_names = [output_layer_names]
@@ -1108,10 +654,7 @@ class Network():
         config = copy.copy(self.config)
         config.update(opts)
         ## FIXME: this doesn't work on multi-targets/outputs
-        if self.output_layer_order:
-            output_names = self.output_layer_order
-        else:
-            output_names = [layer.name for layer in self.layers if layer.kind() == "output"]
+        output_names = self.output_bank_order
         if self._comm.kernel:
             for (target, layer_name) in zip(vector, output_names):
                 array = np.array(target)
@@ -1126,14 +669,14 @@ class Network():
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if isinstance(inputs, dict):
-            inputs = [inputs[name] for name in self.get_input_layer_order()]
+            inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 inputs = inputs[0]
         if self.num_input_layers == 1:
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
             # get just inputs for this layer, in order:
-            vector = [np.array(inputs[self.input_layer_order.index(name)]) for name in self[layer_name].input_names]
+            vector = [np.array(inputs[self.input_bank_order.index(name)]) for name in self[layer_name].input_names]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
         if self.visualize and visualize and get_ipython():
             if not self._comm:
@@ -1154,7 +697,7 @@ class Network():
         Gets an image of activations at a layer.
         """
         if isinstance(input, dict):
-            input = [input[name] for name in self.get_input_layer_order()]
+            input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
         outputs = self.propagate_to(layer_name, input, batch_size)
@@ -1184,28 +727,32 @@ class Network():
                 raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
                                 (optimizer, Network.OPTIMIZERS,))
         input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-        if len(input_layers) == 1 and len(self.input_layer_order) == 0:
-            pass # ok!
-        elif len(input_layers) == len(self.input_layer_order):
-            # check to make names all match
-            for layer in input_layers:
-                if layer.name not in self.input_layer_order:
-                    raise Exception("layer '%s' is not listed in set_input_layer_order()" % layer.name)
-        else:
-            raise Exception("improper set_input_layer_order() names")
+        self.input_bank_order = [layer.name for layer in input_layers]
         output_layers = [layer for layer in self.layers if layer.kind() == "output"]
-        if len(output_layers) == 1 and len(self.output_layer_order) == 0:
-            pass # ok!
-        elif len(output_layers) == len(self.output_layer_order):
-            # check to make names all match
-            for layer in output_layers:
-                if layer.name not in self.output_layer_order:
-                    raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
-        else:
-            raise Exception("improper set_output_layer_order() names")
+        self.output_bank_order = [layer.name for layer in output_layers]
+        ## FIXME: redo checks to separate dataset:
+        # if len(input_layers) == 1 and len(self.input_layer_order) == 0:
+        #     pass # ok!
+        # elif len(input_layers) == len(self.dataset.input_layer_order):
+        #     # check to make names all match
+        #     for layer in input_layers:
+        #         if layer.name not in self.dataset.input_layer_order:
+        #             raise Exception("layer '%s' is not listed in dataset.input_layer_order" % layer.name)
+        # else:
+        #     raise Exception("improper dataset.input_layer_order names")
+        ## FIXME: add new dataset-based checks:
+        # if len(output_layers) == 1 and len(self.output_layer_order) == 0:
+        #     pass # ok!
+        # elif len(output_layers) == len(self.output_layer_order):
+        #     # check to make names all match
+        #     for layer in output_layers:
+        #         if layer.name not in self.output_layer_order:
+        #             raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
+        # else:
+        #     raise Exception("improper set_output_layer_order() names")
         self._build_intermediary_models()
-        output_k_layers = self._get_ordered_output_layers()
-        input_k_layers = self._get_ordered_input_layers()
+        output_k_layers = self._get_output_ks_in_order()
+        input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         kwargs['metrics'] = ['accuracy']
         self.compile_options = copy.copy(kwargs)
@@ -1253,54 +800,22 @@ class Network():
     def _get_input_ks_in_order(self, layer_names):
         """
         Get the Keras function for each of a set of layer names.
+        [in3, in4] sorted by input bank ordering
         """
-        if self.input_layer_order:
-            result = []
-            for name in self.input_layer_order:
-                if name in layer_names:
-                    result.append(self[name].k)
-            return result
-        else:
-            # the one input name:
-            return [[layer for layer in self.layers if layer.kind() == "input"][0].k]
+        sorted_layer_names = [name for (index, name) in sorted([(self.input_bank_order.index(name), name) for name in layer_names])]
+        layer_ks = [self[layer_name].k for layer_name in sorted_layer_names]
+        if self.num_target_layers == 1:
+            layer_ks = layer_ks[0]
+        return layer_ks
 
     def _get_output_ks_in_order(self):
         """
         Get the Keras function for each output layer, in order.
         """
-        if self.output_layer_order:
-            result = []
-            for name in self.output_layer_order:
-                if name in [layer.name for layer in self.layers if layer.kind() == "output"]:
-                    result.append(self[name].k)
-            return result
-        else:
-            # the one output name:
-            return [[layer for layer in self.layers if layer.kind() == "output"][0].k]
-
-    def _get_ordered_output_layers(self):
-        """
-        Return the ordered output layers' Keras functions.
-        """
-        if self.output_layer_order:
-            layers = []
-            for layer_name in self.output_layer_order:
-                layers.append(self[layer_name].k)
-        else:
-            layers = [layer.k for layer in self.layers if layer.kind() == "output"][0]
-        return layers
-
-    def _get_ordered_input_layers(self):
-        """
-        Get the Keras functions for all layers, in order.
-        """
-        if self.input_layer_order:
-            layers = []
-            for layer_name in self.input_layer_order:
-                layers.append(self[layer_name].k)
-        else:
-            layers = [layer.k for layer in self.layers if layer.kind() == "input"][0]
-        return layers
+        layer_ks = [self[layer_name].k for layer_name in self.output_bank_order]
+        if self.num_target_layers == 1:
+            layer_ks = layer_ks[0]
+        return layer_ks
 
     def _image_to_uri(self, img_src):
         # Convert to binary data:
@@ -1362,12 +877,12 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 if self.model: # thus, we can propagate
-                    if self.get_inputs_length() != 0:
-                        v = self.get_input(0)
+                    if self.dataset and self.dataset.num_inputs != 0:
+                        v = self.dataset.get_input(0)
                     else:
-                        if self.input_layer_order:
+                        if self.num_target_layers > 1:
                             v = []
-                            for in_name in self.input_layer_order:
+                            for in_name in self.input_bank_order:
                                 v.append(self[in_name].make_dummy_vector())
                         else:
                             in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
@@ -1621,8 +1136,8 @@ require(['base/js/namespace'], function(Jupyter) {
         ordering = []
         for i in range(max_level + 1):
             layer_names = [layer.name for layer in self.layers if levels[layer.name] == i]
-            if self.input_layer_order:
-                inputs = [([self.input_layer_order.index(name)
+            if self.input_bank_order:
+                inputs = [([self.input_bank_order.index(name)
                             for name in self[layer_name].input_names], layer_name)
                           for layer_name in layer_names]
             else:
@@ -1739,72 +1254,6 @@ require(['base/js/namespace'], function(Jupyter) {
         if os.path.isfile("%s/model.h5" % foldername):
             self.model = keras.models.load_model("%s/model.h5" % foldername)
 
-    def get_inputs_length(self):
-        """
-        Get the number of input patterns.
-        """
-        if len(self.inputs) == 0:
-            return 0
-        if self.multi_inputs:
-            return self.inputs[0].shape[0]
-        else:
-            return self.inputs.shape[0]
-
-    def get_targets_length(self):
-        """
-        Get the number of target patterns.
-        """
-        if len(self.targets) == 0:
-            return 0
-        if self.multi_targets:
-            return self.targets[0].shape[0]
-        else:
-            return self.targets.shape[0]
-
-    def get_test_inputs_length(self):
-        """
-        Get the number of test input patterns.
-        """
-        if len(self.test_inputs) == 0:
-            return 0
-        if self.multi_inputs:
-            return self.test_inputs[0].shape[0]
-        else:
-            return self.test_inputs.shape[0]
-
-    def get_test_targets_length(self):
-        """
-        Get the number of test target patterns.
-        """
-        if len(self.test_targets) == 0:
-            return 0
-        if self.multi_targets:
-            return self.test_targets[0].shape[0]
-        else:
-            return self.test_targets.shape[0]
-
-    def get_train_inputs_length(self):
-        """
-        Get the number of training input patterns.
-        """
-        if len(self.train_inputs) == 0:
-            return 0
-        if self.multi_inputs:
-            return self.train_inputs[0].shape[0]
-        else:
-            return self.train_inputs.shape[0]
-
-    def get_train_targets_length(self):
-        """
-        Get the number of training target patterns.
-        """
-        if len(self.train_targets) == 0:
-            return 0
-        if self.multi_targets:
-            return self.train_targets[0].shape[0]
-        else:
-            return self.train_targets.shape[0]
-
     def dashboard(self, width="100%", height="550px", iwidth="960px"): ## FIXME: iwidth hack
         """
         Build the dashboard for Jupyter widgets. Requires running
@@ -1813,10 +1262,12 @@ require(['base/js/namespace'], function(Jupyter) {
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout, Tab
 
         def dataset_move(position):
+            if self.dataset is None:
+                return
             if control_select.value == "Train":
-                length = self.get_train_inputs_length()
+                length = self.dataset.get_train_inputs_length()
             elif control_select.value == "Test":
-                length = self.get_test_inputs_length()
+                length = self.dataset.get_test_inputs_length()
             #### Position it:
             if position == "begin":
                 control_slider.value = 0
@@ -1834,19 +1285,24 @@ require(['base/js/namespace'], function(Jupyter) {
                     control_slider.value = min(control_slider.value + 1, length - 1)
 
         def update_control_slider(change):
+            if self.dataset is None:
+                control_slider.disabled = True
+                for child in control_buttons.children:
+                    child.disabled = True
+                return
             if control_select.value == "Test":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(self.get_test_inputs_length() - 1, 0)
-                if self.get_test_inputs_length() == 0:
+                control_slider.max = max(self.dataset.get_test_inputs_length() - 1, 0)
+                if self.dataset.get_test_inputs_length() == 0:
                     disabled = True
                 else:
                     disabled = False
             elif control_select.value == "Train":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(self.get_train_inputs_length() - 1, 0)
-                if self.get_train_inputs_length() == 0:
+                control_slider.max = max(self.dataset.get_train_inputs_length() - 1, 0)
+                if self.dataset.get_train_inputs_length() == 0:
                     disabled = True
                 else:
                     disabled = False
@@ -1855,29 +1311,33 @@ require(['base/js/namespace'], function(Jupyter) {
                 child.disabled = disabled
 
         def update_slider_control(change):
+            if self.dataset is None:
+                return
             if change["name"] == "value":
-                if control_select.value == "Train" and self.get_train_targets_length() > 0:
-                    output = self.propagate(self.get_train_input(control_slider.value))
+                if control_select.value == "Train" and self.dataset.get_train_targets_length() > 0:
+                    output = self.propagate(self.dataset.get_train_input(control_slider.value))
                     if self.config["show_targets"]:
-                        self.display_component([self.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.get_train_target(control_slider.value)) - np.array(output)
+                        errors = np.array(self.dataset.get_train_target(control_slider.value)) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
-                elif control_select.value == "Test" and self.get_test_targets_length() > 0:
-                    output = self.propagate(self.get_test_input(control_slider.value))
+                elif control_select.value == "Test" and self.dataset.get_test_targets_length() > 0:
+                    output = self.propagate(self.dataset.get_test_input(control_slider.value))
                     if self.config["show_targets"]:
-                        self.display_component([self.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.get_test_target(control_slider.value)) - np.array(output)
+                        errors = np.array(self.dataset.get_test_target(control_slider.value)) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
 
         def train_one(button):
-            if control_select.value == "Train" and self.get_train_targets_length() > 0:
-                outputs = self.train_one(self.get_train_input(control_slider.value),
-                                       self.get_train_target(control_slider.value))
-            elif control_select.value == "Test" and self.get_test_targets_length() > 0:
-                outputs = self.train_one(self.get_test_input(control_slider.value),
-                                       self.get_test_target(control_slider.value))
+            if self.dataset is None:
+                return
+            if control_select.value == "Train" and self.dataset.get_train_targets_length() > 0:
+                outputs = self.train_one(self.dataset.get_train_input(control_slider.value),
+                                       self.dataset.get_train_target(control_slider.value))
+            elif control_select.value == "Test" and self.dataset.get_test_targets_length() > 0:
+                outputs = self.train_one(self.dataset.get_test_input(control_slider.value),
+                                       self.dataset.get_test_target(control_slider.value))
 
         def prop_one(button):
             update_slider_control({"name": "value"})
@@ -1903,10 +1363,11 @@ require(['base/js/namespace'], function(Jupyter) {
             value='Train',
             description='Dataset:',
                )
+        length = (self.dataset.get_train_inputs_length() - 1) if self.dataset else 0
         control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,
-                                   max=max(self.get_train_inputs_length() - 1, 0),
+                                   max=max(length, 0),
                                    value=0,
                                    layout=Layout(width='100%'))
 

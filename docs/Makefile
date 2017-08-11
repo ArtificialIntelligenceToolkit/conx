@@ -7,6 +7,7 @@ SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = conx
 SOURCEDIR     = source
 BUILDDIR      = build
+export READTHEDOCS=True
 
 # Put it first so that "make" without argument is like "make help".
 help:

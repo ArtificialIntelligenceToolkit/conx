@@ -21,11 +21,11 @@ def test_xor1():
     net.compile(loss="binary_crossentropy", optimizer="adam")
     net.summary()
     net.model.summary()
-    dataset = [[[0, 0], [0]],
-               [[0, 1], [1]],
-               [[1, 0], [1]],
-               [[1, 1], [0]]]
-
+    dataset = Dataset([["input", 2]], [["output", 1]])
+    dataset.load([[[0, 0], [0]],
+                  [[0, 1], [1]],
+                  [[1, 0], [1]],
+                  [[1, 1], [0]]])
     net.set_dataset(dataset)
     net.train(epochs=2000, accuracy=1, report_rate=25)
     net.test()
@@ -52,16 +52,17 @@ def test_xor2():
     net.connect("hidden2", "shared-hidden")
     net.connect("shared-hidden", "output1")
     net.connect("shared-hidden", "output2")
-    net.set_input_layer_order("input1", "input2")
-    net.set_output_layer_order("output1", "output2")
     net.compile(loss='mean_squared_error',
                 optimizer=SGD(lr=0.3, momentum=0.9))
-    dataset = [
+
+    dataset = Dataset([["input1", 1], ["input2", 1]], 
+                      [["output1", 1], ["output2", 1]])
+    dataset.load([
         ([[0],[0]], [[0],[0]]),
         ([[0],[1]], [[1],[1]]),
         ([[1],[0]], [[1],[1]]),
         ([[1],[1]], [[0],[0]])
-    ]
+    ])
     net.set_dataset(dataset)
     net.train(2000, report_rate=10, accuracy=1)
     net.test()
@@ -91,7 +92,8 @@ def test_dataset():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", loss="binary_crossentropy")
-    net.load_mnist_dataset()
+    dataset = Dataset.get_mnist()
+    net.set_dataset(dataset)
     assert net is not None
 
 def test_dataset2():
@@ -99,7 +101,7 @@ def test_dataset2():
     Load data before adding network.
     """
     net = Network("MNIST")
-    net.load_mnist_dataset()
+    dataset = Dataset.get_mnist()
     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
@@ -108,15 +110,15 @@ def test_dataset2():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", loss="binary_crossentropy")
-    net.split_dataset(100)
-    net.slice_dataset(100)
+    dataset.split(100)
+    dataset.slice(100)
     assert net is not None
 
 
 ## FIXME: doesn't work
 # def test_images():
 #     net = Network("MNIST")
-#     net.load_mnist_dataset()
+#     net.load_mnist()
 #     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
 #     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
 #     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
@@ -189,5 +191,6 @@ def test_cifar10():
     x_test /= 255
 
     net.propagate(x_train[0])
-    net.set_dataset_direct(x_train, y_train)
+    dataset = Dataset([["input", (32, 32, 3)]], [["output", 10]])
+    dataset.load_direct(x_train, y_train)
     net.propagate(x_test[0])

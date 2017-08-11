@@ -12,6 +12,14 @@ conx\.network module
     :undoc-members:
     :show-inheritance:
 
+conx\.dataset module
+--------------------
+
+.. automodule:: conx.dataset
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 conx\.layers module
 -------------------
 
@@ -29,7 +37,7 @@ conx\.utils module
     :show-inheritance:
 
 conx\.wdigets module
-------------------
+--------------------
 
 .. automodule:: conx.widgets
     :members:

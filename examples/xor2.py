@@ -1,4 +1,4 @@
-from conx import Network, Layer, SGD
+from conx import Network, Layer, SGD, Dataset
 
 net = Network("XOR2")
 net.add(Layer("input1", shape=1))
@@ -16,18 +16,18 @@ net.connect("hidden2", "shared-hidden")
 net.connect("shared-hidden", "output1")
 net.connect("shared-hidden", "output2")
 
-net.set_input_layer_order("input1", "input2")
-net.set_output_layer_order("output1", "output2")
-
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
 
-dataset = [
+dataset = Dataset([["input1", 1], ["input2", 1]],
+                  [["output1", 1], ["output2", 1]])
+
+dataset.load([
     ([[0],[0]], [[0],[0]]),
     ([[0],[1]], [[1],[1]]),
     ([[1],[0]], [[1],[1]]),
     ([[1],[1]], [[0],[0]])
-]
+])
 
 net.set_dataset(dataset)
 
