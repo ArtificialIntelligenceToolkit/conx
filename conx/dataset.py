@@ -27,6 +27,13 @@ manipulating a set of inputs/targets.
 import numpy as np
 import numbers
 
+import keras
+from keras.datasets import mnist
+from keras.utils import to_categorical
+import keras.backend as K
+
+from .utils import valid_shape
+
 class _DataVector():
     def __init__(self, dataset, item):
         self.dataset = dataset
@@ -112,7 +119,7 @@ class Dataset():
         ]:
             return _DataVector(self, item)
 
-    def load_direct(self, inputs, targets):
+    def load_direct(self, inputs=None, targets=None, labels=None):
         """
         Set the inputs/targets in the specific internal format:
 
@@ -127,9 +134,13 @@ class Dataset():
         """
         ## Better be in correct format!
         ## each is either: list of np.arrays() [multi], or np.array() [single]
-        self._inputs = inputs
-        self._targets = targets
-        self._labels = []
+        if inputs is not None:
+            self._inputs = inputs
+            self._num_inputs = len(self.inputs)
+        if targets is not None:
+            self._targets = targets
+        if labels is not None:
+            self._labels = labels
         self._cache_values()
         self.split(self._num_inputs, verbose=False)
 
@@ -177,9 +188,6 @@ class Dataset():
         """
         Load the Keras MNIST dataset and format it as images.
         """
-        from keras.datasets import mnist
-        from keras.utils import to_categorical
-        import keras.backend as K
         dataset = Dataset([["input", (28, 28, 1)]])
         # input image dimensions
         img_rows, img_cols = 28, 28
@@ -326,13 +334,13 @@ class Dataset():
         if verbose:
             self.summary()
 
-    def set_targets_to_categories(self, num_classes):
+    def set_targets_from_labels(self, num_classes):
         """
         Given net.labels are integers, set the net.targets to one_hot() categories.
         """
         ## FIXME: allow working on multi-targets
         if self._num_target_banks > 1:
-            raise Exception("set_targets_to_categories does not yet work on multi-target patterns")
+            raise Exception("set_targets_from_labels does not yet work on multi-target patterns")
         if self._num_inputs == 0:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
@@ -340,7 +348,7 @@ class Dataset():
         self._targets = keras.utils.to_categorical(self._labels, num_classes).astype("uint8")
         self._train_targets = self._targets[:self._split]
         self._test_targets = self._targets[self._split:]
-        print('Generated %d target vectors from labels' % self._num_inputs)
+        print('Generated %d target vectors from %d labels' % (self._num_inputs, num_classes))
 
     def summary(self):
         """

@@ -39,6 +39,8 @@ import keras
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
+from .utils import valid_shape, valid_vshape
+
 #------------------------------------------------------------------------
 ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
 #------------------------------------------------------------------------
