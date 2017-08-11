@@ -29,14 +29,15 @@ import numbers
 
 class Dataset():
     """
-    Defines input and target's names and shapes.
+    Contains the dataset, and metadata about it.
 
-    inputs = [("name", shape), ...]
-    targets = [("name", shape), ...]
+    input_shapes = [shape, ...]
+    target_shapes = [shape, ...]
     """
-    def __init__(self, input_desc=None, target_desc=None):
-        self.input_desc = input_desc
-        self.target_desc = target_desc
+    def __init__(self, input_shapes=None, target_shapes=None,
+                 inputs=None, targets=None, pairs=None):
+        self.input_shapes = input_shapes
+        self.target_shapes = target_shapes
         self.num_input_banks = 0
         self.num_target_banks = 0
         self.inputs = []
@@ -53,6 +54,15 @@ class Dataset():
         self.num_inputs = 0
         self.num_targets = 0
         self._split = 0
+        if inputs is not None:
+            if targets is not None:
+                self.load(zip(inputs, targets))
+            else:
+                raise Exception("you cannot set inputs without targets")
+        elif targets is not None:
+            raise Exception("you cannot set targets without inputs")
+        if pairs:
+            self.load(pairs)
 
 ## FIXME: add interface for humans: dataset.inputs[0], etc.
 
@@ -92,6 +102,14 @@ class Dataset():
         ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
         self.num_input_banks = len(np.array(pairs[0][0]).shape)
         self.num_target_banks = len(np.array(pairs[0][1]).shape)
+        if self.num_input_banks == 1:
+            self.input_shapes = [np.array(pairs[0][0]).shape]
+        else:
+            self.input_shapes = [np.array(inp).shape for inp in pairs[0][0]] # [0] first pattern, [0] inputs
+        if self.num_target_banks == 1:
+            self.target_shapes = [np.array(pairs[0][1]).shape]
+        else:
+            self.input_shapes = [np.array(inp).shape for inp in pairs[0][1]] # [0] first pattern, [1] targets
         if self.num_input_banks > 1:
             self.inputs = []
             for i in range(len(pairs[0][0])):

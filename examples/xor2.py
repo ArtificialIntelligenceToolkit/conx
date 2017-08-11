@@ -19,17 +19,22 @@ net.connect("shared-hidden", "output2")
 net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
 
-dataset = Dataset([["input1", 1], ["input2", 1]],
-                  [["output1", 1], ["output2", 1]])
-
-dataset.load([
+# Method 1:
+dataset = Dataset([1, 1], [1, 1]) # input layer sizes, target layer sizes
+ds = [
     ([[0],[0]], [[0],[0]]),
     ([[0],[1]], [[1],[1]]),
     ([[1],[0]], [[1],[1]]),
     ([[1],[1]], [[0],[0]])
-])
-
+]
+dataset.load(ds)
 net.set_dataset(dataset)
+net.train(2000, report_rate=10, accuracy=1)
+net.test()
 
+# Method 2
+net.reset()
+net.dataset = None
+net.set_dataset(ds)
 net.train(2000, report_rate=10, accuracy=1)
 net.test()

@@ -39,6 +39,7 @@ import keras
 
 from .utils import *
 from .layers import Layer
+from .dataset import Dataset
 
 from typing import Any
 
@@ -174,6 +175,8 @@ class Network():
         self._svg_counter = 1
 
     def set_dataset(self, dataset):
+        if not isinstance(dataset, Dataset):
+            dataset = Dataset(pairs=dataset)
         self.dataset = dataset
 
     def __getitem__(self, layer_name):
@@ -343,11 +346,13 @@ class Network():
 
             >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
-            >>> dataset = Dataset([["input", 2]], [["output", 1]])
-            >>> dataset.load([[[0, 0], [0]],
-            ...               [[0, 1], [1]],
-            ...               [[1, 0], [1]],
-            ...               [[1, 1], [0]]])
+            >>> # Method 1:
+            >>> ds = [[[0, 0], [0]],
+            ...       [[0, 1], [1]],
+            ...       [[1, 0], [1]],
+            ...       [[1, 1], [0]]]
+            >>> dataset = Dataset([2], [1])
+            >>> dataset.load(ds)
             >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
@@ -356,6 +361,12 @@ class Network():
             >>> len(out)
             1
             >>> len(err)
+            1
+            >>> # Method 2:
+            >>> net.set_dataset(ds)
+            >>> net.dataset.num_target_banks
+            1
+            >>> net.dataset.num_input_banks
             1
 
             >>> from conx import Network, Layer, SGD, Dataset
@@ -375,14 +386,13 @@ class Network():
             >>> net.connect("shared-hidden", "output2")
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
-            >>> dataset = Dataset([["input1", 1], ["input2", 1]], 
-            ...                   [["output1", 1], ["output2", 1]])
-            >>> dataset.load([
-            ...               ([[0],[0]], [[0],[0]]),
-            ...               ([[0],[1]], [[1],[1]]),
-            ...               ([[1],[0]], [[1],[1]]),
-            ...               ([[1],[1]], [[0],[0]])
-            ...              ])
+            >>> ds = [([[0],[0]], [[0],[0]]),
+            ...       ([[0],[1]], [[1],[1]]),
+            ...       ([[1],[0]], [[1],[1]]),
+            ...       ([[1],[1]], [[0],[0]])]
+            >>> dataset = Dataset([1, 1],
+            ...                   [1, 1])
+            >>> dataset.load(ds)
             >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
@@ -391,6 +401,11 @@ class Network():
             >>> len(out)
             2
             >>> len(err)
+            2
+            >>> net.set_dataset(ds)
+            >>> net.dataset.num_input_banks
+            2
+            >>> net.dataset.num_target_banks
             2
         """
         if isinstance(inputs, dict):

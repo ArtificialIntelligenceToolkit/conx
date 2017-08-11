@@ -1,13 +1,16 @@
 from conx import Network, SGD, Dataset
 
-dataset = Dataset([["input", 2]], [["output", 1]])
-
-dataset.load([[[0, 0], [0]],
-              [[0, 1], [1]],
-              [[1, 0], [1]],
-              [[1, 1], [0]]])
+# Method 1:
+dataset = Dataset([2], [1])
+ds = [[[0, 0], [0]],
+      [[0, 1], [1]],
+      [[1, 0], [1]],
+      [[1, 1], [0]]]
+dataset.load(ds)
 
 net = Network("XOR", 2, 2, 1, activation="sigmoid")
+net.compile(loss='mean_squared_error',
+            optimizer=SGD(lr=0.3, momentum=0.9))
 
 # NOTE:
 #    net = Network(2, 3, 4, 1, activation="sigmoid")
@@ -22,7 +25,12 @@ net = Network("XOR", 2, 2, 1, activation="sigmoid")
 #    net.connect("hidden2", "output")
 
 net.set_dataset(dataset)
-net.compile(loss='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9))
+net.train(2000, report_rate=10, accuracy=1)
+net.test()
+
+# Method 2:
+net.reset()
+net.dataset = None
+net.set_dataset(ds)
 net.train(2000, report_rate=10, accuracy=1)
 net.test()

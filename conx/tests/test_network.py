@@ -55,7 +55,7 @@ def test_xor2():
     net.compile(loss='mean_squared_error',
                 optimizer=SGD(lr=0.3, momentum=0.9))
 
-    dataset = Dataset([["input1", 1], ["input2", 1]], 
+    dataset = Dataset([["input1", 1], ["input2", 1]],
                       [["output1", 1], ["output2", 1]])
     dataset.load([
         ([[0],[0]], [[0],[0]]),
