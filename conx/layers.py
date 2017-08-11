@@ -73,6 +73,7 @@ class _BaseLayer():
         self.shape = None
         self.vshape = None
         self.image_maxdim = None
+        self.image_pixels_per_unit = None
         self.visible = True
         self.colormap = "RdGy"
         self.minmax = None
@@ -99,6 +100,14 @@ class _BaseLayer():
                 raise Exception('bad image_maxdim: %s' % (imd,))
             else:
                 self.image_maxdim = imd
+
+        if 'image_pixels_per_unit' in params:
+            imd = params['image_pixels_per_unit']
+            del params["image_pixels_per_image"] # drop those that are not Keras parameters
+            if not isinstance(imd, numbers.Integral):
+                raise Exception('bad image_pixels_per_unit: %s' % (imd,))
+            else:
+                self.image_pixels_per_unit = imd
 
         if 'visible' in params:
             visible = params['visible']

@@ -130,6 +130,7 @@ class Network():
             "hspace": 150, # for svg
             "vspace": 30, # for svg, arrows
             "image_maxdim": 200, # for svg
+            "image_pixels_per_unit": 50, # for svg
             "activation": "linear", # Dense default, if none specified
             "arrow_color": "blue",
             "arrow_width": "2",
@@ -1322,9 +1323,18 @@ class Network():
             "hspace": 100,
             "vspace": 50,
             "image_maxdim": 200
+            "image_pixels_per_unit": 50
 
         See .config for all options.
         """
+        def divide(n):
+            return n + 1
+            if n == 1:
+                return 2
+            elif n % 2 == 0:
+                return n * 2
+            else:
+                return (n - 1) * 2
         # defaults:
         config = copy.copy(self.config)
         config.update(opts)
@@ -1369,12 +1379,22 @@ class Network():
                 (width, height) = image.size
                 images[layer_name] = image ## little image
                 max_dim = max(width, height)
+                ### Layer settings:
                 if self[layer_name].image_maxdim:
                     image_maxdim = self[layer_name].image_maxdim
                 else:
                     image_maxdim = config["image_maxdim"]
-                width, height = (int(width/max_dim * image_maxdim),
-                                 int(height/max_dim * image_maxdim))
+                if self[layer_name].image_pixels_per_unit:
+                    image_pixels_per_unit = self[layer_name].image_pixels_per_unit
+                else:
+                    image_pixels_per_unit = config["image_pixels_per_unit"]
+                ## First, try based on shape:
+                pwidth, pheight = np.array(image.size) * image_pixels_per_unit
+                if max(pwidth, pheight) < image_maxdim:
+                    width, height = pwidth, pheight
+                else:
+                    width, height = (int(width/max_dim * image_maxdim),
+                                     int(height/max_dim * image_maxdim))
                 # make sure not too small:
                 if min(width, height) < 25:
                     width, height = (image_maxdim, 25)
@@ -1393,7 +1413,7 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-            spacing = max_width / (len(ordering[0]) + 1)
+            spacing = max_width / divide(len(ordering[0]))
             # draw the row of targets:
             cwidth = 0
             for layer_name in ordering[0]:
@@ -1431,7 +1451,7 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-            spacing = max_width / (len(ordering[0]) + 1)
+            spacing = max_width / divide(len(ordering[0]))
             # draw the row of errors:
             cwidth = 0
             for layer_name in ordering[0]:
@@ -1470,7 +1490,7 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-            spacing = max_width / (len(level_names) + 1)
+            spacing = max_width / divide(len(level_names))
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
