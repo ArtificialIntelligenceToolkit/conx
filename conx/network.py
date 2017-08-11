@@ -893,7 +893,7 @@ class Network():
                     continue
                 if self.model: # thus, we can propagate
                     if self.dataset and self.dataset._num_inputs != 0:
-                        v = self.dataset.get_input(0)
+                        v = self.dataset.inputs[0]
                     else:
                         if self.num_target_layers > 1:
                             v = []
@@ -1280,9 +1280,9 @@ require(['base/js/namespace'], function(Jupyter) {
             if self.dataset is None:
                 return
             if control_select.value == "Train":
-                length = self.dataset.get_train_inputs_length()
+                length = len(self.dataset.train_inputs)
             elif control_select.value == "Test":
-                length = self.dataset.get_test_inputs_length()
+                length = len(self.dataset.test_inputs)
             #### Position it:
             if position == "begin":
                 control_slider.value = 0
@@ -1308,16 +1308,16 @@ require(['base/js/namespace'], function(Jupyter) {
             if control_select.value == "Test":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(self.dataset.get_test_inputs_length() - 1, 0)
-                if self.dataset.get_test_inputs_length() == 0:
+                control_slider.max = max(len(self.dataset.test_inputs) - 1, 0)
+                if len(self.dataset.test_inputs) == 0:
                     disabled = True
                 else:
                     disabled = False
             elif control_select.value == "Train":
                 control_slider.value = 0
                 control_slider.min = 0
-                control_slider.max = max(self.dataset.get_train_inputs_length() - 1, 0)
-                if self.dataset.get_train_inputs_length() == 0:
+                control_slider.max = max(len(self.dataset.train_inputs) - 1, 0)
+                if len(self.dataset.train_inputs) == 0:
                     disabled = True
                 else:
                     disabled = False
@@ -1329,30 +1329,30 @@ require(['base/js/namespace'], function(Jupyter) {
             if self.dataset is None:
                 return
             if change["name"] == "value":
-                if control_select.value == "Train" and self.dataset.get_train_targets_length() > 0:
-                    output = self.propagate(self.dataset.get_train_input(control_slider.value))
+                if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
+                    output = self.propagate(self.dataset.train_inputs[control_slider.value])
                     if self.config["show_targets"]:
-                        self.display_component([self.dataset.get_train_target(control_slider.value)], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.dataset.get_train_target(control_slider.value)) - np.array(output)
+                        errors = np.array(self.dataset.train_targets[control_slider.value]) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
-                elif control_select.value == "Test" and self.dataset.get_test_targets_length() > 0:
-                    output = self.propagate(self.dataset.get_test_input(control_slider.value))
+                elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
+                    output = self.propagate(self.dataset.test_inputs[control_slider.value])
                     if self.config["show_targets"]:
-                        self.display_component([self.dataset.get_test_target(control_slider.value)], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(0, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.dataset.get_test_target(control_slider.value)) - np.array(output)
+                        errors = np.array(self.dataset.test_targets[control_slider.value]) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
 
         def train_one(button):
             if self.dataset is None:
                 return
-            if control_select.value == "Train" and self.dataset.get_train_targets_length() > 0:
-                outputs = self.train_one(self.dataset.get_train_input(control_slider.value),
-                                       self.dataset.get_train_target(control_slider.value))
-            elif control_select.value == "Test" and self.dataset.get_test_targets_length() > 0:
-                outputs = self.train_one(self.dataset.get_test_input(control_slider.value),
-                                       self.dataset.get_test_target(control_slider.value))
+            if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
+                outputs = self.train_one(self.dataset.train_inputs[control_slider.value],
+                                         self.dataset.train_targets[control_slider.value])
+            elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
+                outputs = self.train_one(self.dataset.test_inputs[control_slider.value],
+                                         self.dataset.test_targets[control_slider.value])
 
         def prop_one(button):
             update_slider_control({"name": "value"})
@@ -1378,7 +1378,7 @@ require(['base/js/namespace'], function(Jupyter) {
             value='Train',
             description='Dataset:',
                )
-        length = (self.dataset.get_train_inputs_length() - 1) if self.dataset else 0
+        length = (len(self.dataset.train_inputs) - 1) if self.dataset else 0
         control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,

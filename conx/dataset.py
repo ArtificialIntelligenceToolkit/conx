@@ -27,6 +27,46 @@ manipulating a set of inputs/targets.
 import numpy as np
 import numbers
 
+class _DataVector():
+    def __init__(self, dataset, item):
+        self.dataset = dataset
+        self.item = item
+
+    def __getitem__(self, pos):
+        if self.item == "targets":
+            return self.dataset._get_target(pos)
+        elif self.item == "inputs":
+            return self.dataset._get_input(pos)
+        elif self.item == "test_inputs":
+            return self.dataset._get_test_input(pos)
+        elif self.item == "train_inputs":
+            return self.dataset._get_train_input(pos)
+        elif self.item == "test_targets":
+            return self.dataset._get_test_target(pos)
+        elif self.item == "train_targets":
+            return self.dataset._get_train_target(pos)
+        else:
+            raise Exception("unknown vector: %s" % (item,))
+
+    def __len__(self):
+        if self.item == "targets":
+            return self.dataset._get_targets_length()
+        elif self.item == "inputs":
+            return self.dataset._get_inputs_length()
+        elif self.item == "test_inputs":
+            return self.dataset._get_test_inputs_length()
+        elif self.item == "train_inputs":
+            return self.dataset._get_train_inputs_length()
+        elif self.item == "test_targets":
+            return self.dataset._get_test_targets_length()
+        elif self.item == "train_targets":
+            return self.dataset._get_train_targets_length()
+        else:
+            raise Exception("unknown vector type: %s" % (item,))
+
+    def __repr__(self):
+        return "<Dataset %s vector>" % self.item
+
 class Dataset():
     """
     Contains the dataset, and metadata about it.
@@ -63,6 +103,14 @@ class Dataset():
             raise Exception("you cannot set targets without inputs")
         if pairs:
             self.load(pairs)
+
+    def __getattr__(self, item):
+        if item in [
+                "inputs", "targets",
+                "test_inputs", "test_targets",
+                "train_inputs", "train_targets",
+        ]:
+            return _DataVector(self, item)
 
     def load_direct(self, inputs, targets):
         """
@@ -197,7 +245,7 @@ class Dataset():
             self.summary()
 
     def _cache_values(self):
-        self._num_inputs = self.get_inputs_length()
+        self._num_inputs = len(self.inputs)
         if self._num_inputs > 0:
             if self._num_input_banks > 1:
                 self._inputs_range = (min([x.min() for x in self._inputs]),
@@ -206,7 +254,7 @@ class Dataset():
                 self._inputs_range = (self._inputs.min(), self._inputs.max())
         else:
             self._inputs_range = (0,0)
-        self._num_targets = self.get_targets_length()
+        self._num_targets = len(self.targets)
         if self._num_inputs > 0:
             if self._num_target_banks > 1:
                 self._targets_range = (min([x.min() for x in self._targets]),
@@ -221,9 +269,9 @@ class Dataset():
         self._test_inputs = []
         self._test_targets = []
         # Final checks:
-        assert self.get_test_inputs_length() == self.get_test_targets_length(), "test inputs/targets lengths do not match"
-        assert self.get_train_inputs_length() == self.get_train_targets_length(), "train inputs/targets lengths do not match"
-        assert self.get_inputs_length() == self.get_targets_length(), "inputs/targets lengths do not match"
+        assert len(self.test_inputs) == len(self.test_targets), "test inputs/targets lengths do not match"
+        assert len(self.train_inputs) == len(self.train_targets), "train inputs/targets lengths do not match"
+        assert len(self.inputs) == len(self.targets), "inputs/targets lengths do not match"
 
     ## FIXME: add these for users' convenience:
     #def matrix_to_channels_last(self, matrix): ## vecteor
@@ -299,16 +347,16 @@ class Dataset():
         Print out a summary of the dataset.
         """
         print('Input Summary:')
-        print('   count  : %d' % (self.get_inputs_length(),))
-        if self.get_inputs_length() != 0:
+        print('   count  : %d' % (len(self.inputs),))
+        if len(self.inputs) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._inputs],))
             else:
                 print('   shape  : %s' % (self._inputs[0].shape,))
             print('   range  : %s' % (self._inputs_range,))
         print('Target Summary:')
-        print('   count  : %d' % (self.get_targets_length(),))
-        if self.get_targets_length() != 0:
+        print('   count  : %d' % (len(self.targets),))
+        if len(self.targets) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._targets],))
             else:
@@ -348,7 +396,7 @@ class Dataset():
         self._inputs = self._inputs[indices]
         if len(self._labels) != 0:
             self._labels = self._labels[indices]
-        if self.get_targets_length() != 0:
+        if len(self.targets) != 0:
             self._targets = self._targets[indices]
         self.split(self._split, verbose=False)
         if verbose:
@@ -379,7 +427,7 @@ class Dataset():
         if len(self._labels) != 0:
             self._train_labels = self._labels[:self._split]
             self._test_labels = self._labels[self._split:]
-        if self.get_targets_length() != 0:
+        if len(self.targets) != 0:
             if self._num_target_banks > 1:
                 self._train_targets = [col[:self._split] for col in self._targets]
                 self._test_targets = [col[self._split:] for col in self._targets]
@@ -388,10 +436,10 @@ class Dataset():
                 self._test_targets = self._targets[self._split:]
         if verbose:
             print('Split dataset into:')
-            print('   train set count: %d' % self.get_train_inputs_length())
-            print('   test set count : %d' % self.get_test_inputs_length())
+            print('   train set count: %d' % len(self.train_inputs))
+            print('   test set count : %d' % len(self.test_inputs))
 
-    def get_input(self, i):
+    def _get_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
@@ -404,7 +452,7 @@ class Dataset():
                 inputs.append(list(self._inputs[c][i]))
             return inputs
 
-    def get_target(self, i):
+    def _get_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
@@ -417,7 +465,7 @@ class Dataset():
                 targets.append(list(self._targets[c][i]))
             return targets
 
-    def get_train_input(self, i):
+    def _get_train_input(self, i):
         """
         Get a training input from the internal dataset and
         format it in the human API.
@@ -430,7 +478,7 @@ class Dataset():
                 inputs.append(list(self._train_inputs[c][i]))
             return inputs
 
-    def get_train_target(self, i):
+    def _get_train_target(self, i):
         """
         Get a training target from the internal dataset and
         format it in the human API.
@@ -443,7 +491,7 @@ class Dataset():
                 targets.append(list(self._train_targets[c][i]))
             return targets
 
-    def get_test_input(self, i):
+    def _get_test_input(self, i):
         """
         Get a test input from the internal dataset and
         format it in the human API.
@@ -456,7 +504,7 @@ class Dataset():
                 inputs.append(list(self._test_inputs[c][i]))
             return inputs
 
-    def get_test_target(self, i):
+    def _get_test_target(self, i):
         """
         Get a test target from the internal dataset and
         format it in the human API.
@@ -469,7 +517,7 @@ class Dataset():
                 targets.append(list(self._test_targets[c][i]))
             return targets
 
-    def get_inputs_length(self):
+    def _get_inputs_length(self):
         """
         Get the number of input patterns.
         """
@@ -480,7 +528,7 @@ class Dataset():
         else:
             return self._inputs.shape[0]
 
-    def get_targets_length(self):
+    def _get_targets_length(self):
         """
         Get the number of target patterns.
         """
@@ -491,7 +539,7 @@ class Dataset():
         else:
             return self._targets.shape[0]
 
-    def get_test_inputs_length(self):
+    def _get_test_inputs_length(self):
         """
         Get the number of test input patterns.
         """
@@ -502,7 +550,7 @@ class Dataset():
         else:
             return self._test_inputs.shape[0]
 
-    def get_test_targets_length(self):
+    def _get_test_targets_length(self):
         """
         Get the number of test target patterns.
         """
@@ -513,7 +561,7 @@ class Dataset():
         else:
             return self._test_targets.shape[0]
 
-    def get_train_inputs_length(self):
+    def _get_train_inputs_length(self):
         """
         Get the number of training input patterns.
         """
@@ -524,7 +572,7 @@ class Dataset():
         else:
             return self._train_inputs.shape[0]
 
-    def get_train_targets_length(self):
+    def _get_train_targets_length(self):
         """
         Get the number of training target patterns.
         """
