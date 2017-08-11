@@ -295,19 +295,19 @@ class Network():
         ## FIXME: allow human format of inputs, if given
         dataset_name = "provided"
         if inputs is None:
-            if self.dataset._split == self.dataset.num_inputs:
+            if self.dataset._split == self.dataset._num_inputs:
 
-                inputs = self.dataset.train_inputs
+                inputs = self.dataset._train_inputs
                 dataset_name = "training"
             else:
-                inputs = self.dataset.test_inputs
+                inputs = self.dataset._test_inputs
                 dataset_name = "testing"
         if targets is None:
-            if self.dataset._split == self.dataset.num_targets:
-                targets = self.dataset.train_targets
+            if self.dataset._split == self.dataset._num_targets:
+                targets = self.dataset._train_targets
             else:
-                targets = self.dataset.test_targets
-        print("Testing on %s dataset..." % dataset_name)
+                targets = self.dataset._test_targets
+        print("Testing on %s dataset._.." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         if self.num_input_layers == 1:
             ins = [self.pf(x) for x in inputs.tolist()]
@@ -364,9 +364,9 @@ class Network():
             1
             >>> # Method 2:
             >>> net.set_dataset(ds)
-            >>> net.dataset.num_target_banks
+            >>> net.dataset._num_target_banks
             1
-            >>> net.dataset.num_input_banks
+            >>> net.dataset._num_input_banks
             1
 
             >>> from conx import Network, Layer, SGD, Dataset
@@ -403,9 +403,9 @@ class Network():
             >>> len(err)
             2
             >>> net.set_dataset(ds)
-            >>> net.dataset.num_input_banks
+            >>> net.dataset._num_input_banks
             2
-            >>> net.dataset.num_target_banks
+            >>> net.dataset._num_target_banks
             2
         """
         if isinstance(inputs, dict):
@@ -468,24 +468,24 @@ class Network():
             }
         if batch_size is None:
             if self.num_input_layers == 1:
-                batch_size = self.dataset.train_inputs.shape[0]
+                batch_size = self.dataset._train_inputs.shape[0]
             else:
-                batch_size = self.dataset.train_inputs[0].shape[0]
+                batch_size = self.dataset._train_inputs[0].shape[0]
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
-        if self.dataset._split == self.dataset.num_inputs:
-            validation_inputs = self.dataset.train_inputs
-            validation_targets = self.dataset.train_targets
+        if self.dataset._split == self.dataset._num_inputs:
+            validation_inputs = self.dataset._train_inputs
+            validation_targets = self.dataset._train_targets
         else:
-            validation_inputs = self.dataset.test_inputs
-            validation_targets = self.dataset.test_targets
+            validation_inputs = self.dataset._test_inputs
+            validation_targets = self.dataset._test_targets
         if verbose: print("Training...")
         with _InterruptHandler() as handler:
             if accuracy is None: # train them all using fit
-                result = self.model.fit(self.dataset.train_inputs,
-                                        self.dataset.train_targets,
+                result = self.model.fit(self.dataset._train_inputs,
+                                        self.dataset._train_targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         verbose=verbose,
@@ -513,7 +513,7 @@ class Network():
                 self.val_percent_history.append(val_percent)
             else:
                 for e in range(1, epochs+1):
-                    result = self.model.fit(self.dataset.train_inputs, self.dataset.train_targets,
+                    result = self.model.fit(self.dataset._train_inputs, self.dataset._train_targets,
                                             batch_size=batch_size,
                                             epochs=1,
                                             verbose=0,
@@ -748,13 +748,13 @@ class Network():
         ## FIXME: redo checks to separate dataset:
         # if len(input_layers) == 1 and len(self.input_layer_order) == 0:
         #     pass # ok!
-        # elif len(input_layers) == len(self.dataset.input_layer_order):
+        # elif len(input_layers) == len(self.dataset._input_layer_order):
         #     # check to make names all match
         #     for layer in input_layers:
-        #         if layer.name not in self.dataset.input_layer_order:
-        #             raise Exception("layer '%s' is not listed in dataset.input_layer_order" % layer.name)
+        #         if layer.name not in self.dataset._input_layer_order:
+        #             raise Exception("layer '%s' is not listed in dataset._input_layer_order" % layer.name)
         # else:
-        #     raise Exception("improper dataset.input_layer_order names")
+        #     raise Exception("improper dataset._input_layer_order names")
         ## FIXME: add new dataset-based checks:
         # if len(output_layers) == 1 and len(self.output_layer_order) == 0:
         #     pass # ok!
@@ -892,7 +892,7 @@ class Network():
                 if not self[layer_name].visible:
                     continue
                 if self.model: # thus, we can propagate
-                    if self.dataset and self.dataset.num_inputs != 0:
+                    if self.dataset and self.dataset._num_inputs != 0:
                         v = self.dataset.get_input(0)
                     else:
                         if self.num_target_layers > 1:
