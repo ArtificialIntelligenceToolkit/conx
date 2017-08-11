@@ -74,7 +74,7 @@ class _BaseLayer():
         self.vshape = None
         self.image_maxdim = None
         self.visible = True
-        self.colormap = None
+        self.colormap = "RdGy"
         self.minmax = None
         self.model = None
         self.decode_model = None
@@ -223,7 +223,7 @@ class _BaseLayer():
         minmax = config.get("minmax")
         if minmax is None:
             minmax = self.get_minmax(vector)
-        vector = self.scale_output_for_image(vector, minmax)
+        vector = self.scale_output_for_image(vector, minmax, truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         size = config["pixels_per_unit"]
@@ -242,12 +242,12 @@ class _BaseLayer():
         image = image.resize((new_height, new_width))
         return image
 
-    def scale_output_for_image(self, vector, minmax):
+    def scale_output_for_image(self, vector, minmax, truncate=False):
         """
         Given an activation name (or something else) and an output
         vector, scale the vector.
         """
-        return rescale_numpy_array(vector, minmax, (0,255), 'uint8')
+        return rescale_numpy_array(vector, minmax, (0,255), 'uint8', truncate=truncate)
 
     def make_dummy_vector(self):
         """

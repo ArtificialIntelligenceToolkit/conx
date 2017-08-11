@@ -135,10 +135,10 @@ class Network():
             "arrow_width": "2",
             "border_width": "2",
             "border_color": "blue",
-            "show_targets": True,
+            "show_targets": False,
+            "show_errors": False,
             "minmax": None,
             "colormap": None,
-            "show_errors": True,
             "pixels_per_unit": 1,
             "pp_max_length": 20,
             "pp_precision": 1,
@@ -1002,6 +1002,14 @@ class Network():
                 targets.append(list(self.test_targets[c][i]))
             return targets
 
+    def get_weights(self, layer_name):
+        """
+        Get the weights from the model in an easy to read format.
+        """
+        weights = [layer.get_weights() for layer in self.model.layers
+                   if layer_name == layer.name][0]
+        return [m.tolist() for m in weights]
+
     def propagate(self, input, batch_size=32):
         """
         Propagate an input (in human API) through the network.
@@ -1777,7 +1785,7 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             return self.train_targets.shape[0]
 
-    def dashboard(self, width="100%", max_height="550px", iwidth="800px"): ## FIXME: iwidth hack
+    def dashboard(self, width="100%", height="550px", iwidth="960px"): ## FIXME: iwidth hack
         """
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
@@ -1855,7 +1863,7 @@ require(['base/js/namespace'], function(Jupyter) {
             update_slider_control({"name": "value"})
 
         net_svg = HTML(value=self.build_svg(), layout=Layout(
-            width=width, height="100%", max_height=max_height, overflow_x='auto',
+            width=width, height=height, overflow_x='auto',
             justify_content="center"))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
@@ -1894,12 +1902,12 @@ require(['base/js/namespace'], function(Jupyter) {
 
         # Put them together:
         control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
-        net_page = VBox([net_svg, control], layout=Layout(width='100%'))
-        graph_page = VBox()
-        analysis_page = VBox()
-        camera_page = VBox([Button(description="Turn on webcamera")])
-        help_page = HTML('<iframe style="width: %s" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>' % (iwidth, max_height),
-                         layout=Layout(width="100%"))
+        net_page = VBox([net_svg, control], layout=Layout(width='100%', height=height))
+        graph_page = VBox(layout=Layout(width='100%', height=height))
+        analysis_page = VBox(layout=Layout(width='100%', height=height))
+        camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
+        help_page = HTML('<iframe style="width: %s" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>' % (iwidth, height),
+                         layout=Layout(width="100%", height=height))
         net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
         tabs = [("Network", net_page), ("Graphs", graph_page), ("Analysis", analysis_page),
                 ("Camera", camera_page), ("Help", help_page)]

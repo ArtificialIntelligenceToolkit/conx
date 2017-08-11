@@ -18,6 +18,7 @@
 # Boston, MA 02110-1301  USA
 
 import numbers
+import numpy as np
 from keras.utils import to_categorical
 
 #------------------------------------------------------------------------
@@ -84,7 +85,7 @@ def valid_vshape(x):
     # vshape must be a single int or a 2-dimensional tuple
     return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) == 2)
 
-def rescale_numpy_array(a, old_range, new_range, new_dtype):
+def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
     """
     Given a vector, old min/max, a new min/max and a numpy type,
     create a new vector scaling the old values.
@@ -92,7 +93,10 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype):
     assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range
     if a.min() < old_min or a.max() > old_max:
-        raise Exception('array values are outside range %s' % (old_range,))
+        if truncate:
+            a = np.clip(a, old_min, old_max)
+        else:
+            raise Exception('array values are outside range %s' % (old_range,))
     new_min, new_max = new_range
     old_delta = old_max - old_min
     new_delta = new_max - new_min
