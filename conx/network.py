@@ -33,6 +33,7 @@ import copy
 import io
 import os
 import PIL
+from typing import Any
 
 import numpy as np
 import keras
@@ -41,7 +42,6 @@ from .utils import *
 from .layers import Layer
 from .dataset import Dataset
 
-from typing import Any
 
 try:
     from IPython import get_ipython
@@ -62,12 +62,14 @@ class Network():
         config: Configuration overrides for the network.
 
     Note:
-        To have a complete, operating network, you must do the following items:
+        To create a complete, operating network, you must do the following items:
 
         1. create a network
         2. add layers
         3. connect the layers
         4. compile the network
+        5. set the dataset
+        6. train the network
 
         See also :any:`Layer`, :any:`Network.add`, :any:`Network.connect`,
         and :any:`Network.compile`.
@@ -878,7 +880,7 @@ class Network():
             })
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
-        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}">{label}</text>"""
+        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
         max_width = 0
         images = {}
         image_dims = {}
@@ -933,7 +935,14 @@ class Network():
                 max_height = max(max_height, height)
             row_height.append(max_height)
             max_width = max(max_width, total_width)
-        svg = ""
+        svg = label_svg.format(
+                    **{"x": max_width/2,
+                       "y": config["border_top"]/2,
+                       "label": self.name,
+                       "font_size": config["font_size"] + 3,
+                       "font_family": config["font_family"],
+                       "text_anchor": "middle",
+                    })
         cheight = config["border_top"] # top border
         ## Display target?
         if config["show_targets"]:
@@ -969,6 +978,7 @@ class Network():
                        "label": "targets",
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
+                       "text_anchor": "start",
                     })
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
@@ -1007,6 +1017,7 @@ class Network():
                        "label": "errors",
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
+                       "text_anchor": "start",
                     })
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
@@ -1096,6 +1107,7 @@ class Network():
                        "label": layer_name,
                        "font_size": config["font_size"],
                        "font_family": config["font_family"],
+                       "text_anchor": "start",
                     })
                 cwidth += width/2
                 max_height = max(max_height, height)

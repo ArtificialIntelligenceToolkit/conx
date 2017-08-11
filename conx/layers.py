@@ -62,7 +62,8 @@ class _BaseLayer():
 
     See :any:`Layer` for more details.
     """
-    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+    ACTIVATION_FUNCTIONS = ('relu', 'sigmoid', 'linear', 'softmax', 'tanh',
+                            'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid')
     CLASS = None
 
     def __init__(self, name, *args, **params):
