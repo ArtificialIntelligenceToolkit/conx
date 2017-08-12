@@ -1,7 +1,7 @@
 from conx import Network, SGD, Dataset
 
 # Method 1:
-dataset = Dataset([2], [1])
+dataset = Dataset()
 ds = [[[0, 0], [0]],
       [[0, 1], [1]],
       [[1, 0], [1]],

@@ -20,14 +20,13 @@ net.compile(loss='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
 
 # Method 1:
-dataset = Dataset([1, 1], [1, 1]) # input layer sizes, target layer sizes
 ds = [
     ([[0],[0]], [[0],[0]]),
     ([[0],[1]], [[1],[1]]),
     ([[1],[0]], [[1],[1]]),
     ([[1],[1]], [[0],[0]])
 ]
-dataset.load(ds)
+dataset = Dataset(ds)
 net.set_dataset(dataset)
 net.train(2000, report_rate=10, accuracy=1)
 net.test()

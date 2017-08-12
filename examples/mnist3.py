@@ -115,13 +115,14 @@ net.connect('hidden2', 'output')
 net.compile(loss='mean_squared_error',
             optimizer='sgd')
 
-net.load_mnist_dataset()
+ds = Dataset.get_mnist()
+net.set_dataset(ds)
 #net.rescale_inputs((0,255), (0,1), 'float32')
 #net.shuffle_dataset()
-net.reshape_inputs(784)
-net.slice_dataset(100)
+ds.reshape_inputs(784)
+ds.slice(100)
 #net.set_targets_to_categories(10)
-net.summary_dataset()
+ds.summary()
 
 net.train(10)
 #net.test()
