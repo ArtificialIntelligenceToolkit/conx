@@ -24,7 +24,10 @@ manipulating a set of inputs/targets.
 
 """
 
+from functools import reduce
+import operator
 import numpy as np
+import copy
 import numbers
 
 import keras
@@ -81,10 +84,7 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, input_shapes=None, target_shapes=None,
-                 inputs=None, targets=None, pairs=None):
-        self._input_shapes = input_shapes
-        self._target_shapes = target_shapes
+    def __init__(self, pairs=None, inputs=None, targets=None):
         self._num_input_banks = 0
         self._num_target_banks = 0
         self._inputs = []
@@ -100,6 +100,8 @@ class Dataset():
         self._targets_range = (0,0)
         self._num_inputs = 0
         self._num_targets = 0
+        self._target_shapes = []
+        self._input_shapes = []
         self._split = 0
         if inputs is not None:
             if targets is not None:
@@ -134,17 +136,39 @@ class Dataset():
         [[target-layer-1-vectors], [target-layer-2-vectors], ...] if multi target layers
 
         """
-        ## Better be in correct format!
-        ## each is either: list of np.arrays() [multi], or np.array() [single]
+        ## need to set: _num_input_banks, _input_shapes, _inputs
+        ## need to set: _num_target_banks, _target_shapes, _targets
+        ## inputs is a list [multiple] or np.array() [single]
         if inputs is not None:
-            self._inputs = inputs
-            self._num_inputs = len(self.inputs)
+            self._set_input_info(inputs)
         if targets is not None:
-            self._targets = targets
+            self._set_target_info(targets)
         if labels is not None:
-            self._labels = labels
+            self._labels = labels # should be a np.array/list of single values
         self._cache_values()
-        self.split(self._num_inputs, verbose=False)
+        self.split(self._num_inputs)
+
+    def _set_input_info(self, inputs):
+        self._inputs = inputs
+        if isinstance(inputs, (list, tuple)): ## multiple inputs
+            self._num_input_banks = len(inputs)
+            self._input_shapes = [x.shape for x in inputs]
+            self._num_inputs = len(inputs[0])
+        else:
+            self._num_input_banks = 1
+            self._input_shapes = [inputs[0].shape]
+            self._num_inputs = len(inputs)
+
+    def _set_target_info(self, targets):
+        self._targets = targets
+        if isinstance(targets, (list, tuple)): ## multiple inputs
+            self._num_target_banks = len(targets)
+            self._target_shapes = [x.shape for x in targets]
+            self._num_targets = len(targets[0])
+        else:
+            self._num_target_banks = 1
+            self._target_shapes = [targets[0].shape]
+            self._num_targets = len(targets)
 
     def load(self, pairs):
         """
@@ -161,36 +185,30 @@ class Dataset():
         ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
         self._num_input_banks = len(np.array(pairs[0][0]).shape)
         self._num_target_banks = len(np.array(pairs[0][1]).shape)
-        if self._num_input_banks == 1:
-            self._input_shapes = [np.array(pairs[0][0]).shape]
-        else:
-            self._input_shapes = [np.array(inp).shape for inp in pairs[0][0]] # [0] first pattern, [0] inputs
-        if self._num_target_banks == 1:
-            self._target_shapes = [np.array(pairs[0][1]).shape]
-        else:
-            self._input_shapes = [np.array(inp).shape for inp in pairs[0][1]] # [0] first pattern, [1] targets
         if self._num_input_banks > 1:
-            self._inputs = []
+            inputs = []
             for i in range(len(pairs[0][0])):
-                self._inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
+                inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
         else:
-            self._inputs = np.array([x for (x, y) in pairs], "float32")
+            inputs = np.array([x for (x, y) in pairs], "float32")
         if self._num_target_banks > 1:
-            self._targets = []
+            targets = []
             for i in range(len(pairs[0][1])):
-                self._targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
+                targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
-            self._targets = np.array([y for (x, y) in pairs], "float32")
+            targets = np.array([y for (x, y) in pairs], "float32")
         self._labels = []
+        self._set_input_info(inputs)
+        self._set_target_info(targets)
         self._cache_values()
-        self.split(self._num_inputs, verbose=False)
+        self.split(self._num_inputs)
 
     @classmethod
-    def get_mnist(cls, verbose=True):
+    def get_mnist(cls):
         """
         Load the Keras MNIST dataset and format it as images.
         """
-        dataset = Dataset([["input", (28, 28, 1)]])
+        dataset = Dataset()
         # input image dimensions
         img_rows, img_cols = 28, 28
         # the data, shuffled and split between train and test sets
@@ -209,16 +227,13 @@ class Dataset():
         x_test = x_test.astype('float32')
         x_train /= 255
         x_test /= 255
-        dataset._inputs = np.concatenate((x_train,x_test))
-        dataset._labels = np.concatenate((y_train,y_test))
-        dataset._targets = to_categorical(dataset._labels)
-        dataset._num_input_banks = 1
-        dataset._num_target_banks = 1
-        dataset._cache_values()
-        dataset.split(dataset._num_inputs, verbose=False)
+        inputs = np.concatenate((x_train,x_test))
+        labels = np.concatenate((y_train,y_test))
+        targets = to_categorical(labels)
+        dataset.load_direct(inputs, targets, labels)
         return dataset
 
-    def slice(self, start=None, stop=None, verbose=True):
+    def slice(self, start=None, stop=None):
         """
         Cut out some input/targets.
 
@@ -237,25 +252,23 @@ class Dataset():
                 stop = len(self._inputs)
             else: # (None, #)
                 start = 0
-        if verbose:
-            print("Slicing dataset %d:%d..." % (start, stop))
         if self._num_input_banks > 1:
-            self._inputs = [np.array([vector for vector in row[start:stop]]) for row in self._inputs]
+            inputs = [np.array([vector for vector in row[start:stop]]) for row in self._inputs]
         else:
-            self._inputs = self._inputs[start:stop] # ok
+            inputs = self._inputs[start:stop] # ok
         if self._num_target_banks > 1:
-            self._targets = [np.array([vector for vector in row[start:stop]]) for row in self._targets]
+            targets = [np.array([vector for vector in row[start:stop]]) for row in self._targets]
         else:
-            self._targets = self._targets[start:stop]
+            targets = self._targets[start:stop]
         if len(self._labels) > 0:
             self._labels = self._labels[start:stop]
+        self._set_input_info(inputs)
+        self._set_target_info(targets)
         self._cache_values()
-        self.split(self._num_inputs, verbose=False)
-        if verbose:
-            self.summary()
+        self.split(self._num_inputs)
 
     def _cache_values(self):
-        self._num_inputs = len(self.inputs)
+        ## ASSUMES all _nums are set!
         if self._num_inputs > 0:
             if self._num_input_banks > 1:
                 self._inputs_range = (min([x.min() for x in self._inputs]),
@@ -264,7 +277,6 @@ class Dataset():
                 self._inputs_range = (self._inputs.min(), self._inputs.max())
         else:
             self._inputs_range = (0,0)
-        self._num_targets = len(self.targets)
         if self._num_inputs > 0:
             if self._num_target_banks > 1:
                 self._targets_range = (min([x.min() for x in self._targets]),
@@ -312,7 +324,19 @@ class Dataset():
     #     except:
     #         raise Exception("couldn't load .npz dataset %s" % filename)
 
-    def reshape_inputs(self, new_shape, verbose=True):
+    def set_targets_from_inputs(self):
+        """
+        Copy the inputs to targets
+        """
+        self._set_target_info(copy.copy(self._inputs))
+
+    def set_inputs_from_targets(self):
+        """
+        Copy the targets to inputs
+        """
+        self._set_input_info(copy.copy(self._targets))
+
+    def reshape_inputs(self, new_shape):
         """
         Reshape the input vectors. WIP.
         """
@@ -321,7 +345,9 @@ class Dataset():
             raise Exception("reshape_inputs does not yet work on multi-input patterns")
         if self._num_inputs == 0:
             raise Exception("no dataset loaded")
-        if not valid_shape(new_shape):
+        if isinstance(new_shape, numbers.Integral):
+            pass ## ok
+        elif not valid_shape(new_shape):
             raise Exception("bad shape: %s" % (new_shape,))
         if isinstance(new_shape, numbers.Integral):
             new_size = self._num_inputs * new_shape
@@ -331,10 +357,8 @@ class Dataset():
             raise Exception("shape %s is incompatible with inputs" % (new_shape,))
         if isinstance(new_shape, numbers.Integral):
             new_shape = (new_shape,)
-        self._inputs = self._inputs.reshape((self._num_inputs,) + new_shape)
-        self.split(self._split, verbose=False)
-        if verbose:
-            self.summary()
+        self._set_input_info(self._inputs.reshape((self._num_inputs,) + new_shape))
+        self.split(self._split)
 
     def set_targets_from_labels(self, num_classes):
         """
@@ -393,7 +417,7 @@ class Dataset():
         print('Inputs rescaled to %s values in the range %s - %s' %
               (self._inputs.dtype, new_min, new_max))
 
-    def shuffle(self, verbose=True):
+    def shuffle(self):
         """
         Shuffle the inputs/targets. WIP.
         """
@@ -408,11 +432,9 @@ class Dataset():
             self._labels = self._labels[indices]
         if len(self.targets) != 0:
             self._targets = self._targets[indices]
-        self.split(self._split, verbose=False)
-        if verbose:
-            print('Shuffled all %d inputs' % self._num_inputs)
+        self.split(self._split)
 
-    def split(self, split=0.50, verbose=True):
+    def split(self, split=0.50):
         """
         Split the inputs/targets into training/test datasets.
         """
@@ -444,10 +466,6 @@ class Dataset():
             else:
                 self._train_targets = self._targets[:self._split]
                 self._test_targets = self._targets[self._split:]
-        if verbose:
-            print('Split dataset into:')
-            print('   train set count: %d' % len(self.train_inputs))
-            print('   test set count : %d' % len(self.test_inputs))
 
     def _get_input(self, i):
         """

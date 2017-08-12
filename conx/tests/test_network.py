@@ -5,7 +5,6 @@ def test_network_constructor():
     Network constructor.
     """
     net = Network("Constructor", 2, 5, 2)
-    net.connect()
     assert net is not None
 
 def test_xor1():
@@ -21,7 +20,7 @@ def test_xor1():
     net.compile(loss="binary_crossentropy", optimizer="adam")
     net.summary()
     net.model.summary()
-    dataset = Dataset([["input", 2]], [["output", 1]])
+    dataset = Dataset()
     dataset.load([[[0, 0], [0]],
                   [[0, 1], [1]],
                   [[1, 0], [1]],
@@ -55,8 +54,7 @@ def test_xor2():
     net.compile(loss='mean_squared_error',
                 optimizer=SGD(lr=0.3, momentum=0.9))
 
-    dataset = Dataset([["input1", 1], ["input2", 1]],
-                      [["output1", 1], ["output2", 1]])
+    dataset = Dataset()
     dataset.load([
         ([[0],[0]], [[0],[0]]),
         ([[0],[1]], [[1],[1]]),
@@ -191,6 +189,6 @@ def test_cifar10():
     x_test /= 255
 
     net.propagate(x_train[0])
-    dataset = Dataset([["input", (32, 32, 3)]], [["output", 10]])
+    dataset = Dataset()
     dataset.load_direct(x_train, y_train)
     net.propagate(x_test[0])

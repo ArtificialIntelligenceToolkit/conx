@@ -179,7 +179,7 @@ class Network():
 
     def set_dataset(self, dataset):
         if not isinstance(dataset, Dataset):
-            dataset = Dataset(pairs=dataset)
+            dataset = Dataset(dataset) ## assumes pair format
         self.dataset = dataset
 
     def __getitem__(self, layer_name):
@@ -252,16 +252,27 @@ class Network():
             ['hidden']
         """
         if from_layer_name is None and to_layer_name is None:
+            if (any([layer.outgoing_connections for layer in self.layers]) or
+                any([layer.incoming_connections for layer in self.layers])):
+                raise Exception("layers already have connections")
             for i in range(len(self.layers) - 1):
                 self.connect(self.layers[i].name, self.layers[i+1].name)
         else:
+            ## FIXME: check for cycle here
+            if from_layer_name == to_layer_name:
+                raise Exception("self connections are not allowed")
             if from_layer_name not in self.layer_dict:
                 raise Exception('unknown layer: %s' % from_layer_name)
             if to_layer_name not in self.layer_dict:
                 raise Exception('unknown layer: %s' % to_layer_name)
             from_layer = self.layer_dict[from_layer_name]
             to_layer = self.layer_dict[to_layer_name]
+            ## NOTE: these could be allowed, I guess:
+            if to_layer in from_layer.outgoing_connections:
+                raise Exception("attempting to duplicate connection: %s to %s" % (from_layer_name, to_layer_name))
             from_layer.outgoing_connections.append(to_layer)
+            if from_layer in to_layer.incoming_connections:
+                raise Exception("attempting to duplicate connection: %s to %s" % (to_layer_name, from_layer_name))
             to_layer.incoming_connections.append(from_layer)
             input_layers = [layer for layer in self.layers if layer.kind() == "input"]
             self.num_input_layers = len(input_layers)
@@ -354,7 +365,7 @@ class Network():
             ...       [[0, 1], [1]],
             ...       [[1, 0], [1]],
             ...       [[1, 1], [0]]]
-            >>> dataset = Dataset([2], [1])
+            >>> dataset = Dataset(ds)
             >>> dataset.load(ds)
             >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
@@ -393,8 +404,7 @@ class Network():
             ...       ([[0],[1]], [[1],[1]]),
             ...       ([[1],[0]], [[1],[1]]),
             ...       ([[1],[1]], [[0],[0]])]
-            >>> dataset = Dataset([1, 1],
-            ...                   [1, 1])
+            >>> dataset = Dataset(ds)
             >>> dataset.load(ds)
             >>> net.set_dataset(dataset)
             >>> net.compile(loss='mean_squared_error',
@@ -902,12 +912,12 @@ class Network():
         image_dims = {}
         row_height = []
         # Go through and build images, compute max_width:
-        for level_names in ordering:
+        for level_tups in ordering: ## output to input:
             # first make all images at this level
             total_width = 0 # for this row
             max_height = 0
-            for layer_name in level_names:
-                if not self[layer_name].visible:
+            for (layer_name, anchor) in level_tups:
+                if not self[layer_name].visible: # not need to handle anchors here
                     continue
                 if self.model: # thus, we can propagate
                     if self.dataset and self.dataset._num_inputs != 0:
@@ -963,7 +973,7 @@ class Network():
         ## Display target?
         if config["show_targets"]:
             # Find the spacing for row:
-            for layer_name in ordering[0]:
+            for (layer_name, anchor) in ordering[0]:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
@@ -971,7 +981,7 @@ class Network():
             spacing = max_width / divide(len(ordering[0]))
             # draw the row of targets:
             cwidth = 0
-            for layer_name in ordering[0]:
+            for (layer_name, anchor) in ordering[0]: ## no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - width/2)
@@ -1002,7 +1012,7 @@ class Network():
         ## Display error?
         if config["show_errors"]:
             # Find the spacing for row:
-            for layer_name in ordering[0]:
+            for (layer_name, anchor) in ordering[0]: # no anchors in output
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
@@ -1010,7 +1020,7 @@ class Network():
             spacing = max_width / divide(len(ordering[0]))
             # draw the row of errors:
             cwidth = 0
-            for layer_name in ordering[0]:
+            for (layer_name, anchor) in ordering[0]: # no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - (width/2))
@@ -1040,19 +1050,19 @@ class Network():
             cheight += row_height[0] + 10 # max height of row, plus some
         # Now we go through again and build SVG:
         positioning = {}
-        for level_names in ordering:
+        for level_tups in ordering:
             # compute width of just pictures for this row:
-            for layer_name in level_names:
-                if not self[layer_name].visible:
-                    continue
-                image = images[layer_name]
-                (width, height) = image_dims[layer_name]
-            spacing = max_width / divide(len(level_names))
+            #for (layer_name, anchor) in level_tups:
+            #    if not self[layer_name].visible:
+            #        continue
+            #    image = images[layer_name]
+            #    (width, height) = image_dims[layer_name]
+            spacing = max_width / divide(len(level_tups))
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
             last_connections_up = False
-            for layer_name in level_names:
+            for (layer_name, anchor) in level_tups:
                 if not self[layer_name].visible:
                     continue
                 for out in self[layer_name].outgoing_connections:
@@ -1066,7 +1076,7 @@ class Network():
                     cheight += 5
             last_connections_up = any_connections_up
             max_height = 0 # for row of images
-            for layer_name in level_names:
+            for (layer_name, anchor) in level_tups:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
@@ -1086,22 +1096,23 @@ class Network():
                                            "rw": width + 2}
                 x1 = cwidth + width/2
                 y1 = cheight - 1
-                for out in self[layer_name].outgoing_connections:
-                    if out.name not in positioning:
-                        continue
-                    # draw background to arrows to allow mouseover tooltips:
-                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
-                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                    rect_width = abs(x1 - x2)
-                    rect_extra = 0
-                    if rect_width < 20:
-                        rect_extra = 10
-                    tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
-                    svg += arrow_rect.format(**{"tooltip": tooltip,
-                                                "rx": min(x2, x1) - rect_extra,
-                                                "ry": min(y2, y1) + 2, # bring down
-                                                "rw": rect_width + rect_extra * 2,
-                                                "rh": abs(y1 - y2) - 2})
+                #### Background rects for arrow mouseovers
+                # for out in self[layer_name].outgoing_connections:
+                #     if out.name not in positioning:
+                #         continue
+                #     # draw background to arrows to allow mouseover tooltips:
+                #     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                #     y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                #     rect_width = abs(x1 - x2)
+                #     rect_extra = 0
+                #     if rect_width < 20:
+                #         rect_extra = 10
+                #     tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
+                #     svg += arrow_rect.format(**{"tooltip": tooltip,
+                #                                 "rx": min(x2, x1) - rect_extra,
+                #                                 "ry": min(y2, y1) + 2, # bring down
+                #                                 "rw": rect_width + rect_extra * 2,
+                #                                 "rh": abs(y1 - y2) - 2})
                 for out in self[layer_name].outgoing_connections:
                     if out.name not in positioning:
                         continue
@@ -1167,6 +1178,14 @@ require(['base/js/namespace'], function(Jupyter) {
         display(Javascript(js))
 
     def _get_level_ordering(self):
+        """
+        Returns a list of lists of tuples from
+        input to output of levels.
+
+        Each tuple contains: (layer_name, anchor?)
+
+        If anchor is True, this is just an anchor point.
+        """
         ## First, get a level for all layers:
         levels = {}
         for layer in topological_sort(self, self.layers):
@@ -1175,19 +1194,37 @@ require(['base/js/namespace'], function(Jupyter) {
             level = max([levels[lay.name] for lay in layer.incoming_connections] + [-1])
             levels[layer.name] = level + 1
         max_level = max(levels.values())
-        # Now, sort by input layer indices:
         ordering = []
-        for i in range(max_level + 1):
+        for i in range(max_level + 1): # input to output
             layer_names = [layer.name for layer in self.layers if levels[layer.name] == i]
-            if self.input_bank_order:
-                inputs = [([self.input_bank_order.index(name)
-                            for name in self[layer_name].input_names], layer_name)
-                          for layer_name in layer_names]
-            else:
-                inputs = [([0 for name in self[layer_name].input_names], layer_name)
-                          for layer_name in layer_names]
-            level = [row[1] for row in sorted(inputs)]
-            ordering.append(level)
+            ordering.append([(name, False) for name in layer_names])
+        ## promote all output banks to last row:
+        for level in range(len(ordering)): # input to output
+            if level != len(ordering) - 1: # not last level, those are outputs
+                tuples = ordering[level]
+                for (name, anchor) in tuples[:]: # go through copy
+                    if self[name].kind() == "output":
+                        ## move it to last row
+                        ## find it and remove
+                        index = tuples.index((name, anchor))
+                        ordering[-1].append(tuples.pop(index))
+        ## insert anchor points for any in next level
+        ## that doesn't go to a bank in this level
+        for level in range(len(ordering)): # input to output
+            if level < len(ordering) - 2: # not last two level
+                tuples = ordering[level]
+                for (name, anchor) in tuples:
+                    ## if next level doesn't contain an outgoing
+                    ## connection, add it to next level as anchor point
+                    for layer in self[name].outgoing_connections:
+                        next_level = [n for (n, anchor) in ordering[level + 1]]
+                        if (layer.name not in next_level and name not in next_level):
+                            ordering[level + 1].append((name, True)) # add anchor point
+            ## replace level with sorted level:
+            def input_index(name):
+                return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
+            lev = sorted([(input_index(name), name, anchor) for (name, anchor) in ordering[level]])
+            ordering[level] = [(name, anchor) for (index, name, anchor) in lev]
         return ordering
 
     def describe_connection_to(self, layer1, layer2):
