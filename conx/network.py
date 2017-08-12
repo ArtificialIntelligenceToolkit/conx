@@ -125,6 +125,7 @@ class Network():
     def __init__(self, name: str, *sizes: int, **config: Any):
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
+        self.debug = False
         self.config = {
             "font_size": 12, # for svg
             "font_family": "monospace", # for svg
@@ -693,7 +694,8 @@ class Network():
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
             # get just inputs for this layer, in order:
-            vector = [np.array(inputs[self.input_bank_order.index(name)]) for name in self[layer_name].input_names]
+            vector = [np.array([inputs[self.input_bank_order.index(name)]]) for name in
+                      self._get_sorted_input_names(self[layer_name].input_names)]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
         if self.visualize and visualize and get_ipython():
             if not self._comm:
@@ -789,24 +791,31 @@ class Network():
         Construct the layer.k, layer.input_names, and layer.model's.
         """
         sequence = topological_sort(self, self.layers)
+        if self.debug: print("topological sort:", [l.name for l in sequence])
         for layer in sequence:
             if layer.kind() == 'input':
+                if self.debug: print("making input layer for", layer.name)
                 layer.k = layer.make_input_layer_k()
                 layer.input_names = [layer.name]
                 layer.model = keras.models.Model(inputs=layer.k, outputs=layer.k) # identity
             else:
+                if self.debug: print("making layer for", layer.name)
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
                 kfuncs = layer.make_keras_functions()
                 if len(layer.incoming_connections) == 1:
+                    if self.debug: print("single input", layer.incoming_connections[0])
                     k = layer.incoming_connections[0].k
                     layer.input_names = layer.incoming_connections[0].input_names
                 else: # multiple inputs, need to merge
+                    if self.debug: print("Merge detected!", [l.name for l in layer.incoming_connections])
                     k = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
                     # flatten:
                     layer.input_names = [item for sublist in
                                          [incoming.input_names for incoming in layer.incoming_connections]
                                          for item in sublist]
+                if self.debug: print("input names for", layer.name, layer.input_names)
+                if self.debug: print("applying k's", kfuncs)
                 for f in kfuncs:
                     k = f(k)
                 layer.k = k
@@ -819,18 +828,25 @@ class Network():
         Get the Keras function for each of a set of layer names.
         [in3, in4] sorted by input bank ordering
         """
-        sorted_layer_names = [name for (index, name) in sorted([(self.input_bank_order.index(name), name) for name in layer_names])]
+        sorted_layer_names = self._get_sorted_input_names(layer_names)
         layer_ks = [self[layer_name].k for layer_name in sorted_layer_names]
-        if self.num_target_layers == 1:
+        if len(layer_ks) == 1:
             layer_ks = layer_ks[0]
         return layer_ks
+
+    def _get_sorted_input_names(self, layer_names):
+        """
+        Given a set of input names, give them back in order.
+        """
+        return [name for (index, name) in sorted([(self.input_bank_order.index(name), name)
+                                                  for name in layer_names])]
 
     def _get_output_ks_in_order(self):
         """
         Get the Keras function for each output layer, in order.
         """
         layer_ks = [self[layer_name].k for layer_name in self.output_bank_order]
-        if self.num_target_layers == 1:
+        if len(layer_ks) == 1:
             layer_ks = layer_ks[0]
         return layer_ks
 
@@ -897,7 +913,7 @@ class Network():
                     if self.dataset and self.dataset._num_inputs != 0:
                         v = self.dataset.inputs[0]
                     else:
-                        if self.num_target_layers > 1:
+                        if self.num_input_layers > 1:
                             v = []
                             for in_name in self.input_bank_order:
                                 v.append(self[in_name].make_dummy_vector())
