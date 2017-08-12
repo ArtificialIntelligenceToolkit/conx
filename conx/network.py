@@ -594,8 +594,8 @@ class Network():
         if self.num_input_layers == 1:
             outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
         else:
-            inputs = [np.array(x, "float32") for x in input]
-            outputs = [[list(y) for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
+            inputs = [np.array([x], "float32") for x in input]
+            outputs = [[y.tolist() for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
         if self.visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
