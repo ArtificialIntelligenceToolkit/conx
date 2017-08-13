@@ -31,9 +31,7 @@ import copy
 import numbers
 
 import keras
-from keras.datasets import mnist
 from keras.utils import to_categorical
-import keras.backend as K
 
 from .utils import valid_shape
 
@@ -204,10 +202,40 @@ class Dataset():
         self.split(self._num_inputs)
 
     @classmethod
+    def get_cifar10(cls):
+        from keras.datasets import cifar10
+        (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+        inputs = np.concatenate((x_train, x_test))
+        targets = np.concatenate((y_train, y_test))
+        inputs = inputs.astype('float32')
+        targets = targets.astype('float32')
+        inputs /= 255
+        targets /= 255
+        ds = Dataset()
+        ds.load_direct(inputs, targets)
+        return ds
+
+    @classmethod
+    def get_cifar100(cls):
+        from keras.datasets import cifar100
+        (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+        inputs = np.concatenate((x_train, x_test))
+        targets = np.concatenate((y_train, y_test))
+        inputs = inputs.astype('float32')
+        targets = targets.astype('float32')
+        inputs /= 255
+        targets /= 255
+        ds = Dataset()
+        ds.load_direct(inputs, targets)
+        return ds
+
+    @classmethod
     def get_mnist(cls):
         """
         Load the Keras MNIST dataset and format it as images.
         """
+        from keras.datasets import mnist
+        import keras.backend as K
         dataset = Dataset()
         # input image dimensions
         img_rows, img_cols = 28, 28
@@ -381,7 +409,8 @@ class Dataset():
         Print out a summary of the dataset.
         """
         print('Input Summary:')
-        print('   count  : %d' % (len(self.inputs),))
+        print('   count  : %d (%d for training, %s for testing)' % (
+            len(self.inputs), self._split, len(self.inputs) - self._split))
         if len(self.inputs) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._inputs],))
@@ -389,7 +418,8 @@ class Dataset():
                 print('   shape  : %s' % (self._inputs[0].shape,))
             print('   range  : %s' % (self._inputs_range,))
         print('Target Summary:')
-        print('   count  : %d' % (len(self.targets),))
+        print('   count  : %d (%d for training, %s for testing)' % (
+            len(self.targets), self._split, len(self.inputs) - self._split))
         if len(self.targets) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._targets],))
