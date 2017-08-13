@@ -1256,36 +1256,32 @@ require(['base/js/namespace'], function(Jupyter) {
             ordering.append([(name, False) for name in layer_names])
         ## promote all output banks to last row:
         for level in range(len(ordering)): # input to output
-            if level != len(ordering) - 1: # not last level, those are outputs
-                tuples = ordering[level]
-                for (name, anchor) in tuples[:]: # go through copy
-                    if self[name].kind() == "output":
-                        ## move it to last row
-                        ## find it and remove
-                        index = tuples.index((name, anchor))
-                        ordering[-1].append(tuples.pop(index))
+            tuples = ordering[level]
+            for (name, anchor) in tuples[:]: # go through copy
+                if self[name].kind() == "output":
+                    ## move it to last row
+                    ## find it and remove
+                    index = tuples.index((name, anchor))
+                    ordering[-1].append(tuples.pop(index))
         ## insert anchor points for any in next level
         ## that doesn't go to a bank in this level
         for level in range(len(ordering)): # input to output
-            if level < len(ordering) - 2: # not last two level
-                tuples = ordering[level]
-                for (name, anchor) in tuples:
-                    if anchor:
-                        ## is this in next? if not add it
-                        next_level = [n for (n, anchor) in ordering[level + 1]]
-                        if not name in next_level:
-                            ordering[level + 1].append((name, True)) # add anchor point
-                        else:
-                            pass ## finally!
+            tuples = ordering[level]
+            for (name, anchor) in tuples:
+                if anchor:
+                    ## is this in next? if not add it
+                    next_level = [n for (n, anchor) in ordering[level + 1]]
+                    if not name in next_level:
+                        ordering[level + 1].append((name, True)) # add anchor point
                     else:
-                        ## if next level doesn't contain an outgoing
-                        ## connection, add it to next level as anchor point
-                        for layer in self[name].outgoing_connections:
-                            if layer.kind() == "output":
-                                continue
-                            next_level = [n for (n, anchor) in ordering[level + 1]]
-                            if (layer.name not in next_level):
-                                ordering[level + 1].append((layer.name, True)) # add anchor point
+                        pass ## finally!
+                else:
+                    ## if next level doesn't contain an outgoing
+                    ## connection, add it to next level as anchor point
+                    for layer in self[name].outgoing_connections:
+                        next_level = [n for (n, anchor) in ordering[level + 1]]
+                        if (layer.name not in next_level):
+                            ordering[level + 1].append((layer.name, True)) # add anchor point
             ## replace level with sorted level:
             def input_index(name):
                 return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
