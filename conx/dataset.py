@@ -206,13 +206,12 @@ class Dataset():
         from keras.datasets import cifar10
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         inputs = np.concatenate((x_train, x_test))
-        targets = np.concatenate((y_train, y_test))
+        labels = np.concatenate((y_train, y_test))
+        targets = to_categorical(labels, 10)
         inputs = inputs.astype('float32')
-        targets = targets.astype('float32')
         inputs /= 255
-        targets /= 255
         ds = Dataset()
-        ds.load_direct(inputs, targets)
+        ds.load_direct(inputs, targets, labels)
         return ds
 
     @classmethod
@@ -220,13 +219,12 @@ class Dataset():
         from keras.datasets import cifar100
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         inputs = np.concatenate((x_train, x_test))
-        targets = np.concatenate((y_train, y_test))
+        labels = np.concatenate((y_train, y_test))
+        targets = to_categorical(labels, 100)
         inputs = inputs.astype('float32')
-        targets = targets.astype('float32')
         inputs /= 255
-        targets /= 255
         ds = Dataset()
-        ds.load_direct(inputs, targets)
+        ds.load_direct(inputs, targets, labels)
         return ds
 
     @classmethod
@@ -399,7 +397,7 @@ class Dataset():
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
-        self._targets = keras.utils.to_categorical(self._labels, num_classes).astype("uint8")
+        self._targets = to_categorical(self._labels, num_classes).astype("uint8")
         self._train_targets = self._targets[:self._split]
         self._test_targets = self._targets[self._split:]
         print('Generated %d target vectors from %d labels' % (self._num_inputs, num_classes))
@@ -503,11 +501,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_input_banks == 1:
-            return list(self._inputs[i])
+            return self._inputs[i].tolist()
         else:
             inputs = []
             for c in range(self._num_input_banks):
-                inputs.append(list(self._inputs[c][i]))
+                inputs.append(self._inputs[c][i].tolist())
             return inputs
 
     def _get_target(self, i):
@@ -516,11 +514,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_target_banks == 1:
-            return list(self._targets[i])
+            return self._targets[i].tolist()
         else:
             targets = []
             for c in range(self._num_target_banks):
-                targets.append(list(self._targets[c][i]))
+                targets.append(self._targets[c][i].tolist())
             return targets
 
     def _get_train_input(self, i):
@@ -529,11 +527,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_input_banks == 1:
-            return list(self._train_inputs[i])
+            return self._train_inputs[i].tolist()
         else:
             inputs = []
             for c in range(self._num_input_banks):
-                inputs.append(list(self._train_inputs[c][i]))
+                inputs.append(self._train_inputs[c][i].tolist())
             return inputs
 
     def _get_train_target(self, i):
@@ -542,11 +540,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_target_banks == 1:
-            return list(self._train_targets[i])
+            return self._train_targets[i].tolist()
         else:
             targets = []
             for c in range(self._num_target_banks):
-                targets.append(list(self._train_targets[c][i]))
+                targets.append(self._train_targets[c][i].tolist())
             return targets
 
     def _get_test_input(self, i):
@@ -555,11 +553,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_input_banks == 1:
-            return list(self._test_inputs[i])
+            return self._test_inputs[i].tolist()
         else:
             inputs = []
             for c in range(self._num_input_banks):
-                inputs.append(list(self._test_inputs[c][i]))
+                inputs.append(self._test_inputs[c][i].tolist())
             return inputs
 
     def _get_test_target(self, i):
@@ -568,11 +566,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_target_banks == 1:
-            return list(self._test_targets[i])
+            return self._test_targets[i].tolist()
         else:
             targets = []
             for c in range(self._num_target_banks):
-                targets.append(list(self._test_targets[c][i]))
+                targets.append(self._test_targets[c][i].tolist())
             return targets
 
     def _get_inputs_length(self):

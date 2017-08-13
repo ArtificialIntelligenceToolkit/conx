@@ -129,32 +129,18 @@ def test_dataset2():
 #     assert svg is not None
 
 def test_cifar10():
-    import keras
-    from keras.datasets import cifar10
-    from keras.preprocessing.image import ImageDataGenerator
-    import os
-    import pickle
-    import numpy as np
-    from conx import Network, Layer, Conv2DLayer, MaxPool2DLayer, FlattenLayer
+    """
+    Test the cifar10 API and training.
+    """
+    from conx import Network, Layer, Conv2DLayer, MaxPool2DLayer, FlattenLayer, Dataset
 
     batch_size = 32
     num_classes = 10
     epochs = 200
     data_augmentation = True
     num_predictions = 20
-    save_dir = os.path.join(os.getcwd(), 'saved_models')
-    model_name = 'keras_cifar10_trained_model.h5'
 
-    # The data, shuffled and split between train and test sets:
-    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-    print('x_train shape:', x_train.shape)
-    print(x_train.shape[0], 'train samples')
-    print(x_test.shape[0], 'test samples')
-
-    # Convert class vectors to binary class matrices.
-    y_train = keras.utils.to_categorical(y_train, num_classes)
-    y_test = keras.utils.to_categorical(y_test, num_classes)
-
+    ds = Dataset.get_cifar10()
 
     net = Network("CIRAR10")
     net.add(Layer("input", (32, 32, 3)))
@@ -179,16 +165,11 @@ def test_cifar10():
     net.compile(loss='categorical_crossentropy',
                 optimizer=opt,
                 metrics=['accuracy'])
-    model = net.model
 
+    net.set_dataset(ds)
     net.dashboard()
-
-    x_train = x_train.astype('float32')
-    x_test = x_test.astype('float32')
-    x_train /= 255
-    x_test /= 255
-
-    net.propagate(x_train[0])
-    dataset = Dataset()
-    dataset.load_direct(x_train, y_train)
-    net.propagate(x_test[0])
+    net.dataset.slice(10)
+    net.dataset.shuffle()
+    net.dataset.split(.5)
+    net.train()
+    net.propagate(ds.inputs[0])
