@@ -863,7 +863,10 @@ class Network():
     def _image_to_uri(self, img_src):
         # Convert to binary data:
         b = io.BytesIO()
-        img_src.save(b, format='gif')
+        try:
+            img_src.save(b, format='gif')
+        except:
+            return ""
         data = b.getvalue()
         data = base64.b64encode(data)
         if not isinstance(data, str):

@@ -20,6 +20,7 @@
 import PIL
 import base64
 import io
+import numpy as np
 
 from IPython.display import Javascript, display
 from ipywidgets import Widget, register, widget_serialization, DOMWidget
@@ -135,9 +136,17 @@ class Camera(DOMWidget):
         display(Javascript(get_camera_javascript()))
         super().__init__(*args, **kwargs)
 
-    def get_picture(self):
+    def get_image(self):
         if self.image:
             return uri_to_image(self.image)
+
+    def get_data(self):
+        if self.image:
+            image = uri_to_image(self.image)
+            ## trim from 4 to 3 dimensions: (remove alpha)
+            # remove the 3 index of dimension index 2 (the A of RGBA color)
+            image = np.delete(image, np.s_[3], 2) 
+            return (np.array(image).astype("float32") / 255.0)
 
 def uri_to_image(image_str, width=320, height=240):
     header, image_b64 = image_str.split(",")
