@@ -136,10 +136,10 @@ class Network():
             "image_maxdim": 200, # for svg
             "image_pixels_per_unit": 50, # for svg
             "activation": "linear", # Dense default, if none specified
-            "arrow_color": "blue",
+            "arrow_color": "black",
             "arrow_width": "2",
             "border_width": "2",
-            "border_color": "blue",
+            "border_color": "black",
             "show_targets": False,
             "show_errors": False,
             "minmax": None,
@@ -838,7 +838,7 @@ class Network():
         Get the Keras function for each of a set of layer names.
         [in3, in4] sorted by input bank ordering
         """
-        sorted_layer_names = self._get_sorted_input_names(layer_names)
+        sorted_layer_names = self._get_sorted_input_names(set(layer_names))
         layer_ks = [self[layer_name].k for layer_name in sorted_layer_names]
         if len(layer_ks) == 1:
             layer_ks = layer_ks[0]
@@ -898,15 +898,18 @@ class Network():
         config.update(opts)
         self.visualize = False # so we don't try to update previously drawn images
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
+        ### Define the SVG strings:
         image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
                 "netname": self.name,
                 "border_color": config["border_color"],
                 "border_width": config["border_width"],
             })
+        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
+        ### find max_width, image_dims, and row_height
         max_width = 0
         images = {}
         image_dims = {}
@@ -917,7 +920,7 @@ class Network():
             total_width = 0 # for this row
             max_height = 0
             for (layer_name, anchor) in level_tups:
-                if not self[layer_name].visible: # not need to handle anchors here
+                if not self[layer_name].visible or anchor: # not need to handle anchors here
                     continue
                 if self.model: # thus, we can propagate
                     if self.dataset and self.dataset._num_inputs != 0:
@@ -961,6 +964,8 @@ class Network():
                 max_height = max(max_height, height)
             row_height.append(max_height)
             max_width = max(max_width, total_width)
+        ### Now that we know the dimensions:
+        ## Darw the title:
         svg = label_svg.format(
                     **{"x": max_width/2,
                        "y": config["border_top"]/2,
@@ -970,7 +975,7 @@ class Network():
                        "text_anchor": "middle",
                     })
         cheight = config["border_top"] # top border
-        ## Display target?
+        ## Display targets?
         if config["show_targets"]:
             # Find the spacing for row:
             for (layer_name, anchor) in ordering[0]:
@@ -1050,20 +1055,15 @@ class Network():
             cheight += row_height[0] + 10 # max height of row, plus some
         # Now we go through again and build SVG:
         positioning = {}
+        level_num = 0
         for level_tups in ordering:
-            # compute width of just pictures for this row:
-            #for (layer_name, anchor) in level_tups:
-            #    if not self[layer_name].visible:
-            #        continue
-            #    image = images[layer_name]
-            #    (width, height) = image_dims[layer_name]
             spacing = max_width / divide(len(level_tups))
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
             last_connections_up = False
             for (layer_name, anchor) in level_tups:
-                if not self[layer_name].visible:
+                if not self[layer_name].visible or anchor:
                     continue
                 for out in self[layer_name].outgoing_connections:
                     if out.name not in positioning:
@@ -1079,22 +1079,60 @@ class Network():
             for (layer_name, anchor) in level_tups:
                 if not self[layer_name].visible:
                     continue
-                image = images[layer_name]
-                (width, height) = image_dims[layer_name]
-                cwidth += (spacing - (width/2))
-                positioning[layer_name] = {"name": layer_name,
-                                           "svg_counter": self._svg_counter,
-                                           "x": cwidth,
-                                           "y": cheight,
-                                           "image": self._image_to_uri(image),
-                                           "width": width,
-                                           "height": height,
-                                           "tooltip": self[layer_name].tooltip(),
-                                           "rx": cwidth - 1, # based on arrow width
-                                           "ry": cheight - 1,
-                                           "rh": height + 2,
-                                           "rw": width + 2}
-                x1 = cwidth + width/2
+                if anchor:
+                    anchor_name = "%s-anchor%s" % (layer_name, level_num)
+                    cwidth += spacing
+                    positioning[anchor_name] = {"x": cwidth, "y": cheight}
+                    x1 = cwidth
+                    ## now we are at an anchor. Is the thing that it anchors in the
+                    ## next row?
+                    prev = [(oname, oanchor) for (oname, oanchor) in ordering[level_num - 1]
+                            if layer_name == oname]
+                    if prev:
+                        if prev[0][1]: # anchor
+                            anchor_name2 = "%s-anchor%s" % (layer_name, level_num - 1)
+                            ## draw a ling to this anchor point
+                            x2 = positioning[anchor_name2]["x"]
+                            y2 = positioning[anchor_name2]["y"]
+                            svg += line_svg.format(
+                                **{"x1":cwidth,
+                                   "y1":cheight,
+                                   "x2":x2,
+                                   "y2":y2,
+                                   "tooltip": tooltip
+                                })
+                        else:
+                            ## draw a line to this bank
+                            x2 = positioning[layer_name]["x"] + positioning[layer_name]["width"]/2
+                            y2 = positioning[layer_name]["y"] + positioning[layer_name]["height"]
+                            tootip ="TODO"
+                            svg += arrow_svg.format(
+                                **{"x1":cwidth,
+                                   "y1":cheight,
+                                   "x2":x2,
+                                   "y2":y2,
+                                   "tooltip": tooltip
+                                })
+                    else:
+                        print("that's weird!", layer_name, "is not in", prev)
+                    continue
+                else:
+                    image = images[layer_name]
+                    (width, height) = image_dims[layer_name]
+                    cwidth += (spacing - (width/2))
+                    positioning[layer_name] = {"name": layer_name,
+                                               "svg_counter": self._svg_counter,
+                                               "x": cwidth,
+                                               "y": cheight,
+                                               "image": self._image_to_uri(image),
+                                               "width": width,
+                                               "height": height,
+                                               "tooltip": self[layer_name].tooltip(),
+                                               "rx": cwidth - 1, # based on arrow width
+                                               "ry": cheight - 1,
+                                               "rh": height + 2,
+                                               "rw": width + 2}
+                    x1 = cwidth + width/2
                 y1 = cheight - 1
                 #### Background rects for arrow mouseovers
                 # for out in self[layer_name].outgoing_connections:
@@ -1113,20 +1151,37 @@ class Network():
                 #                                 "ry": min(y2, y1) + 2, # bring down
                 #                                 "rw": rect_width + rect_extra * 2,
                 #                                 "rh": abs(y1 - y2) - 2})
+                # Draw all of the connections up from here:
                 for out in self[layer_name].outgoing_connections:
                     if out.name not in positioning:
                         continue
                     # draw an arrow between layers:
-                    tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
-                    x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
-                    y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                    svg += arrow_svg.format(
-                        **{"x1":x1,
-                           "y1":y1,
-                           "x2":x2,
-                           "y2":y2 + 2,
-                           "tooltip": tooltip
-                        })
+                    anchor_name = "%s-anchor%s" % (out.name, level_num - 1)
+                    ## Don't draw this error, if there is an anchor in the next level
+                    anchor_name = "%s-anchor%s" % (out.name, level_num - 1)
+                    if anchor_name in positioning:
+                        tooltip = "TODO"
+                        x2 = positioning[anchor_name]["x"]
+                        y2 = positioning[anchor_name]["y"]
+                        svg += line_svg.format(
+                            **{"x1":x1,
+                               "y1":y1,
+                               "x2":x2,
+                               "y2":y2,
+                               "tooltip": tooltip
+                            })
+                        continue
+                    else:
+                        tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
+                        x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
+                        y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
+                        svg += arrow_svg.format(
+                            **{"x1":x1,
+                               "y1":y1,
+                               "x2":x2,
+                               "y2":y2 + 2,
+                               "tooltip": tooltip
+                            })
                 svg += image_svg.format(**positioning[layer_name])
                 svg += label_svg.format(
                     **{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
@@ -1140,6 +1195,7 @@ class Network():
                 max_height = max(max_height, height)
                 self._svg_counter += 1
             cheight += max_height
+            level_num += 1
         cheight += config["border_bottom"]
         self.visualize = True
         if get_ipython():
@@ -1214,12 +1270,22 @@ require(['base/js/namespace'], function(Jupyter) {
             if level < len(ordering) - 2: # not last two level
                 tuples = ordering[level]
                 for (name, anchor) in tuples:
-                    ## if next level doesn't contain an outgoing
-                    ## connection, add it to next level as anchor point
-                    for layer in self[name].outgoing_connections:
+                    if anchor:
+                        ## is this in next? if not add it
                         next_level = [n for (n, anchor) in ordering[level + 1]]
-                        if (layer.name not in next_level and name not in next_level):
+                        if not name in next_level:
                             ordering[level + 1].append((name, True)) # add anchor point
+                        else:
+                            pass ## finally!
+                    else:
+                        ## if next level doesn't contain an outgoing
+                        ## connection, add it to next level as anchor point
+                        for layer in self[name].outgoing_connections:
+                            if layer.kind() == "output":
+                                continue
+                            next_level = [n for (n, anchor) in ordering[level + 1]]
+                            if (layer.name not in next_level):
+                                ordering[level + 1].append((layer.name, True)) # add anchor point
             ## replace level with sorted level:
             def input_index(name):
                 return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
