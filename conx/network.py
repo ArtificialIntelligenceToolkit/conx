@@ -868,7 +868,7 @@ class Network():
         data = base64.b64encode(data)
         if not isinstance(data, str):
             data = data.decode("latin1")
-        return "data:image/gif;base64,%s" % data
+        return "data:image/gif;base64,%s" % html.escape(data)
 
     def build_svg(self, opts={}):
         """

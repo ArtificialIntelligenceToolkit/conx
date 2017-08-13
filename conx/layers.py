@@ -36,6 +36,7 @@ import os
 
 import numpy as np
 import keras
+import keras.backend as K
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
@@ -406,8 +407,9 @@ class ImageLayer(Layer):
         ## see K.image_data_format() == 'channels_last': above
         ## We keep the dataset data in the right format.
         import PIL
-        ## FIXME: select the right dimensions:
-        return PIL.Image.fromarray(vector.astype("uint8")).resize(self.vshape)
+        return PIL.Image.fromarray(((1 - vector) * 255).astype("uint8").reshape(self.dimensions[0],
+                                                                                self.dimensions[1],
+                                                                                self.depth).transpose(1, 0, 2))
 
 def process_class_docstring(docstring):
     docstring = re.sub(r'\n    # (.*)\n',
