@@ -1497,7 +1497,8 @@ require(['base/js/namespace'], function(Jupyter) {
         def prop_one(button):
             update_slider_control({"name": "value"})
 
-        net_svg = HTML(value=self.build_svg(), layout=Layout(
+        ## Hack to center SVG as justify-content is broken:
+        net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.build_svg(),), layout=Layout(
             width=width, height=height, overflow_x='auto',
             justify_content="center"))
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
