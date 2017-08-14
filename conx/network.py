@@ -1547,7 +1547,7 @@ require(['base/js/namespace'], function(Jupyter) {
 }
 </style>
 
-<iframe style="width: '100%%'" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>
+<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>
 """ % (height,),
                          layout=Layout(width="100%", height=height))
         net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
