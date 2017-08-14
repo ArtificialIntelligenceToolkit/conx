@@ -199,11 +199,13 @@ class Network():
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
 
-    def snapshot(self, r=None):
-        if r is None:
+    def snapshot(self, inputs=None, class_id=None, ):
+        from IPython.display import SVG
+        if class_id is None:
             r = random.randint(1,1000000)
-        return self.build_svg("snapshot-%s-%s" % (self.name, r))
-    
+            class_id = "snapshot-%s-%s" % (self.name, r)
+        return SVG(self.build_svg(class_id=class_id, inputs=inputs))
+
     def add(self, layer: Layer):
         """
         Add a layer to the network layer connections. Order is not
@@ -879,7 +881,7 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % html.escape(data)
 
-    def build_svg(self, svg_id=None, opts={}):
+    def build_svg(self, inputs=None, class_id=None, opts={}):
         """
         opts - temporary override of config
 
@@ -910,7 +912,7 @@ class Network():
         ### Define the SVG strings:
         image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
-                "netname": self.name,
+                "netname": class_id if class_id is not None else self.name,
                 "border_color": config["border_color"],
                 "border_width": config["border_width"],
             })
@@ -932,7 +934,9 @@ class Network():
                 if not self[layer_name].visible or anchor: # not need to handle anchors here
                     continue
                 if self.model: # thus, we can propagate
-                    if self.dataset and self.dataset._num_inputs != 0:
+                    if inputs is not None:
+                        v = inputs
+                    elif self.dataset and self.dataset._num_inputs != 0:
                         v = self.dataset.inputs[0]
                     else:
                         if self.num_input_layers > 1:
@@ -1220,7 +1224,7 @@ class Network():
     **{
         "width": max_width,
         "height": cheight,
-        "netname": svg_id if svg_id is not None else self.name,
+        "netname": self.name,
         "arrow_color": config["arrow_color"],
         "arrow_width": config["arrow_width"],
     }) + svg + """</svg>""")

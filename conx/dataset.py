@@ -39,6 +39,7 @@ class _DataVector():
     def __init__(self, dataset, item):
         self.dataset = dataset
         self.item = item
+        self._iter_index = 0
 
     def __getitem__(self, pos):
         if self.item == "targets":
@@ -71,6 +72,18 @@ class _DataVector():
             return self.dataset._get_train_targets_length()
         else:
             raise Exception("unknown vector type: %s" % (item,))
+
+    def __iter__(self):
+        self._iter_index = 0
+        return self
+
+    def __next__(self):
+        if self._iter_index < len(self):
+            result = self[self._iter_index]
+            self._iter_index += 1
+            return result
+        else:
+            raise StopIteration
 
     def __repr__(self):
         return "<Dataset %s vector>" % self.item
