@@ -1399,7 +1399,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if os.path.isfile("%s/model.h5" % foldername):
             self.model = keras.models.load_model("%s/model.h5" % foldername)
 
-    def dashboard(self, width="100%", height="550px", iwidth="960px"): ## FIXME: iwidth hack
+    def dashboard(self, width="100%", height="550px"):
         """
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
@@ -1532,7 +1532,23 @@ require(['base/js/namespace'], function(Jupyter) {
         graph_page = VBox(layout=Layout(width='100%', height=height))
         analysis_page = VBox(layout=Layout(width='100%', height=height))
         camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
-        help_page = HTML('<iframe style="width: %s" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>' % (iwidth, height),
+        help_page = HTML("""
+<!-- TODO: Remove this SCRIPT when next version of ipywidgets comes out -->
+<style>
+.widget-html > .widget-html-content, .widget-htmlmath > .widget-html-content {
+    /* Fill out the area in the HTML widget */
+    align-self: stretch;
+    flex-grow: 1;
+    flex-shrink: 1;
+    /* Makes sure the baseline is still aligned with other elements */
+    line-height: var(--jp-widgets-inline-height);
+    /* Make it possible to have absolutely-positioned elements in the html */
+    position: relative;
+}
+</style>
+
+<iframe style="width: '100%%'" src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>
+""" % (height,),
                          layout=Layout(width="100%", height=height))
         net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
         tabs = [("Network", net_page), ("Graphs", graph_page), ("Analysis", analysis_page),
