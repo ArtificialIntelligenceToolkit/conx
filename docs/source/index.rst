@@ -11,7 +11,6 @@ Welcome to conx's documentation!
    :caption: Contents:
 
    Getting Started with conx
-   BasicExample
    XOR
    Autoencoder
    MNIST
