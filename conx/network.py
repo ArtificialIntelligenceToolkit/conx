@@ -26,6 +26,7 @@ import importlib
 from functools import reduce
 import signal
 import numbers
+import random
 import pickle
 import base64
 import html
@@ -198,6 +199,11 @@ class Network():
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
 
+    def snapshot(self, r=None):
+        if r is None:
+            r = random.randint(1,1000000)
+        return self.build_svg("snapshot-%s-%s" % (self.name, r))
+    
     def add(self, layer: Layer):
         """
         Add a layer to the network layer connections. Order is not
@@ -873,7 +879,7 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % html.escape(data)
 
-    def build_svg(self, opts={}):
+    def build_svg(self, svg_id=None, opts={}):
         """
         opts - temporary override of config
 
@@ -1214,7 +1220,7 @@ class Network():
     **{
         "width": max_width,
         "height": cheight,
-        "netname": self.name,
+        "netname": svg_id if svg_id is not None else self.name,
         "arrow_color": config["arrow_color"],
         "arrow_width": config["arrow_width"],
     }) + svg + """</svg>""")

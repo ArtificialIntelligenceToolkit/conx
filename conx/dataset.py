@@ -119,7 +119,10 @@ class Dataset():
         ]:
             return _DataVector(self, item)
         else:
-            raise AttributeError()
+            raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
+
+    def append(self, inputs, targets):
+        self.load(list(zip([inputs], [targets])), append=True)
 
     def load_direct(self, inputs=None, targets=None, labels=None):
         """
@@ -168,11 +171,11 @@ class Dataset():
             self._target_shapes = [targets[0].shape]
             self._num_targets = len(targets)
 
-    def load(self, pairs):
+    def load(self, pairs, append=False):
         """
         Set the human-specified dataset to a proper keras dataset.
 
-        Multi-inputs or multi-outputs must be: [vector, vector, ...] for each layer input/target pairing.
+        Multi-inputs or multi-targets must be: [vector, vector, ...] for each layer input/target pairing.
 
         Note:
             If you have images in your dataset, they must match K.image_data_format().
@@ -195,9 +198,26 @@ class Dataset():
                 targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
             targets = np.array([y for (x, y) in pairs], "float32")
-        self._labels = []
-        self._set_input_info(inputs)
-        self._set_target_info(targets)
+        if append:
+            if len(self._inputs) == 0:
+                self._set_input_info(inputs)
+                self._set_target_info(targets)
+            else:
+                ## inputs:
+                if self._num_input_banks == 1: ## np.array
+                    self._inputs = np.append(self._inputs, inputs, 0)
+                else: ## list
+                    self._inputs.extend(inputs)
+                ## targets:
+                if self._num_target_banks == 1: ## np.array
+                    self._targets = np.append(self._targets, targets, 0)
+                else: ## list
+                    self._targets.extend(targets)
+                self._num_inputs += 1
+        else:
+            self._labels = []
+            self._set_input_info(inputs)
+            self._set_target_info(targets)
         self._cache_values()
         self.split(self._num_inputs)
 

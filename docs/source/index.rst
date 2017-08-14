@@ -10,6 +10,7 @@ Welcome to conx's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   Getting Started with conx
    BasicExample
    XOR
    Autoencoder
@@ -17,9 +18,11 @@ Welcome to conx's documentation!
    LSTM
    CIFAR10_CNN
    MovingFromKeras
-   modules
-   
+   Camera
+   Plotting
+   Robot Simulation
 
+   modules
 
 
 Indices and tables
