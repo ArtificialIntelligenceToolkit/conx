@@ -57,6 +57,49 @@ class _DataVector():
         else:
             raise Exception("unknown vector: %s" % (item,))
 
+    def __setitem__(self, pos, value):
+        """
+        Assign a human-formatted value to a position in the internal format.
+        """
+        if self.item == "targets":
+            if self.dataset._num_target_banks > 1:
+                for i in range(self.dataset._num_target_banks):
+                    self.dataset._targets[i][pos] = np.array(value[i])
+            else:
+                self.dataset._targets[pos] = np.array(value)
+        elif self.item == "inputs":
+            if self.dataset._num_input_banks > 1:
+                for i in range(self.dataset._num_input_banks):
+                    self.dataset._inputs[i][pos] = np.array(value[i])
+            else:
+                self.dataset._inputs[pos] = np.array(value)
+        elif self.item == "test_inputs":
+            if self.dataset._num_input_banks > 1:
+                for i in range(self.dataset._num_input_banks):
+                    self.dataset._test_inputs[i][pos] = np.array(value[i])
+            else:
+                self.dataset._test_inputs[pos] = np.array(value)
+        elif self.item == "train_inputs":
+            if self.dataset._num_input_banks > 1:
+                for i in range(self.dataset._num_input_banks):
+                    self.dataset._train_inputs[i][pos] = np.array(value[i])
+            else:
+                self.dataset._train_inputs[pos] = np.array(value)
+        elif self.item == "test_targets":
+            if self.dataset._num_target_banks > 1:
+                for i in range(self.dataset._num_target_banks):
+                    self.dataset._test_targets[i][pos] = np.array(value[i])
+            else:
+                self.dataset._test_targets[pos] = np.array(value)
+        elif self.item == "train_targets":
+            if self.dataset._num_target_banks > 1:
+                for i in range(self.dataset._num_target_banks):
+                    self.dataset._train_targets[i][pos] = np.array(value[i])
+            else:
+                self.dataset._train_targets[pos] = np.array(value)
+        else:
+            raise Exception("unknown vector: %s" % (item,))
+
     def __len__(self):
         if self.item == "targets":
             return self.dataset._get_targets_length()
@@ -329,19 +372,25 @@ class Dataset():
     def _cache_values(self):
         ## ASSUMES all _nums are set!
         if self._num_inputs > 0:
-            if self._num_input_banks > 1:
-                self._inputs_range = (min([x.min() for x in self._inputs]),
-                                     max([x.max() for x in self._inputs]))
+            if len(self._inputs) > 0:
+                if self._num_input_banks > 1:
+                    self._inputs_range = (min([x.min() for x in self._inputs]),
+                                          max([x.max() for x in self._inputs]))
+                else:
+                    self._inputs_range = (self._inputs.min(), self._inputs.max())
             else:
-                self._inputs_range = (self._inputs.min(), self._inputs.max())
+                self._inputs_range = (0,0)
         else:
             self._inputs_range = (0,0)
         if self._num_inputs > 0:
-            if self._num_target_banks > 1:
-                self._targets_range = (min([x.min() for x in self._targets]),
-                                      max([x.max() for x in self._targets]))
+            if len(self._targets) > 0:
+                if self._num_target_banks > 1:
+                    self._targets_range = (min([x.min() for x in self._targets]),
+                                           max([x.max() for x in self._targets]))
+                else:
+                    self._targets_range = (self._targets.min(), self._targets.max())
             else:
-                self._targets_range = (self._targets.min(), self._targets.max())
+                self._targets_range = (0,0)
         else:
             self._targets_range = (0, 0)
         # Clear any previous settings:
@@ -352,7 +401,8 @@ class Dataset():
         # Final checks:
         assert len(self.test_inputs) == len(self.test_targets), "test inputs/targets lengths do not match"
         assert len(self.train_inputs) == len(self.train_targets), "train inputs/targets lengths do not match"
-        assert len(self.inputs) == len(self.targets), "inputs/targets lengths do not match"
+        if len(self.inputs) != len(self.targets):
+            print("WARNING: inputs/targets lengths do not match")
 
     ## FIXME: add these for users' convenience:
     #def matrix_to_channels_last(self, matrix): ## vecteor
@@ -395,6 +445,10 @@ class Dataset():
         """
         self._set_input_info(copy.copy(self._targets))
 
+    def refresh(self):
+        self._cache_values()
+        self.split(self._num_inputs)
+        
     def reshape_inputs(self, new_shape):
         """
         Reshape the input vectors. WIP.
