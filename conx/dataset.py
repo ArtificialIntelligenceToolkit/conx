@@ -61,42 +61,55 @@ class _DataVector():
         """
         Assign a human-formatted value to a position in the internal format.
         """
+        v = np.array(value)
         if self.item == "targets":
             if self.dataset._num_target_banks > 1:
                 for i in range(self.dataset._num_target_banks):
-                    self.dataset._targets[i][pos] = np.array(value[i])
+                    self.dataset._targets[i][pos] = v[i]
             else:
-                self.dataset._targets[pos] = np.array(value)
+                self.dataset._targets[pos] = v
+            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
+                                           max(v.max(), self.dataset._targets_range[1]))
         elif self.item == "inputs":
             if self.dataset._num_input_banks > 1:
                 for i in range(self.dataset._num_input_banks):
-                    self.dataset._inputs[i][pos] = np.array(value[i])
+                    self.dataset._inputs[i][pos] = v[i]
             else:
-                self.dataset._inputs[pos] = np.array(value)
+                self.dataset._inputs[pos] = v
+            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
+                                          max(v.max(), self.dataset._inputs_range[1]))
         elif self.item == "test_inputs":
             if self.dataset._num_input_banks > 1:
                 for i in range(self.dataset._num_input_banks):
-                    self.dataset._test_inputs[i][pos] = np.array(value[i])
+                    self.dataset._test_inputs[i][pos] = v[i]
             else:
-                self.dataset._test_inputs[pos] = np.array(value)
+                self.dataset._test_inputs[pos] = v
+            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
+                                          max(v.max(), self.dataset._inputs_range[1]))
         elif self.item == "train_inputs":
             if self.dataset._num_input_banks > 1:
                 for i in range(self.dataset._num_input_banks):
-                    self.dataset._train_inputs[i][pos] = np.array(value[i])
+                    self.dataset._train_inputs[i][pos] = v[i]
             else:
-                self.dataset._train_inputs[pos] = np.array(value)
+                self.dataset._train_inputs[pos] = v
+            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
+                                          max(v.max(), self.dataset._inputs_range[1]))
         elif self.item == "test_targets":
             if self.dataset._num_target_banks > 1:
                 for i in range(self.dataset._num_target_banks):
-                    self.dataset._test_targets[i][pos] = np.array(value[i])
+                    self.dataset._test_targets[i][pos] = v[i]
             else:
-                self.dataset._test_targets[pos] = np.array(value)
+                self.dataset._test_targets[pos] = v
+            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
+                                           max(v.max(), self.dataset._targets_range[1]))
         elif self.item == "train_targets":
             if self.dataset._num_target_banks > 1:
                 for i in range(self.dataset._num_target_banks):
-                    self.dataset._train_targets[i][pos] = np.array(value[i])
+                    self.dataset._train_targets[i][pos] = v[i]
             else:
-                self.dataset._train_targets[pos] = np.array(value)
+                self.dataset._train_targets[pos] = v
+            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
+                                           max(v.max(), self.dataset._targets_range[1]))
         else:
             raise Exception("unknown vector: %s" % (item,))
 
@@ -445,10 +458,6 @@ class Dataset():
         """
         self._set_input_info(copy.copy(self._targets))
 
-    def refresh(self):
-        self._cache_values()
-        self.split(self._num_inputs)
-        
     def reshape_inputs(self, new_shape):
         """
         Reshape the input vectors. WIP.
