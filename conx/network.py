@@ -326,11 +326,11 @@ class Network():
                 inputs = self.dataset._test_inputs
                 dataset_name = "testing"
         if targets is None:
-            if self.dataset._split == self.dataset._num_targets:
+            if self.dataset._split == len(self.dataset.targets):
                 targets = self.dataset._train_targets
             else:
                 targets = self.dataset._test_targets
-        print("Testing on %s dataset._.." % dataset_name)
+        print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         if self.num_input_layers == 1:
             in_formatted = [self.pf(x) for x in inputs.tolist()]
@@ -485,15 +485,12 @@ class Network():
             "sample_weight": sample_weight,
             }
         if batch_size is None:
-            if self.num_input_layers == 1:
-                batch_size = self.dataset._train_inputs.shape[0]
-            else:
-                batch_size = self.dataset._train_inputs[0].shape[0]
+            batch_size = len(self.dataset.train_inputs)
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
-        if self.dataset._split == self.dataset._num_inputs:
+        if self.dataset._split == len(self.dataset.inputs):
             validation_inputs = self.dataset._train_inputs
             validation_targets = self.dataset._train_targets
         else:

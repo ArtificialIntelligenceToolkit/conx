@@ -165,8 +165,6 @@ class Dataset():
         self._train_labels = []
         self._inputs_range = (0,0)
         self._targets_range = (0,0)
-        self._num_inputs = 0
-        self._num_targets = 0
         self._target_shapes = []
         self._input_shapes = []
         self._split = 0
@@ -229,29 +227,25 @@ class Dataset():
         if labels is not None:
             self._labels = labels # should be a np.array/list of single values
         self._cache_values()
-        self.split(self._num_inputs)
+        self.split(len(self.inputs))
 
     def _set_input_info(self, inputs):
         self._inputs = inputs
         if isinstance(inputs, (list, tuple)): ## multiple inputs
             self._num_input_banks = len(inputs)
             self._input_shapes = [x.shape for x in inputs]
-            self._num_inputs = len(inputs[0])
         else:
             self._num_input_banks = 1
             self._input_shapes = [inputs[0].shape]
-            self._num_inputs = len(inputs)
 
     def _set_target_info(self, targets):
         self._targets = targets
         if isinstance(targets, (list, tuple)): ## multiple inputs
             self._num_target_banks = len(targets)
             self._target_shapes = [x.shape for x in targets]
-            self._num_targets = len(targets[0])
         else:
             self._num_target_banks = 1
             self._target_shapes = [targets[0].shape]
-            self._num_targets = len(targets)
 
     def load(self, pairs, append=False):
         """
@@ -295,14 +289,12 @@ class Dataset():
                     self._targets = np.append(self._targets, targets, 0)
                 else: ## list
                     self._targets.extend(targets)
-                self._num_inputs += 1
-                self._num_targets += 1
         else:
             self._labels = []
             self._set_input_info(inputs)
             self._set_target_info(targets)
         self._cache_values()
-        self.split(self._num_inputs)
+        self.split()
 
     @classmethod
     def get_cifar10(cls):
@@ -394,32 +386,25 @@ class Dataset():
         self._set_input_info(inputs)
         self._set_target_info(targets)
         self._cache_values()
-        self.split(self._num_inputs)
+        self.split(len(self.inputs))
 
     def _cache_values(self):
-        ## ASSUMES all _nums are set!
-        if self._num_inputs > 0:
-            if len(self._inputs) > 0:
-                if self._num_input_banks > 1:
-                    self._inputs_range = (min([x.min() for x in self._inputs]),
-                                          max([x.max() for x in self._inputs]))
-                else:
-                    self._inputs_range = (self._inputs.min(), self._inputs.max())
+        if len(self.inputs) > 0:
+            if self._num_input_banks > 1:
+                self._inputs_range = (min([x.min() for x in self._inputs]),
+                                      max([x.max() for x in self._inputs]))
             else:
-                self._inputs_range = (0,0)
+                self._inputs_range = (self._inputs.min(), self._inputs.max())
         else:
             self._inputs_range = (0,0)
-        if self._num_inputs > 0:
-            if len(self._targets) > 0:
-                if self._num_target_banks > 1:
-                    self._targets_range = (min([x.min() for x in self._targets]),
-                                           max([x.max() for x in self._targets]))
-                else:
-                    self._targets_range = (self._targets.min(), self._targets.max())
+        if len(self.targets) > 0:
+            if self._num_target_banks > 1:
+                self._targets_range = (min([x.min() for x in self._targets]),
+                                       max([x.max() for x in self._targets]))
             else:
-                self._targets_range = (0,0)
+                self._targets_range = (self._targets.min(), self._targets.max())
         else:
-            self._targets_range = (0, 0)
+            self._targets_range = (0,0)
         # Clear any previous settings:
         self._train_inputs = []
         self._train_targets = []
@@ -479,21 +464,21 @@ class Dataset():
         ## FIXME: allow working on multi inputs
         if self._num_input_banks > 1:
             raise Exception("reshape_inputs does not yet work on multi-input patterns")
-        if self._num_inputs == 0:
+        if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         if isinstance(new_shape, numbers.Integral):
             pass ## ok
         elif not valid_shape(new_shape):
             raise Exception("bad shape: %s" % (new_shape,))
         if isinstance(new_shape, numbers.Integral):
-            new_size = self._num_inputs * new_shape
+            new_size = len(self.inputs) * new_shape
         else:
-            new_size = self._num_inputs * reduce(operator.mul, new_shape)
+            new_size = len(self.inputs) * reduce(operator.mul, new_shape)
         if new_size != self._inputs.size:
             raise Exception("shape %s is incompatible with inputs" % (new_shape,))
         if isinstance(new_shape, numbers.Integral):
             new_shape = (new_shape,)
-        self._set_input_info(self._inputs.reshape((self._num_inputs,) + new_shape))
+        self._set_input_info(self._inputs.reshape((len(self.inputs),) + new_shape))
         self.split(self._split)
 
     def set_targets_from_labels(self, num_classes):
@@ -503,14 +488,14 @@ class Dataset():
         ## FIXME: allow working on multi-targets
         if self._num_target_banks > 1:
             raise Exception("set_targets_from_labels does not yet work on multi-target patterns")
-        if self._num_inputs == 0:
+        if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
         self._targets = to_categorical(self._labels, num_classes).astype("uint8")
         self._train_targets = self._targets[:self._split]
         self._test_targets = self._targets[self._split:]
-        print('Generated %d target vectors from %d labels' % (self._num_inputs, num_classes))
+        print('Generated %d target vectors from %d labels' % (len(self.inputs), num_classes))
 
     def summary(self):
         """
@@ -562,9 +547,9 @@ class Dataset():
         ## FIXME: allow working on multi-inputs/-targets
         if self._num_target_banks > 1:
             raise Exception("shuffle does not yet work on multi-input/-target patterns")
-        if self._num_inputs == 0:
+        if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
-        indices = np.random.permutation(self._num_inputs)
+        indices = np.random.permutation(len(self.inputs))
         self._inputs = self._inputs[indices]
         if len(self._labels) != 0:
             self._labels = self._labels[indices]
@@ -576,16 +561,16 @@ class Dataset():
         """
         Split the inputs/targets into training/test datasets.
         """
-        if self._num_inputs == 0:
+        if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         if isinstance(split, numbers.Integral):
-            if not 0 <= split <= self._num_inputs:
+            if not 0 <= split <= len(self.inputs):
                 raise Exception("split out of range: %d" % split)
             self._split = split
         elif isinstance(split, numbers.Real):
             if not 0 <= split <= 1:
                 raise Exception("split is not in the range 0-1: %s" % split)
-            self._split = int(self._num_inputs * split)
+            self._split = int(len(self.inputs) * split)
         else:
             raise Exception("invalid split: %s" % split)
         if self._num_input_banks > 1:
