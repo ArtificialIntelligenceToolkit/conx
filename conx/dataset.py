@@ -296,6 +296,7 @@ class Dataset():
                 else: ## list
                     self._targets.extend(targets)
                 self._num_inputs += 1
+                self._num_targets += 1
         else:
             self._labels = []
             self._set_input_info(inputs)

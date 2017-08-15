@@ -325,7 +325,7 @@ class Network():
             else:
                 inputs = self.dataset._test_inputs
                 dataset_name = "testing"
-        if targets is None and len(self.dataset.targets) > 0:
+        if targets is None:
             if self.dataset._split == self.dataset._num_targets:
                 targets = self.dataset._train_targets
             else:
@@ -333,31 +333,27 @@ class Network():
         print("Testing on %s dataset._.." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         if self.num_input_layers == 1:
-            ins = [self.pf(x) for x in inputs.tolist()]
+            in_formatted = [self.pf(x) for x in inputs.tolist()]
         else:
-            ins = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*inputs))).tolist()]
-        ## targets:
+            in_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
+                            for row in np.array(list(zip(*inputs))).tolist()]
         if self.num_target_layers == 1:
-            targs = [self.pf(x) for x in targets.tolist()]
-        else:
-            targs = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*targets))).tolist()]
-        ## outputs:
-        if self.num_target_layers == 1:
-            outs = [self.pf(x) for x in outputs.tolist()]
-        else:
-            outs = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]") for row in np.array(list(zip(*outputs))).tolist()]
-        ## correct?
-        if self.num_target_layers == 1:
+            out_formatted = [self.pf(x) for x in outputs.tolist()]
+            targ_formatted = [self.pf(x) for x in targets.tolist()]
             correct = [all(x) for x in map(lambda v: v <= tolerance,
                                            np.abs(outputs - targets))]
         else:
             outs = np.array(list(zip(*[out.flatten().tolist() for out in outputs])))
             targs = np.array(list(zip(*[out.flatten().tolist() for out in targets])))
             correct = [all(row) for row in (np.abs(outs - targs) < tolerance)]
+            out_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
+                             for row in np.array(list(zip(*outputs))).tolist()]
+            targ_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
+                              for row in np.array(list(zip(*targets))).tolist()]
         print("# | inputs | targets | outputs | result")
         print("---------------------------------------")
-        for i in range(len(outs)):
-            print(i, "|", ins[i], "|", targs[i], "|", outs[i], "|", "correct" if correct[i] else "X")
+        for i in range(len(out_formatted)):
+            print(i, "|", in_formatted[i], "|", targ_formatted[i], "|", out_formatted[i], "|", "correct" if correct[i] else "X")
         print("Total count:", len(correct))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
