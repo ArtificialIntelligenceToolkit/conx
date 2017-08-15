@@ -151,7 +151,7 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, pairs=None, inputs=None, targets=None):
+    def __init__(self, pairs=None, inputs=None, targets=None, patterns=None):
         self._num_input_banks = 0
         self._num_target_banks = 0
         self._inputs = []
@@ -177,7 +177,20 @@ class Dataset():
                 raise Exception("you cannot set inputs without targets")
         elif targets is not None:
             raise Exception("you cannot set targets without inputs")
-        if pairs:
+        if patterns is not None:
+            ## FIXME: allow inputs/targets to be words or list of words, initially
+            if isinstance(patterns, (list, tuple)):
+                ## turn it into a dictionary
+                self.patterns = {word: index for (word, index)
+                                 in zip(patterns, range(len(patterns)))}
+            else:
+                self.patterns = patterns
+            self.max_label = max(self.patterns.values())
+            self.label_to_word = {index: word for (word, index) in self.patterns.items()}
+            self.label_to_category = {index: to_categorical(word, self.max_label + 1)
+                                      for (word, index) in self.patterns.items()}
+            self.labels = list(sorted(self.patterns.values()))
+        if pairs is not None:
             self.load(pairs)
 
     def __getattr__(self, item):
