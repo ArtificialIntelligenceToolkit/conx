@@ -187,8 +187,8 @@ class Dataset():
                 self.patterns = patterns
             self.max_label = max(self.patterns.values())
             self.label_to_word = {index: word for (word, index) in self.patterns.items()}
-            self.label_to_category = {index: to_categorical(word, self.max_label + 1)
-                                      for (word, index) in self.patterns.items()}
+            self.label_to_category = {index: to_categorical(index, self.max_label + 1)
+                                      for index in self.patterns.values()}
             self.labels = list(sorted(self.patterns.values()))
         if pairs is not None:
             self.load(pairs)
@@ -203,7 +203,7 @@ class Dataset():
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
 
-    def append(self, inputs, targets):
+    def add(self, inputs, targets):
         self.load(list(zip([inputs], [targets])), append=True)
 
     def load_direct(self, inputs=None, targets=None, labels=None):

@@ -152,7 +152,7 @@ class Network():
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
         self.config.update(config)
-        self.dataset = None
+        self.dataset = Dataset()
         self.compile_options = {}
         self.train_options = {}
         self.name = name
@@ -172,7 +172,7 @@ class Network():
         self.acc_history = []
         self.loss_history = []
         self.val_percent_history = []
-        self.visualize = False
+        self.visualize = get_ipython() is not None
         self._comm = None
         self.model = None
         self.prop_from_dict = {}
@@ -259,6 +259,8 @@ class Network():
             >>> [layer.name for layer in net["input"].outgoing_connections]
             ['hidden']
         """
+        if len(self.layers) == 0:
+            raise Exception("no layers have been added")
         if from_layer_name is None and to_layer_name is None:
             if (any([layer.outgoing_connections for layer in self.layers]) or
                 any([layer.incoming_connections for layer in self.layers])):
@@ -317,14 +319,13 @@ class Network():
         ## FIXME: allow human format of inputs, if given
         dataset_name = "provided"
         if inputs is None:
-            if self.dataset._split == self.dataset._num_inputs:
-
+            if self.dataset._split == len(self.dataset.inputs):
                 inputs = self.dataset._train_inputs
                 dataset_name = "training"
             else:
                 inputs = self.dataset._test_inputs
                 dataset_name = "testing"
-        if targets is None:
+        if targets is None and len(self.dataset.targets) > 0:
             if self.dataset._split == self.dataset._num_targets:
                 targets = self.dataset._train_targets
             else:
@@ -896,6 +897,10 @@ class Network():
 
         See .config for all options.
         """
+        if any([(layer.kind() == "unconnected") for layer in self.layers]):
+            raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
+        if self.model is None:
+            raise Exception("can't build display before Network.compile(...) as been run")
         def divide(n):
             return n + 1
             if n == 1:
@@ -936,7 +941,7 @@ class Network():
                 if self.model: # thus, we can propagate
                     if inputs is not None:
                         v = inputs
-                    elif self.dataset and self.dataset._num_inputs != 0:
+                    elif len(self.dataset.inputs) > 0:
                         v = self.dataset.inputs[0]
                     else:
                         if self.num_input_layers > 1:
@@ -1417,7 +1422,7 @@ require(['base/js/namespace'], function(Jupyter) {
         from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout, Tab
 
         def dataset_move(position):
-            if self.dataset is None:
+            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 return
             if control_select.value == "Train":
                 length = len(self.dataset.train_inputs)
@@ -1440,7 +1445,7 @@ require(['base/js/namespace'], function(Jupyter) {
                     control_slider.value = min(control_slider.value + 1, length - 1)
 
         def update_control_slider(change):
-            if self.dataset is None:
+            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 control_slider.disabled = True
                 for child in control_buttons.children:
                     child.disabled = True
@@ -1466,7 +1471,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 child.disabled = disabled
 
         def update_slider_control(change):
-            if self.dataset is None:
+            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 return
             if change["name"] == "value":
                 if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
@@ -1485,7 +1490,7 @@ require(['base/js/namespace'], function(Jupyter) {
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
 
         def train_one(button):
-            if self.dataset is None:
+            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 return
             if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
                 outputs = self.train_one(self.dataset.train_inputs[control_slider.value],
@@ -1519,7 +1524,7 @@ require(['base/js/namespace'], function(Jupyter) {
             value='Train',
             description='Dataset:',
                )
-        length = (len(self.dataset.train_inputs) - 1) if self.dataset else 0
+        length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
         control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,

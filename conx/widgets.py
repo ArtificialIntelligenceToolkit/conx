@@ -25,7 +25,6 @@ import numpy as np
 from IPython.display import Javascript, display
 from ipywidgets import Widget, register, widget_serialization, DOMWidget
 from traitlets import Bool, Dict, Int, Float, Unicode, List, Instance
-import matplotlib.pyplot as plt
 
 @register("Camera")
 class Camera(DOMWidget):
@@ -160,6 +159,7 @@ def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
              ylabel="error",
              xlabel="hello"))
     """
+    import matplotlib.pyplot as plt
     plt.rcParams['figure.figsize'] = (width, height)
     fig = plt.figure()
     for (label, symbol, data) in lines:
