@@ -318,7 +318,7 @@ class Dataset():
             self._set_input_info(inputs)
             self._set_target_info(targets)
         self._cache_values()
-        self.split()
+        self.split(len(self.inputs))
 
     @classmethod
     def get_cifar10(cls):
