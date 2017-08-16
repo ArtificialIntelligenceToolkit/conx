@@ -201,7 +201,31 @@ class Dataset():
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
 
+    def clear(self):
+        """
+        Remove all of the inputs/targets.
+        """
+        self._num_input_banks = 0
+        self._num_target_banks = 0
+        self._inputs = []
+        self._targets = []
+        self._labels = []
+        self._train_inputs = []
+        self._train_targets = []
+        self._test_inputs = []
+        self._test_targets = []
+        self._test_labels = []
+        self._train_labels = []
+        self._inputs_range = (0,0)
+        self._targets_range = (0,0)
+        self._target_shapes = []
+        self._input_shapes = []
+        self._split = 0
+
     def add(self, inputs, targets):
+        """
+        Add a single (input, target) pair to the dataset.
+        """
         self.load(list(zip([inputs], [targets])), append=True)
 
     def load_direct(self, inputs=None, targets=None, labels=None):
