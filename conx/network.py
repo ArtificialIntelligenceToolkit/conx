@@ -451,7 +451,7 @@ class Network():
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size)
         errors = (np.array(targets) - np.array(outputs)).tolist() # FIXME: multi outputs?
-        if self.visualize:
+        if self.visualize and get_ipython():
             if self.config["show_targets"]:
                 self.display_component([targets], "targets") # FIXME: use output layers' minmax
             if self.config["show_errors"]:
@@ -624,7 +624,7 @@ class Network():
         """
         Propagate activations from the given layer name to the output layers.
         """
-        visualize if visualize is not None else self.visualize
+        visualize = visualize if visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if isinstance(input, dict):
@@ -698,7 +698,7 @@ class Network():
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
         """
-        visualize = visualize is not None else self.visualize
+        visualize = visualize if visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if isinstance(inputs, dict):
