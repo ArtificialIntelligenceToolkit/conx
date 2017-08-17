@@ -262,12 +262,12 @@ class _BaseLayer():
         """
         return rescale_numpy_array(vector, minmax, (0,255), 'uint8', truncate=truncate)
 
-    def make_dummy_vector(self):
+    def make_dummy_vector(self, default_value=0.0):
         """
         This is in the easy to use human format (list of lists ...)
         """
         ## FIXME: for pictures give a vector
-        v = np.ones(self.shape)
+        v = np.ones(self.shape) * default_value
         lo, hi = self.get_minmax(v)
         v *= (lo + hi) / 2.0
         return v.tolist()

@@ -18,6 +18,9 @@
 # Boston, MA 02110-1301  USA
 
 import numbers
+import PIL
+import base64
+import io
 import numpy as np
 from keras.utils import to_categorical
 
@@ -104,6 +107,12 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
         return ((a - old_min) + (new_min + new_max)/2).astype(new_dtype)
     else:
         return (new_min + (a - old_min)*new_delta/old_delta).astype(new_dtype)
+
+def uri_to_image(image_str, width=320, height=240):
+    header, image_b64 = image_str.split(",")
+    image_binary = base64.b64decode(image_b64)
+    image = PIL.Image.open(io.BytesIO(image_binary)).resize((width, height))
+    return image
 
 '''
 

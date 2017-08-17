@@ -739,6 +739,39 @@ class Network():
         image = self[layer_name].make_image(array, self.config)
         return image
 
+    def propagate_to_plot(self, output_layer, output_index,
+                          input_layer, input_index1, input_index2,
+                          colormap="RdGy", default_input_value=0.0,
+                          resolution=0.1):
+        ## FIXME: work on multi-input banks
+        from .graphs import plot_activations
+        return plot_activations(self, output_layer, output_index,
+                                input_layer, input_index1, input_index2,
+                                colormap, default_input_value, resolution)
+
+    def plot(self, *whats):
+        """
+        whats - "error", "accuracy", and/or "test"
+        symbols are matplotlib markers or colors:
+            https://matplotlib.org/api/markers_api.html
+            https://matplotlib.org/api/colors_api.html
+        """
+        from .graphs import plot
+        symbols = {"error": "r", # red
+                   "accuracy": "g", # green
+                   "test": "m"} # magenta
+        lines = []
+        for i in range(len(whats)):
+            what = whats[i]
+            symbol = symbols[what]
+            if what == "error":
+                lines.append(["Error", symbol, self.loss_history])
+            elif what == "accuracy":
+                lines.append(["Accuracy", symbol, self.acc_history])
+            elif what == "test":
+                lines.append(["Test %", symbol, self.val_percent_history])
+        return plot(lines, ylabel="value", xlabel="epoch")
+    
     def compile(self, **kwargs):
         """
         Check and compile the network.
@@ -1541,9 +1574,9 @@ require(['base/js/namespace'], function(Jupyter) {
         # Put them together:
         control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
         net_page = VBox([net_svg, control], layout=Layout(width='100%', height=height))
-        graph_page = VBox(layout=Layout(width='100%', height=height))
-        analysis_page = VBox(layout=Layout(width='100%', height=height))
-        camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
+        #graph_page = VBox(layout=Layout(width='100%', height=height))
+        #analysis_page = VBox(layout=Layout(width='100%', height=height))
+        #camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
         help_page = HTML("""
 <!-- TODO: Remove this SCRIPT when next version of ipywidgets comes out -->
 <style>
@@ -1563,8 +1596,13 @@ require(['base/js/namespace'], function(Jupyter) {
 """ % (height,),
                          layout=Layout(width="100%", height=height))
         net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
-        tabs = [("Network", net_page), ("Graphs", graph_page), ("Analysis", analysis_page),
-                ("Camera", camera_page), ("Help", help_page)]
+        tabs = [
+            ("Network", net_page),
+            #("Graphs", graph_page),
+            #("Analysis", analysis_page),
+            #("Camera", camera_page),
+            ("Help", help_page),
+        ]
         tab = Tab([t[1] for t in tabs])
         for i in range(len(tabs)):
             name, widget = tabs[i]

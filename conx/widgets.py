@@ -17,14 +17,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-import PIL
-import base64
-import io
 import numpy as np
 
 from IPython.display import Javascript, display
 from ipywidgets import Widget, register, widget_serialization, DOMWidget
 from traitlets import Bool, Dict, Int, Float, Unicode, List, Instance
+
+from .utils import uri_to_image
 
 @register("Camera")
 class Camera(DOMWidget):
@@ -146,38 +145,3 @@ class Camera(DOMWidget):
             # remove the 3 index of dimension index 2 (the A of RGBA color)
             image = np.delete(image, np.s_[3], 2) 
             return (np.array(image).astype("float32") / 255.0)
-
-def uri_to_image(image_str, width=320, height=240):
-    header, image_b64 = image_str.split(",")
-    image_binary = base64.b64decode(image_b64)
-    image = PIL.Image.open(io.BytesIO(image_binary)).resize((width, height))
-    return image
-
-def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
-    """
-    SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
-             ylabel="error",
-             xlabel="hello"))
-    """
-    import matplotlib.pyplot as plt
-    plt.rcParams['figure.figsize'] = (width, height)
-    fig = plt.figure()
-    for (label, symbol, data) in lines:
-        kwargs = {}
-        args = [data]
-        if label:
-            kwargs["label"] = label
-        if symbol:
-            args.append(symbol)
-        plt.plot(*args, **kwargs)
-    if any([line[0] for line in lines]):
-        plt.legend()
-    if xlabel:
-        plt.xlabel(xlabel)
-    if ylabel:
-        plt.ylabel(ylabel)
-    bytes = io.BytesIO()
-    plt.savefig(bytes, format='svg')
-    svg = bytes.getvalue()
-    plt.close(fig)
-    return svg.decode()
