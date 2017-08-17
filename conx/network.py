@@ -753,8 +753,9 @@ class Network():
         """
         whats - "error", "accuracy", and/or "test"
         symbols are matplotlib markers or colors:
-            https://matplotlib.org/api/markers_api.html
-            https://matplotlib.org/api/colors_api.html
+        
+        https://matplotlib.org/api/markers_api.html
+        https://matplotlib.org/api/colors_api.html
         """
         from .graphs import plot
         symbols = {"error": "r", # red

@@ -10,6 +10,7 @@ Welcome to conx's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   README
    Getting Started with conx
    Datasets
    XOR

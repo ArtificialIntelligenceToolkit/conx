@@ -14,8 +14,9 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 ## dependencies: get ../../notebooks/*.ipynb files
 
-print("Copying updated ../../notebooks/*.ipynb ...")
-for filename in glob.glob("../../notebooks/*.ipynb"):
+print("Copying updated ../../notebooks/*.ipynb and ../../*.md ...")
+for filename in (glob.glob("../../notebooks/*.ipynb") +
+                 glob.glob("../../*.md")):
     path, dst = os.path.split(filename)
     if os.path.isfile(dst): # dst exists here
         dst_time = os.path.getmtime(dst)
