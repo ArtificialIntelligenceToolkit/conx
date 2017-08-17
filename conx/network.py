@@ -587,12 +587,13 @@ class Network():
                    if layer_name == layer.name][0]
         return [m.tolist() for m in weights]
 
-    def propagate(self, input, batch_size=32):
+    def propagate(self, input, batch_size=32, visualize=None):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
         """
         import keras.backend as K
+        visualize = visualize if visualize is not None else self.visualize
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -608,7 +609,7 @@ class Network():
         else:
             inputs = [np.array([x], "float32") for x in input]
             outputs = [[y.tolist() for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
-        if self.visualize and get_ipython():
+        if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -619,10 +620,11 @@ class Network():
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
 
-    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32):
+    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32, visualize=None):
         """
         Propagate activations from the given layer name to the output layers.
         """
+        visualize if visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if isinstance(input, dict):
@@ -660,7 +662,7 @@ class Network():
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
-        if self.visualize and get_ipython():
+        if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -692,10 +694,11 @@ class Network():
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
-    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=True):
+    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=None):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
         """
+        visualize = visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if isinstance(inputs, dict):
@@ -709,7 +712,7 @@ class Network():
             vector = [np.array([inputs[self.input_bank_order.index(name)]]) for name in
                       self._get_sorted_input_names(self[layer_name].input_names)]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
-        if self.visualize and visualize and get_ipython():
+        if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
