@@ -407,9 +407,14 @@ class ImageLayer(Layer):
         ## see K.image_data_format() == 'channels_last': above
         ## We keep the dataset data in the right format.
         import PIL
-        return PIL.Image.fromarray(((vector * 255).astype("uint8").reshape(self.dimensions[0],
-                                                                           self.dimensions[1],
-                                                                           self.depth)))
+        v = (vector * 255).astype("uint8")
+        if self.depth == 1:
+            v = v.squeeze() # get rid of nested lists (len of 1)
+        else:
+            v = v.reshape(self.dimensions[0],
+                          self.dimensions[1],
+                          self.depth)
+        return PIL.Image.fromarray(v)
 
 def process_class_docstring(docstring):
     docstring = re.sub(r'\n    # (.*)\n',
