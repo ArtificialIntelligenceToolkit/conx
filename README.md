@@ -35,23 +35,44 @@ net.test()
 
 ## Install
 
-```shell
+**Note**: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
+
+```bash
 pip install conx -U
 ```
 
 You will need to decide whether to use Theano, TensorFlow, or CNTK. Pick one. See [docs.microsoft.com](https://docs.microsoft.com/en-us/cognitive-toolkit/Setup-CNTK-on-your-machine) for installing CNTK on Windows or Linux. All platforms can also install either of the others using pip:
 
-```shell
+```bash
 pip install theano
 ```
 
 or
 
-```shell
+```bash
 pip install tensorflow
 ```
 
-Note: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
+### Use with Jupyter Notebooks
+
+To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
+
+With pip:
+
+``` bash
+pip install ipywidgets
+jupyter nbextension enable --py widgetsnbextension
+```
+
+With conda
+
+``` bash
+conda install -c conda-forge ipywidgets
+```
+
+Installing **ipywidgets** with conda will also enable the extension for you.
+
+### Changing Keras Backends
 
 To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.json`, like:
 
