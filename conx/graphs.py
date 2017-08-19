@@ -84,10 +84,13 @@ def plot_activations(net, output_layer="output", output_index=0,
             vector[input_index2] = input2
             mat[i1, i2] = net.propagate_to(output_layer, vector,
                                            visualize=False)[output_index]
-    plt.matshow(mat, origin="lower", cmap=colormap)
-    plt.title("%s[%s]" % (output_layer, output_index))
+    figure = plt.matshow(mat, origin="lower", cmap=colormap)
+    plt.title("Activation of %s[%s]" % (output_layer, output_index))
     plt.xlabel("%s[%s]" % (input_layer, input_index1))
     plt.ylabel("%s[%s]" % (input_layer, input_index2))
+    ## Turn off ticks
+    ##figure.axes.get_xaxis().set_visible(False)
+    ##figure.axes.get_yaxis().set_visible(False)
     bytes = io.BytesIO()
     plt.savefig(bytes, format='svg')
     svg = bytes.getvalue()
