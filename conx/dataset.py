@@ -145,6 +145,9 @@ class _DataVector():
         return "<Dataset %s vector>" % self.item
 
 class Dataset():
+
+    DATASETS = ['mnist', 'cifar10', 'cifar100']
+
     """
     Contains the dataset, and metadata about it.
 
@@ -321,7 +324,7 @@ class Dataset():
         self.split(len(self.inputs))
 
     @classmethod
-    def get_cifar10(cls):
+    def _get_cifar10(cls):
         from keras.datasets import cifar10
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         inputs = np.concatenate((x_train, x_test))
@@ -333,8 +336,38 @@ class Dataset():
         ds.load_direct(inputs, targets, labels)
         return ds
 
+    def get(self=None, dataset_name=None):
+        """
+        Get a known dataset by name.
+        """
+        if self is None:
+            raise Exception("dataset_name is required")
+        elif isinstance(self, str):
+            dataset_name = self
+            if dataset_name == "mnist":
+                return Dataset._get_mnist()
+            elif dataset_name == "cifar10":
+                return Dataset._get_cifar10()
+            elif dataset_name == "cifar100":
+                return Dataset._get_cifar100()
+            else:
+                raise Exception(
+                    ("unknown dataset name '%s': should be one of %s" %
+                     (dataset_name, Dataset.DATASETS)))
+        else:
+            self.copy(Dataset.get(dataset_name))
+
+    def copy(self, dataset):
+        """
+        Copy the inputs/targets from one dataset into
+        this one.
+        """
+        self.load_direct(inputs=dataset._inputs,
+                         targets=dataset._targets,
+                         labels=dataset._labels)
+
     @classmethod
-    def get_cifar100(cls):
+    def _get_cifar100(cls):
         from keras.datasets import cifar100
         (x_train, y_train), (x_test, y_test) = cifar100.load_data()
         inputs = np.concatenate((x_train, x_test))
@@ -347,7 +380,7 @@ class Dataset():
         return ds
 
     @classmethod
-    def get_mnist(cls):
+    def _get_mnist(cls):
         """
         Load the Keras MNIST dataset and format it as images.
         """

@@ -90,7 +90,7 @@ def test_dataset():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", loss="binary_crossentropy")
-    dataset = Dataset.get_mnist()
+    dataset = Dataset.get("mnist")
     net.set_dataset(dataset)
     assert net is not None
 
@@ -99,7 +99,7 @@ def test_dataset2():
     Load data before adding network.
     """
     net = Network("MNIST")
-    dataset = Dataset.get_mnist()
+    dataset = Dataset.get("mnist")
     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
@@ -140,7 +140,7 @@ def test_cifar10():
     data_augmentation = True
     num_predictions = 20
 
-    ds = Dataset.get_cifar10()
+    ds = Dataset.get("cifar10")
 
     net = Network("CIRAR10")
     net.add(Layer("input", (32, 32, 3)))

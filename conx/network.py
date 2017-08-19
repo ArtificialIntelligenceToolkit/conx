@@ -151,6 +151,8 @@ class Network():
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
+        self.input_bank_order = []
+        self.output_bank_order = []
         self.config.update(config)
         self.dataset = Dataset()
         self.compile_options = {}
@@ -1379,14 +1381,14 @@ require(['base/js/namespace'], function(Jupyter) {
                 self._build_intermediary_models()
 
     ## classmethod or method
-    def load(self, foldername=None):
+    def load(self=None, foldername=None):
         """
         Load the network from a folder.
         """
-        if self is None or isinstance(self, str):
+        if self is None:
+            raise Exception("foldername is required")
+        elif isinstance(self, str):
             foldername = self
-            if foldername is None:
-                raise Exception("foldername is required")
             net = Network("Temp")
             net.load_model(foldername)
             net.load_weights(foldername)

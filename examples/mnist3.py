@@ -115,7 +115,7 @@ net.connect('hidden2', 'output')
 net.compile(loss='mean_squared_error',
             optimizer='sgd')
 
-ds = Dataset.get_mnist()
+ds = Dataset.get("mnist")
 net.set_dataset(ds)
 #net.rescale_inputs((0,255), (0,1), 'float32')
 #net.shuffle_dataset()
