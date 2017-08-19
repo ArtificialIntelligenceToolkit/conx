@@ -21,17 +21,21 @@ Computing XOR via a target function:
 from conx import Network, SGD
 
 dataset = [[[0, 0], [0]],
-          [[0, 1], [1]],
-          [[1, 0], [1]],
-          [[1, 1], [0]]]
+           [[0, 1], [1]],
+           [[1, 0], [1]],
+           [[1, 1], [0]]]
 
 net = Network("XOR", 2, 5, 1, activation="sigmoid")
 net.set_dataset(dataset)
-net.compile(loss='mean_squared_error',
+net.compile(error='mean_squared_error',
             optimizer=SGD(lr=0.3, momentum=0.9))
 net.train(2000, report_rate=10, accuracy=1)
 net.test()
 ```
+
+Creates dynamic, rendered visualizations like this:
+
+<img src="https://raw.githubusercontent.com/Calysto/conx/master/notebooks/network.png" width="500"></img>
 
 ## Install
 
