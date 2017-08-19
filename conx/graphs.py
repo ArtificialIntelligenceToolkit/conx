@@ -88,6 +88,13 @@ def plot_activations(net, output_layer="output", output_index=0,
     plt.title("Activation of %s[%s]" % (output_layer, output_index))
     plt.xlabel("%s[%s]" % (input_layer, input_index1))
     plt.ylabel("%s[%s]" % (input_layer, input_index2))
+    ## FIXME: matrix is offset... add some values to attempt to centered it:
+    figure.axes.set_xticks([resolution * 5, resolution1/2, resolution1 - resolution * 5])
+    figure.axes.set_xticklabels([min1, (max1 - min1)/2 + min1, max1])
+    figure.axes.set_yticks([resolution * 5, resolution2/2, resolution2 - resolution * 5])
+    figure.axes.set_yticklabels([min2, (max2 - min2)/2 + min2, max2])
+    ##plt.ylim([min2,max2])
+    ##plt.xlim([min1,max1])
     ## Turn off ticks
     ##figure.axes.get_xaxis().set_visible(False)
     ##figure.axes.get_yaxis().set_visible(False)
