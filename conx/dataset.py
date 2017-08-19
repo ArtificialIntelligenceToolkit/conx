@@ -231,6 +231,53 @@ class Dataset():
         """
         self.load(list(zip([inputs], [targets])), append=True)
 
+    def add_by_spec(self, width, frange, vfunction_name, tfunction):
+        """
+        width - length of an input vector
+        frange - (start, stop) or (start, stop, step)
+        vfunction_name - "onehot" or "binary" or callable(i, width)
+        tfunction - a function given an input vector, return target vector
+        To add an AND problem:
+        Dataset.add_by_spec(2, (0, 1), "binary", lambda v: [int(sum(v) == len(v))])
+        Adds the following inputs/targets:
+        [0, 0], [0]
+        [0, 1], [0]
+        [1, 0], [0]
+        [1, 1], [1]
+        Dataset.add_by_spec(10, (0, 10), "onehot", lambda v: v)
+        """
+        def onehot(i, width):
+            v = [0] * width
+            v[i] = 1
+            return v
+
+        def binary(i, width):
+            bs = bin(i)[2:]
+            bs = ("0" * width + bs)[-width:]
+            b = [int(c) for c in bs]
+            return b
+
+        if len(frange) == 2:
+            frange = frange + (1, )
+        if vfunction_name == "onehot":
+            vfunction = onehot
+        elif vfunction_name == "binary":
+            vfunction = binary
+        elif callable(vfunction_name):
+            vfunction = vfunction_name
+        else:
+            raise Exception("unknown vector construction function: " +
+                            "use 'onehot', or 'binary' or callable")
+        inputs = []
+        targets = []
+        current = frange[0] # start
+        while current < frange[1]: # stop, inclusive
+            v = vfunction(current, width)
+            inputs.append(v)
+            targets.append(tfunction(v))
+            current += frange[2] # increment
+        self.load(list(zip(inputs, targets)), append=True)
+
     def load_direct(self, inputs=None, targets=None, labels=None):
         """
         Set the inputs/targets in the specific internal format:
