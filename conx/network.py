@@ -147,7 +147,7 @@ class Network():
             "colormap": None,
             "pixels_per_unit": 1,
             "pp_max_length": 20,
-            "pp_precision": 1,
+            "pp_precision": 2,
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -314,7 +314,7 @@ class Network():
             # Compile the whole model again:
             self.compile(**self.compile_options)
 
-    def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1):
+    def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1, force=False):
         """
         Requires items in proper internal format, if given (for now).
         """
@@ -356,6 +356,9 @@ class Network():
         print("---------------------------------------")
         for i in range(len(out_formatted)):
             print(i, "|", in_formatted[i], "|", targ_formatted[i], "|", out_formatted[i], "|", "correct" if correct[i] else "X")
+            if i > 100 and not force:
+                print("more...")
+                break
         print("Total count:", len(correct))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
@@ -1642,17 +1645,18 @@ require(['base/js/namespace'], function(Jupyter) {
             >>> import conx
             >>> net = Network("Test")
             >>> net.pf([1])
-            '[1.0]'
+            '[1.00]'
 
             >>> net.pf(range(10), pp_max_length=5)
-            '[0.0, 1.0, 2.0, 3.0, 4.0...]'
+            '[0.00, 1.00, 2.00, 3.00, 4.00...]'
         """
         config = copy.copy(self.config)
         config.update(opts)
         max_length = config["pp_max_length"]
         precision = config["pp_precision"]
         truncated = len(vector) > max_length
-        return "[" + ", ".join([("%." + str(precision) + "f") % v for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
+        return "[" + ", ".join([("%." + str(precision) + "f") % round(v, precision)
+                                for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
 
     def to_array(self) -> list:
         """
