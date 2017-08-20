@@ -2,11 +2,12 @@
 
 ## Deep Learning for Simple Folk
 
-Built in Python on Keras.
+Built in Python 3 on Keras 2.
 
 [![CircleCI](https://circleci.com/gh/Calysto/conx/tree/master.svg?style=svg)](https://circleci.com/gh/Calysto/conx/tree/master) [![codecov](https://codecov.io/gh/Calysto/conx/branch/master/graph/badge.svg)](https://codecov.io/gh/Calysto/conx) [![Documentation Status](https://readthedocs.org/projects/conx/badge/?version=latest)](http://conx.readthedocs.io/en/latest/?badge=latest) [![PyPI version](https://badge.fury.io/py/conx.svg)](https://badge.fury.io/py/conx)
 
 Read the documentation at [conx.readthedocs.io](http://conx.readthedocs.io/)
+
 Ask questions on the mailing list: [conx-users](https://groups.google.com/forum/#!forum/conx-users)
 
 Implements Deep Learning neural network algorithms using a simple interface with easy visualizations and useful analytical. Built on top of Keras, which can use either [TensorFlow](https://www.tensorflow.org/), [Theano](http://www.deeplearning.net/software/theano/), or [CNTK](https://www.cntk.ai/pythondocs/).
@@ -38,6 +39,8 @@ Creates dynamic, rendered visualizations like this:
 <img src="https://raw.githubusercontent.com/Calysto/conx/master/notebooks/network.png" width="500"></img>
 
 ## Install
+
+`conx` requires Python3, and some other Python modules that are installed automatically with pip.
 
 **Note**: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
 
