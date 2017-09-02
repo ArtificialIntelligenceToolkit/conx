@@ -60,6 +60,12 @@ or
 pip install tensorflow
 ```
 
+On MacOS, you may also need to render the SVG visualizations:
+
+```bash
+brew install cairo
+```
+
 ### Use with Jupyter Notebooks
 
 To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
