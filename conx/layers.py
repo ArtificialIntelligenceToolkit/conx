@@ -84,6 +84,7 @@ class _BaseLayer():
         self.model = None
         self.decode_model = None
         self.input_names = []
+        self.feature = 0
         # used to determine image ranges:
         self.activation = params.get("activation", None) # make a copy, if one, and str
         if not isinstance(self.activation, str):
@@ -220,18 +221,16 @@ class _BaseLayer():
                     if d in [0, 1]:
                         args.append(s) # keep the first two
                     else:
-                        args.append(0)
-            else:
+                        args.append(self.feature) # pick which to use
+            else: # 'channels_first'
                 count = 0
                 for d in range(len(vector.shape)):
                     if d in [0]:
-                        args.append(0) # drop the first
+                        args.append(self.feature) # pick which to use
                     else:
                         if count < 2:
                             args.append(s)
                             count += 1
-                        else:
-                            args.append(0)
             vector = vector[args]
         minmax = config.get("minmax")
         if minmax is None:
