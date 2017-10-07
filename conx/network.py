@@ -610,10 +610,15 @@ class Network():
             if K.image_data_format() == 'channels_first':
                 input = self.matrix_to_channels_first(input)
         if self.num_input_layers == 1:
-            outputs = list(self.model.predict(np.array([input]), batch_size=batch_size)[0])
+            outputs = self.model.predict(np.array([input]), batch_size=batch_size)
         else:
             inputs = [np.array([x], "float32") for x in input]
-            outputs = [[y.tolist() for y in x][0] for x in self.model.predict(inputs, batch_size=batch_size)]
+            outputs = self.model.predict(inputs, batch_size=batch_size)
+        if self.num_target_layers == 1:
+            outputs = outputs[0].tolist()
+        else:
+            outputs = [y.tolist()[0] for y in outputs]
+
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
