@@ -922,49 +922,8 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % html.escape(data)
 
-    def build_svg(self, inputs=None, class_id=None, opts={}):
-        """
-        opts - temporary override of config
-
-        includes:
-            "font_size": 12,
-            "border_top": 25,
-            "border_bottom": 25,
-            "hspace": 100,
-            "vspace": 50,
-            "image_maxdim": 200
-            "image_pixels_per_unit": 50
-
-        See .config for all options.
-        """
-        if any([(layer.kind() == "unconnected") for layer in self.layers]):
-            raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
-        if self.model is None:
-            raise Exception("can't build display before Network.compile(...) as been run")
-        def divide(n):
-            return n + 1
-            if n == 1:
-                return 2
-            elif n % 2 == 0:
-                return n * 2
-            else:
-                return (n - 1) * 2
-        # defaults:
-        config = copy.copy(self.config)
-        config.update(opts)
-        self.visualize = False # so we don't try to update previously drawn images
+    def build_struct(self, inputs, class_id, config):
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
-        ### Define the SVG strings:
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
-            **{
-                "netname": class_id if class_id is not None else self.name,
-                "border_color": config["border_color"],
-                "border_width": config["border_width"],
-            })
-        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
-        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
-        arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
-        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
         ### find max_width, image_dims, and row_height
         max_width = 0
         images = {}
@@ -978,23 +937,19 @@ class Network():
             for (layer_name, anchor) in level_tups:
                 if not self[layer_name].visible or anchor: # not need to handle anchors here
                     continue
-                if self.model: # thus, we can propagate
-                    if inputs is not None:
-                        v = inputs
-                    elif len(self.dataset.inputs) > 0:
-                        v = self.dataset.inputs[0]
+                if inputs is not None:
+                    v = inputs
+                elif len(self.dataset.inputs) > 0:
+                    v = self.dataset.inputs[0]
+                else:
+                    if self.num_input_layers > 1:
+                        v = []
+                        for in_name in self.input_bank_order:
+                            v.append(self[in_name].make_dummy_vector())
                     else:
-                        if self.num_input_layers > 1:
-                            v = []
-                            for in_name in self.input_bank_order:
-                                v.append(self[in_name].make_dummy_vector())
-                        else:
-                            in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
-                            v = in_layer.make_dummy_vector()
-                    image = self.propagate_to_image(layer_name, v)
-                else: # no propagate
-                    # get image based on ontputs
-                    raise Exception("compile model before building svg")
+                        in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
+                        v = in_layer.make_dummy_vector()
+                image = self.propagate_to_image(layer_name, v)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
                 max_dim = max(width, height)
@@ -1023,15 +978,15 @@ class Network():
             row_height.append(max_height)
             max_width = max(max_width, total_width)
         ### Now that we know the dimensions:
-        ## Darw the title:
-        svg = label_svg.format(
-                    **{"x": max_width/2,
-                       "y": config["border_top"]/2,
-                       "label": self.name,
-                       "font_size": config["font_size"] + 3,
-                       "font_family": config["font_family"],
-                       "text_anchor": "middle",
-                    })
+        struct = []
+        ## Draw the title:
+        struct.append(["label_svg", {"x": max_width/2,
+                                     "y": config["border_top"]/2,
+                                     "label": self.name,
+                                     "font_size": config["font_size"] + 3,
+                                     "font_family": config["font_family"],
+                                     "text_anchor": "middle",
+        }])
         cheight = config["border_top"] # top border
         ## Display targets?
         if config["show_targets"]:
@@ -1041,34 +996,33 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-            spacing = max_width / divide(len(ordering[0]))
+            spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of targets:
             cwidth = 0
             for (layer_name, anchor) in ordering[0]: ## no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - width/2)
-                svg += image_svg.format(**{"name": layer_name + "_targets",
-                                           "svg_counter": self._svg_counter,
-                                           "x": cwidth,
-                                           "y": cheight,
-                                           "image": self._image_to_uri(image),
-                                           "width": width,
-                                           "height": height,
-                                           "tooltip": self[layer_name].tooltip(),
-                                           "rx": cwidth - 1, # based on arrow width
-                                           "ry": cheight - 1,
-                                           "rh": height + 2,
-                                           "rw": width + 2})
+                struct.append(["image_svg", {"name": layer_name + "_targets",
+                                             "svg_counter": self._svg_counter,
+                                             "x": cwidth,
+                                             "y": cheight,
+                                             "image": self._image_to_uri(image),
+                                             "width": width,
+                                             "height": height,
+                                             "tooltip": self[layer_name].tooltip(),
+                                             "rx": cwidth - 1, # based on arrow width
+                                             "ry": cheight - 1,
+                                             "rh": height + 2,
+                                             "rw": width + 2}])
                 ## show a label
-                svg += label_svg.format(
-                    **{"x": cwidth + width + 5,
-                       "y": cheight + height/2 + 2,
-                       "label": "targets",
-                       "font_size": config["font_size"],
-                       "font_family": config["font_family"],
-                       "text_anchor": "start",
-                    })
+                struct.append(["label_svg", {"x": cwidth + width + 5,
+                                             "y": cheight + height/2 + 2,
+                                             "label": "targets",
+                                             "font_size": config["font_size"],
+                                             "font_family": config["font_family"],
+                                             "text_anchor": "start",
+                }])
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
             cheight += row_height[0] + 10 # max height of row, plus some
@@ -1080,34 +1034,33 @@ class Network():
                     continue
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
-            spacing = max_width / divide(len(ordering[0]))
+            spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of errors:
             cwidth = 0
             for (layer_name, anchor) in ordering[0]: # no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - (width/2))
-                svg += image_svg.format(**{"name": layer_name + "_errors",
-                                           "svg_counter": self._svg_counter,
-                                           "x": cwidth,
-                                           "y": cheight,
-                                           "image": self._image_to_uri(image),
-                                           "width": width,
-                                           "height": height,
-                                           "tooltip": self[layer_name].tooltip(),
-                                           "rx": cwidth - 1, # based on arrow width
-                                           "ry": cheight - 1,
-                                           "rh": height + 2,
-                                           "rw": width + 2})
+                struct.append(["image_svg", {"name": layer_name + "_errors",
+                                             "svg_counter": self._svg_counter,
+                                             "x": cwidth,
+                                             "y": cheight,
+                                             "image": self._image_to_uri(image),
+                                             "width": width,
+                                             "height": height,
+                                             "tooltip": self[layer_name].tooltip(),
+                                             "rx": cwidth - 1, # based on arrow width
+                                             "ry": cheight - 1,
+                                             "rh": height + 2,
+                                             "rw": width + 2}])
                 ## show a label
-                svg += label_svg.format(
-                    **{"x": cwidth + width + 5,
-                       "y": cheight + height/2 + 2,
-                       "label": "errors",
-                       "font_size": config["font_size"],
-                       "font_family": config["font_family"],
-                       "text_anchor": "start",
-                    })
+                struct.append(["label_svg", {"x": cwidth + width + 5,
+                                             "y": cheight + height/2 + 2,
+                                             "label": "errors",
+                                             "font_size": config["font_size"],
+                                             "font_family": config["font_family"],
+                                             "text_anchor": "start",
+                }])
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
             cheight += row_height[0] + 10 # max height of row, plus some
@@ -1115,7 +1068,7 @@ class Network():
         positioning = {}
         level_num = 0
         for level_tups in ordering:
-            spacing = max_width / divide(len(level_tups))
+            spacing = max_width / (len(level_tups) + 1)
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
@@ -1152,25 +1105,23 @@ class Network():
                             ## draw a ling to this anchor point
                             x2 = positioning[anchor_name2]["x"]
                             y2 = positioning[anchor_name2]["y"]
-                            svg += line_svg.format(
-                                **{"x1":cwidth,
-                                   "y1":cheight,
-                                   "x2":x2,
-                                   "y2":y2,
-                                   "tooltip": tooltip
-                                })
+                            struct.append(["line_svg", {"x1":cwidth,
+                                                        "y1":cheight,
+                                                        "x2":x2,
+                                                        "y2":y2,
+                                                        "tooltip": tooltip
+                            }])
                         else:
                             ## draw a line to this bank
                             x2 = positioning[layer_name]["x"] + positioning[layer_name]["width"]/2
                             y2 = positioning[layer_name]["y"] + positioning[layer_name]["height"]
                             tootip ="TODO"
-                            svg += arrow_svg.format(
-                                **{"x1":cwidth,
-                                   "y1":cheight,
-                                   "x2":x2,
-                                   "y2":y2,
-                                   "tooltip": tooltip
-                                })
+                            struct.append(["arrow_svg", {"x1":cwidth,
+                                                         "y1":cheight,
+                                                         "x2":x2,
+                                                         "y2":y2,
+                                                         "tooltip": tooltip
+                            }])
                     else:
                         print("that's weird!", layer_name, "is not in", prev)
                     continue
@@ -1221,58 +1172,45 @@ class Network():
                         tooltip = "TODO"
                         x2 = positioning[anchor_name]["x"]
                         y2 = positioning[anchor_name]["y"]
-                        svg += line_svg.format(
-                            **{"x1":x1,
-                               "y1":y1,
-                               "x2":x2,
-                               "y2":y2,
-                               "tooltip": tooltip
-                            })
+                        struct.append(["line_svg", {"x1":x1,
+                                                    "y1":y1,
+                                                    "x2":x2,
+                                                    "y2":y2,
+                                                    "tooltip": tooltip
+                        }])
                         continue
                     else:
                         tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                         x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
                         y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                        svg += arrow_svg.format(
-                            **{"x1":x1,
-                               "y1":y1,
-                               "x2":x2,
-                               "y2":y2 + 2,
-                               "tooltip": tooltip
-                            })
-                svg += image_svg.format(**positioning[layer_name])
-                svg += label_svg.format(
-                    **{"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
-                       "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
-                       "label": layer_name,
-                       "font_size": config["font_size"],
-                       "font_family": config["font_family"],
-                       "text_anchor": "start",
-                    })
+                        struct.append(["arrow_svg", {"x1":x1,
+                                                     "y1":y1,
+                                                     "x2":x2,
+                                                     "y2":y2 + 2,
+                                                     "tooltip": tooltip
+                        }])
+                struct.append(["image_svg", positioning[layer_name]])
+                struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                                             "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
+                                             "label": layer_name,
+                                             "font_size": config["font_size"],
+                                             "font_family": config["font_family"],
+                                             "text_anchor": "start",
+                }])
                 cwidth += width/2
                 max_height = max(max_height, height)
                 self._svg_counter += 1
             cheight += max_height
             level_num += 1
         cheight += config["border_bottom"]
-        self.visualize = True
-        if get_ipython():
-            self._initialize_javascript()
-        return ("""
-        <svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">
-    <defs>
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
-        </marker>
-    </defs>
-""".format(
-    **{
-        "width": max_width,
-        "height": cheight,
-        "netname": self.name,
-        "arrow_color": config["arrow_color"],
-        "arrow_width": config["arrow_width"],
-    }) + svg + """</svg>""")
+        struct.append(["svg_head", {
+            "width": max_width,
+            "height": cheight,
+            "netname": self.name,
+            "arrow_color": config["arrow_color"],
+            "arrow_width": config["arrow_width"],
+        }])
+        return struct
 
     def _initialize_javascript(self):
         from IPython.display import Javascript, display
@@ -1290,6 +1228,71 @@ require(['base/js/namespace'], function(Jupyter) {
 });
 """
         display(Javascript(js))
+
+    def build_svg(self, inputs=None, class_id=None, opts={}):
+        """
+        opts - temporary override of config
+
+        includes:
+            "font_size": 12,
+            "border_top": 25,
+            "border_bottom": 25,
+            "hspace": 100,
+            "vspace": 50,
+            "image_maxdim": 200
+            "image_pixels_per_unit": 50
+
+        See .config for all options.
+        """
+        if any([(layer.kind() == "unconnected") for layer in self.layers]):
+            raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
+        if self.model is None:
+            raise Exception("can't build display before Network.compile(...) as been run")
+        self.visualize = False # so we don't try to update previously drawn images
+        # defaults:
+        config = copy.copy(self.config)
+        config.update(opts)
+        struct = self.build_struct(inputs, class_id, config)
+        ### Define the SVG strings:
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+            **{
+                "netname": class_id if class_id is not None else self.name,
+                "border_color": config["border_color"],
+                "border_width": config["border_width"],
+            })
+        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
+        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
+        arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
+        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">
+    <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
+        </marker>
+    </defs>"""
+        templates = {
+            "image_svg": image_svg,
+            "line_svg": line_svg,
+            "arrow_svg": arrow_svg,
+            "arrow_rect": arrow_rect,
+            "label_svg": label_svg,
+            "svg_head": svg_head,
+        }
+        ## get the header:
+        svg = None
+        for (template_name, dict) in struct:
+            if template_name == "svg_head":
+                svg = svg_head.format(**dict)
+        ## build the rest:
+        for (template_name, dict) in struct:
+            if template_name != "svg_head":
+                t = templates[template_name]
+                svg += t.format(**dict)
+        svg += """</svg>"""
+        self.visualize = True
+        if get_ipython():
+            self._initialize_javascript()
+        return svg
 
     def _get_level_ordering(self):
         """
