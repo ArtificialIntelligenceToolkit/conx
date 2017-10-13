@@ -618,7 +618,6 @@ class Network():
             outputs = outputs[0].tolist()
         else:
             outputs = [y.tolist()[0] for y in outputs]
-
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -763,7 +762,7 @@ class Network():
         """
         whats - "error", "accuracy", and/or "test"
         symbols are matplotlib markers or colors:
-        
+
         https://matplotlib.org/api/markers_api.html
         https://matplotlib.org/api/colors_api.html
         """
@@ -782,7 +781,7 @@ class Network():
             elif what == "test":
                 lines.append(["Test %", symbol, self.val_percent_history])
         return plot(lines, ylabel="value", xlabel="epoch")
-    
+
     def compile(self, **kwargs):
         """
         Check and compile the network.
@@ -835,6 +834,15 @@ class Network():
         kwargs['metrics'] = ['accuracy']
         self.compile_options = copy.copy(kwargs)
         self.model.compile(**kwargs)
+        # set each conx layer to point to corresponding keras model layer
+        for layer in self.layers:
+            layer.keras_layer = self._find_keras_layer(layer.name)
+
+    def _find_keras_layer(self, layer_name):
+        """
+        Find the associated keras layer.
+        """
+        return [x for x in self.model.layers if x.name == layer_name][0]
 
     def _delete_intermediary_models(self):
         """
@@ -1109,6 +1117,7 @@ class Network():
                                                         "y1":cheight,
                                                         "x2":x2,
                                                         "y2":y2,
+                                                        "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
                                                         "tooltip": tooltip
                             }])
                         else:
@@ -1120,6 +1129,7 @@ class Network():
                                                          "y1":cheight,
                                                          "x2":x2,
                                                          "y2":y2,
+                                                         "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
                                                          "tooltip": tooltip
                             }])
                     else:
@@ -1176,6 +1186,7 @@ class Network():
                                                     "y1":y1,
                                                     "x2":x2,
                                                     "y2":y2,
+                                                    "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
                                                     "tooltip": tooltip
                         }])
                         continue
@@ -1187,6 +1198,7 @@ class Network():
                                                      "y1":y1,
                                                      "x2":x2,
                                                      "y2":y2 + 2,
+                                                     "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
                                                      "tooltip": tooltip
                         }])
                 struct.append(["image_svg", positioning[layer_name]])
@@ -1197,6 +1209,25 @@ class Network():
                                              "font_family": config["font_family"],
                                              "text_anchor": "start",
                 }])
+                output_shape = self[layer_name].keras_layer.output_shape
+                if (isinstance(output_shape, tuple) and len(output_shape) == 4 and
+                    "ImageLayer" != self[layer_name].__class__.__name__):
+                    features = str(output_shape[3])
+                    feature = str(self[layer_name].feature)
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                                                 "y": positioning[layer_name]["y"] + 5,
+                                                 "label": features,
+                                                 "font_size": config["font_size"],
+                                                 "font_family": config["font_family"],
+                                                 "text_anchor": "start",
+                    }])
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - (len(feature) * 7) - 5,
+                                                 "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
+                                                 "label": feature,
+                                                 "font_size": config["font_size"],
+                                                 "font_family": config["font_family"],
+                                                 "text_anchor": "start",
+                    }])
                 cwidth += width/2
                 max_height = max(max_height, height)
                 self._svg_counter += 1
@@ -1260,8 +1291,8 @@ require(['base/js/namespace'], function(Jupyter) {
                 "border_color": config["border_color"],
                 "border_width": config["border_width"],
             })
-        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
-        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{arrow_color}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
+        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
+        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
         svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">

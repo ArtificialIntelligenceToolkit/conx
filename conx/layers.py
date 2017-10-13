@@ -40,7 +40,7 @@ import keras.backend as K
 from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam,
                               TFOptimizer)
 
-from .utils import valid_shape, valid_vshape
+from .utils import *
 
 #------------------------------------------------------------------------
 ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
@@ -53,7 +53,6 @@ if ON_RTD:  ## takes too long to load, unless really needed
     except:
         pass # won't turn Keras comments into rft for documentation
 
-from .utils import *
 
 #------------------------------------------------------------------------
 
@@ -85,6 +84,7 @@ class _BaseLayer():
         self.decode_model = None
         self.input_names = []
         self.feature = 0
+        self.keras_layer = None
         # used to determine image ranges:
         self.activation = params.get("activation", None) # make a copy, if one, and str
         if not isinstance(self.activation, str):
