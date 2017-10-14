@@ -35,6 +35,121 @@ from keras.utils import to_categorical
 
 from .utils import valid_shape
 
+def atype(dtype):
+    """
+    Given a numpy dtype, return the associated Python type.
+    If unable to determine, just return the dtype.kind code.
+
+    >>> atype(np.float64(23).dtype)
+    numbers.Number
+    """
+    if dtype.kind in ["i", "f", "u"]:
+        return numbers.Number
+    elif dtype.kind in ["U", "S"]:
+        return str
+    else:
+        return dtype.kind
+
+def format_collapse(ttype, dims):
+    """
+    Given a type and a tuple of dimensions, return a struct of
+    [[[ttype, dims[-1]], dims[-2]], ...]
+
+    >>> format_collapse(int, (1, 2, 3))
+    [[[int, 3], 2], 1]
+    """
+    if len(dims) == 1:
+        return [ttype, dims[0]]
+    else:
+        return format_collapse([ttype, dims[-1]], dims[:-1])
+
+def types(item):
+    """
+    Get the types of (possibly) nested list(s), and collapse
+    if possible.
+
+    >>> types(0)
+    numbers.Number
+
+    >>> types([0, 1, 2])
+    [numbers.Number, 3]
+    """
+    try:
+        length = len(item)
+    except:
+        return (numbers.Number
+                if isinstance(item, numbers.Number)
+                else type(item))
+    if isinstance(item, str):
+        return str
+    elif length == 0:
+        return [None, 0]
+    array = None
+    try:
+        array = np.asarray(item)
+    except:
+        pass
+    if array is None or array.dtype == object:
+        return [types(x) for x in item]
+    else:
+        dtype = array.dtype ## can be many things!
+        return format_collapse(atype(dtype), array.shape)
+
+def all_same(iterator):
+    """
+    Are there more than one item, and all the same?
+
+    >>> all_same([int, int, int])
+    True
+
+    >>> all_same([int, float, int])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return False
+    return all([first == rest for rest in iterator])
+
+def is_collapsed(item):
+    """
+    Is this a collapsed item?
+    """
+    try:
+        return len(item) == 2 and isinstance(item[0], (type, np.dtype))
+    except:
+        return False
+
+def collapse(item):
+    """
+    For any repeated structure, return [struct, count].
+
+    >>> collapse([[int, int, int], [float, float]])
+    [[int, 3], [float, 2]]
+    """
+    if is_collapsed(item):
+        return item
+    try:
+        length = len(item)
+    except:
+        return item
+    items = [collapse(i) for i in item]
+    if all_same(items):
+        return [items[0], length]
+    else:
+        return items
+
+def get_form(item):
+    """
+    First, get the types of all items, and then collapse
+    repeated structures.
+
+    >>> get_form([1, [2, 5, 6], 3])
+    [numbers.Number, [numbers.Number, 3], numbers.Number]
+    """
+    return collapse(types(item))
+
 class _DataVector():
     def __init__(self, dataset, item):
         self.dataset = dataset

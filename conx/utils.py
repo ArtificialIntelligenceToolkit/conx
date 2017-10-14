@@ -27,6 +27,21 @@ from keras.utils import to_categorical
 #------------------------------------------------------------------------
 # utility functions
 
+def image2array(image):
+    """
+    Convert a PIL.Image into a numpy array.
+    """
+    array = np.fromstring(image.tobytes(), dtype=np.uint8)
+    array = array.reshape(image.height, image.width, len(image.getbands()))
+    return array
+
+def array2image(array):
+    """
+    Convert an array (with shape) to a PIL. Image.
+    """
+    image = PIL.Image.fromarray(array)
+    return
+
 def one_hot(vector, categories):
     """
     Given a vector of integers (i.e. labels), return a numpy array of one-hot vectors.
