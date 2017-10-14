@@ -152,6 +152,26 @@ def get_form(item):
     """
     return collapse(types(item))
 
+def get_shape(form):
+    """
+    Given a form, format it in [type, dimension] format.
+
+    >>> get_shape(get_form([[0.00], [0.00]]))
+    [<class 'numbers.Number'>, [2, 1]]
+    """
+    if (isinstance(form, list) and
+        len(form) == 2 and
+        isinstance(form[1], numbers.Number)):
+        ## Is it [type, count]
+        if form[0] in (np.dtype, numbers.Number):
+            return form[0], [form[1]]
+        else:
+            ## or [[...], [...]]
+            f = get_shape(form[0])
+            return [f[0], [form[1]] + f[1]]
+    else:
+        return [get_shape(x) for x in form]
+
 class _DataVector():
     def __init__(self, dataset, item):
         self.dataset = dataset
@@ -259,7 +279,15 @@ class _DataVector():
             raise StopIteration
 
     def __repr__(self):
-        return "<Dataset %s vector>" % self.item
+        length = len(self)
+        if length:
+            ## type and shape:
+            shape = get_shape(get_form(self[0]))
+            return "<Dataset '%s', length: %s, shape: %s>" % (
+                self.item, length, tuple(shape[1]))
+        else:
+            return "<Dataset '%s', length: %s, shape: None>" % (
+                self.item, length)
 
 class Dataset():
 

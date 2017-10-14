@@ -1409,20 +1409,18 @@ require(['base/js/namespace'], function(Jupyter) {
             self._delete_intermediary_models()
         self.model, tmp_model = None, self.model
         self._comm, tmp_comm = None, self._comm
-        self.dataset, tmp_dataset = None, self.dataset
         self.compile_options, tmp_co = {}, self.compile_options
-        try:
-            with open("%s/network.pickle" % foldername, "wb") as fp:
-                pickle.dump(self, fp)
-        except:
-            raise
-        finally:
-            self.model = tmp_model
-            self._comm = tmp_comm
-            self.dataset = tmp_dataset
-            self.compile_options = tmp_co
-            if self.model and save_all:
-                self._build_intermediary_models()
+        #try:
+        with open("%s/network.pickle" % foldername, "wb") as fp:
+            pickle.dump(self, fp)
+        #except:
+        #    raise
+        #finally:
+        self.model = tmp_model
+        self._comm = tmp_comm
+        self.compile_options = tmp_co
+        if self.model and save_all:
+            self._build_intermediary_models()
 
     ## classmethod or method
     def load(self=None, foldername=None):
