@@ -41,7 +41,7 @@ def atype(dtype):
     If unable to determine, just return the dtype.kind code.
 
     >>> atype(np.float64(23).dtype)
-    numbers.Number
+    <class 'numbers.Number'>
     """
     if dtype.kind in ["i", "f", "u"]:
         return numbers.Number
@@ -56,7 +56,7 @@ def format_collapse(ttype, dims):
     [[[ttype, dims[-1]], dims[-2]], ...]
 
     >>> format_collapse(int, (1, 2, 3))
-    [[[int, 3], 2], 1]
+    [[[<class 'int'>, 3], 2], 1]
     """
     if len(dims) == 1:
         return [ttype, dims[0]]
@@ -69,10 +69,10 @@ def types(item):
     if possible.
 
     >>> types(0)
-    numbers.Number
+    <class 'numbers.Number'>
 
     >>> types([0, 1, 2])
-    [numbers.Number, 3]
+    [<class 'numbers.Number'>, 3]
     """
     try:
         length = len(item)
@@ -117,7 +117,9 @@ def is_collapsed(item):
     Is this a collapsed item?
     """
     try:
-        return len(item) == 2 and isinstance(item[0], (type, np.dtype))
+        return (len(item) == 2 and
+                isinstance(item[0], (type, np.dtype)) and
+                isinstance(item[1], numbers.Number))
     except:
         return False
 
@@ -126,7 +128,7 @@ def collapse(item):
     For any repeated structure, return [struct, count].
 
     >>> collapse([[int, int, int], [float, float]])
-    [[int, 3], [float, 2]]
+    [[<class 'int'>, 3], [<class 'float'>, 2]]
     """
     if is_collapsed(item):
         return item
@@ -146,7 +148,7 @@ def get_form(item):
     repeated structures.
 
     >>> get_form([1, [2, 5, 6], 3])
-    [numbers.Number, [numbers.Number, 3], numbers.Number]
+    [<class 'numbers.Number'>, [<class 'numbers.Number'>, 3], <class 'numbers.Number'>]
     """
     return collapse(types(item))
 
