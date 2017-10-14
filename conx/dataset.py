@@ -299,7 +299,9 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, pairs=None, inputs=None, targets=None, patterns=None):
+    def __init__(self, pairs=None, inputs=None, targets=None):
+        self._data_to_load = []
+        self._loaded = False
         self._num_input_banks = 0
         self._num_target_banks = 0
         self._inputs = []
@@ -318,24 +320,13 @@ class Dataset():
         self._split = 0
         if inputs is not None:
             if targets is not None:
+                if pairs is not None:
+                    raise Exception("Use pairs or inputs/targets but not both")
                 self.load(zip(inputs, targets))
             else:
                 raise Exception("you cannot set inputs without targets")
         elif targets is not None:
             raise Exception("you cannot set targets without inputs")
-        if patterns is not None:
-            ## FIXME: allow inputs/targets to be words or list of words, initially
-            if isinstance(patterns, (list, tuple)):
-                ## turn it into a dictionary
-                self.patterns = {word: index for (word, index)
-                                 in zip(patterns, range(len(patterns)))}
-            else:
-                self.patterns = patterns
-            self.max_label = max(self.patterns.values())
-            self.label_to_word = {index: word for (word, index) in self.patterns.items()}
-            self.label_to_category = {index: to_categorical(index, self.max_label + 1)
-                                      for index in self.patterns.values()}
-            self.labels = list(sorted(self.patterns.values()))
         if pairs is not None:
             self.load(pairs)
 
@@ -353,6 +344,8 @@ class Dataset():
         """
         Remove all of the inputs/targets.
         """
+        self._data_to_load = []
+        self._loaded = False
         self._num_input_banks = 0
         self._num_target_banks = 0
         self._inputs = []
@@ -477,8 +470,31 @@ class Dataset():
 
         See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
         """
-        ## Either the inputs/targets are a list of a list -> np.array(...) (np.array() of vectors)
-        ## or are a list of list of list -> [np.array(), np.array()]  (list of np.array cols of vectors)
+        ## first we check the form of the inputs and targets:
+        if len(pairs) == 0:
+            raise Exception("need more than zero pairs of inputs/targets")
+        for pair in pairs:
+            if len(pair) != 2:
+                raise Exception("need a pair of inputs/targets for each pattern")
+        inputs = [pair[0] for pair in pairs]
+        targets = [pair[1] for pair in pairs]
+        if len(inputs) > 1:
+            form = get_form(inputs[0])
+            for i in range(1, len(inputs)):
+                if form != get_form(inputs[i]):
+                    raise Exception("Malformed input at number %d" % (i + 1))
+        if len(targets) > 1:
+            form = get_form(targets[0])
+            for i in range(1, len(targets)):
+                if form != get_form(targets[i]):
+                    raise Exception("Malformed target at number %d" % (i + 1))
+        if append:
+            self._data_to_load.extend(pairs)
+        else:
+            self._data_to_load = pairs
+
+    def compile(self, net, append=False):
+        pairs = self._data_to_load
         self._num_input_banks = len(np.array(pairs[0][0]).shape)
         self._num_target_banks = len(np.array(pairs[0][1]).shape)
         if self._num_input_banks > 1:
@@ -638,6 +654,7 @@ class Dataset():
         self.split(len(self.inputs))
 
     def _cache_values(self):
+        self._loaded = True
         if len(self.inputs) > 0:
             if self._num_input_banks > 1:
                 self._inputs_range = (min([x.min() for x in self._inputs]),

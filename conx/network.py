@@ -183,6 +183,8 @@ class Network():
     def set_dataset(self, dataset):
         if not isinstance(dataset, Dataset):
             dataset = Dataset(dataset) ## assumes pair format
+        if not dataset._loaded:
+            dataset.compile(self)
         self.dataset = dataset
 
     def __getitem__(self, layer_name):
@@ -1410,17 +1412,21 @@ require(['base/js/namespace'], function(Jupyter) {
         self.model, tmp_model = None, self.model
         self._comm, tmp_comm = None, self._comm
         self.compile_options, tmp_co = {}, self.compile_options
-        #try:
-        with open("%s/network.pickle" % foldername, "wb") as fp:
-            pickle.dump(self, fp)
-        #except:
-        #    raise
-        #finally:
-        self.model = tmp_model
-        self._comm = tmp_comm
-        self.compile_options = tmp_co
-        if self.model and save_all:
-            self._build_intermediary_models()
+        for layer in self.layers:
+            layer.keras_layer = None
+        try:
+            with open("%s/network.pickle" % foldername, "wb") as fp:
+                pickle.dump(self, fp)
+        except:
+            raise
+        finally:
+            self.model = tmp_model
+            self._comm = tmp_comm
+            self.compile_options = tmp_co
+            if self.model and save_all:
+                self._build_intermediary_models()
+                for layer in self.layers:
+                    layer.keras_layer = self._find_keras_layer(layer.name)
 
     ## classmethod or method
     def load(self=None, foldername=None):
