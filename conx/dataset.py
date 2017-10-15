@@ -500,7 +500,7 @@ class Dataset():
             raise Exception("dataset has already been loaded")
         pairs = self._data_to_load
         self._num_input_banks = len(net.input_bank_order)
-        self._num_target_banks = len(self.target_bank_order)
+        self._num_target_banks = len(net.output_bank_order)
         if self._num_input_banks > 1:
             inputs = []
             for i in range(len(pairs[0][0])):
