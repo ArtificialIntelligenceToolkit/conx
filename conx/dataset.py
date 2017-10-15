@@ -250,6 +250,42 @@ class _DataVector():
         else:
             raise Exception("unknown vector: %s" % (item,))
 
+    def reshape(self, bank_index, new_shape):
+        """
+        >>> from conx import Network
+        >>> net = Network("Test 1", 10, 2, 3, 28 * 28)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.add([0] * 10, [0] * 28 * 28)
+        >>> net.dataset.targets.reshape(0, (28, 28, 1))
+        >>> net.dataset._targets.shape
+        (1, 28, 28, 1)
+        >>> net.dataset.inputs.reshape(0, (2, 5))
+        >>> net.dataset._inputs.shape
+        (1, 2, 5)
+        """
+        if not isinstance(new_shape, (list, tuple)):
+            new_shape = tuple([new_shape])
+        else:
+            new_shape = tuple(new_shape)
+        if self.item == "targets":
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("targets bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                shape = self.dataset._targets.shape
+                self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
+            else:
+                shape = self.dataset._targets[0].shape
+                self.dataset_targets[0] = self.dataset._targets[0].reshape((shape[0],) + new_shape)
+        elif self.item == "inputs":
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("inputs bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                shape = self.dataset._inputs.shape
+                self.dataset._inputs = self.dataset._inputs.reshape((shape[0],) + new_shape)
+            else:
+                shape = self.dataset._inputs[0].shape
+                self.dataset._inputs[0] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
+
     def __len__(self):
         if self.item == "targets":
             return self.dataset._get_targets_length()
