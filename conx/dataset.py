@@ -339,6 +339,10 @@ class Dataset():
         self.clear()
         self.network = network
 
+    def set_bank_counts(self):
+        self._num_input_banks = len(self.network.input_bank_order)
+        self._num_target_banks = len(self.network.output_bank_order)
+
     def __getattr__(self, item):
         if item in [
                 "inputs", "targets",
@@ -508,11 +512,29 @@ class Dataset():
             for i in range(1, len(targets)):
                 if form != get_form(targets[i]):
                     raise Exception("Malformed target at number %d" % (i + 1))
+        # Test the inputs, see if outputs match:
+        if self._num_input_banks > 1:
+            inputs = [np.array(bank, "float32") for bank in inputs[0]]
+        else:
+            inputs = np.array([inputs[0]], "float32")
+        ## Predict:
+        ## try:
+        prediction = self.network.model.predict(inputs, batch_size=1)
+        ## raise Exception("Invalid input form; got %s" % (inputs,))
+        if self._num_target_banks > 1:
+            targets = [np.array(bank, "float32") for bank in targets[0]]
+            for i in range(len(targets[0])):
+                shape = tuple(get_shape(get_form(targets[i]))[1])
+                if prediction[0][i].shape != shape:
+                    raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (i, shape, prediction[0][i].shape))
+        else:
+            targets = np.array(targets[0], "float32")
+            shape = tuple(get_shape(get_form(targets))[1])
+            if prediction[0].shape != shape:
+                raise Exception("Invalid target shape; got %s, expecting %s" % (shape, prediction[0].shape))
         self.compile(pairs)
 
     def compile(self, pairs):
-        self._num_input_banks = len(self.network.input_bank_order)
-        self._num_target_banks = len(self.network.output_bank_order)
         if self._num_input_banks > 1:
             inputs = []
             for i in range(len(pairs[0][0])):

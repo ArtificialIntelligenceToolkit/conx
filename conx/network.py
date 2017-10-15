@@ -835,6 +835,7 @@ class Network():
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
+        self.dataset.set_bank_counts()
 
     def _find_keras_layer(self, layer_name):
         """
