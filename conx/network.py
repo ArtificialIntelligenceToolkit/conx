@@ -154,7 +154,7 @@ class Network():
         self.input_bank_order = []
         self.output_bank_order = []
         self.config.update(config)
-        self.dataset = Dataset()
+        self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
         self.name = name
@@ -179,13 +179,6 @@ class Network():
         self.model = None
         self.prop_from_dict = {}
         self._svg_counter = 1
-
-    def set_dataset(self, dataset):
-        if not isinstance(dataset, Dataset):
-            dataset = Dataset(dataset) ## assumes pair format
-        if not dataset._loaded:
-            dataset.compile(self)
-        self.dataset = dataset
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -372,32 +365,18 @@ class Network():
 
             >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
-            >>> net.compile(loss='mean_squared_error',
+            >>> net.compile(error='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
-            >>> # Method 1:
             >>> ds = [[[0, 0], [0]],
             ...       [[0, 1], [1]],
             ...       [[1, 0], [1]],
             ...       [[1, 1], [0]]]
-            >>> dataset = Dataset()
-            >>> dataset.load(ds)
-            >>> net.set_dataset(dataset)
+            >>> net.dataset.load(ds)
             >>> out, err = net.train_one({"input": [0, 0]},
             ...                          {"output": [0]})
             >>> len(out)
             1
             >>> len(err)
-            1
-            >>> # Method 2:
-            >>> ds = [[[0, 0], [0]],
-            ...       [[0, 1], [1]],
-            ...       [[1, 0], [1]],
-            ...       [[1, 1], [0]]]
-            >>> dataset = Dataset(ds)
-            >>> net.set_dataset(ds)
-            >>> net.dataset._num_target_banks
-            1
-            >>> net.dataset._num_input_banks
             1
 
             >>> from conx import Network, Layer, SGD, Dataset
@@ -415,16 +394,14 @@ class Network():
             >>> net.connect("hidden2", "shared-hidden")
             >>> net.connect("shared-hidden", "output1")
             >>> net.connect("shared-hidden", "output2")
-            >>> net.compile(loss='mean_squared_error',
+            >>> net.compile(error='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> ds = [([[0],[0]], [[0],[0]]),
             ...       ([[0],[1]], [[1],[1]]),
             ...       ([[1],[0]], [[1],[1]]),
             ...       ([[1],[1]], [[0],[0]])]
-            >>> dataset = Dataset(ds)
-            >>> dataset.load(ds)
-            >>> net.set_dataset(dataset)
-            >>> net.compile(loss='mean_squared_error',
+            >>> net.dataset.load(ds)
+            >>> net.compile(error='mean_squared_error',
             ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> out, err = net.train_one({"input1": [0], "input2": [0]},
             ...                          {"output1": [0], "output2": [0]})
@@ -432,7 +409,6 @@ class Network():
             2
             >>> len(err)
             2
-            >>> net.set_dataset(ds)
             >>> net.dataset._num_input_banks
             2
             >>> net.dataset._num_target_banks

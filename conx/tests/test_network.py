@@ -17,15 +17,13 @@ def test_xor1():
     net.add(Layer("output", 1))
     net.connect("input", "hidden")
     net.connect("hidden", "output")
-    net.compile(loss="binary_crossentropy", optimizer="adam")
+    net.compile(error="binary_crossentropy", optimizer="adam")
     net.summary()
     net.model.summary()
-    dataset = Dataset()
-    dataset.load([[[0, 0], [0]],
-                  [[0, 1], [1]],
-                  [[1, 0], [1]],
-                  [[1, 1], [0]]])
-    net.set_dataset(dataset)
+    net.dataset.load([[[0, 0], [0]],
+                      [[0, 1], [1]],
+                      [[1, 0], [1]],
+                      [[1, 1], [0]]])
     net.train(epochs=2000, accuracy=1, report_rate=25)
     net.test()
     net.save("/tmp/XOR.conx")
@@ -51,17 +49,15 @@ def test_xor2():
     net.connect("hidden2", "shared-hidden")
     net.connect("shared-hidden", "output1")
     net.connect("shared-hidden", "output2")
-    net.compile(loss='mean_squared_error',
+    net.compile(error='mean_squared_error',
                 optimizer=SGD(lr=0.3, momentum=0.9))
 
-    dataset = Dataset()
-    dataset.load([
+    net.dataset.load([
         ([[0],[0]], [[0],[0]]),
         ([[0],[1]], [[1],[1]]),
         ([[1],[0]], [[1],[1]]),
         ([[1],[1]], [[0],[0]])
     ])
-    net.set_dataset(dataset)
     net.train(2000, report_rate=10, accuracy=1)
     net.test()
     net.propagate_to("shared-hidden", [[1], [1]])
@@ -89,9 +85,8 @@ def test_dataset():
     net.connect('input', 'hidden1')
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
-    net.compile(optimizer="adam", loss="binary_crossentropy")
-    dataset = Dataset.get("mnist")
-    net.set_dataset(dataset)
+    net.compile(optimizer="adam", error="binary_crossentropy")
+    net.dataset.get("mnist")
     assert net is not None
 
 def test_dataset2():
@@ -99,7 +94,6 @@ def test_dataset2():
     Load data before adding network.
     """
     net = Network("MNIST")
-    dataset = Dataset.get("mnist")
     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
@@ -107,9 +101,10 @@ def test_dataset2():
     net.connect('input', 'hidden1')
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
-    net.compile(optimizer="adam", loss="binary_crossentropy")
-    dataset.split(100)
-    dataset.slice(100)
+    net.compile(optimizer="adam", error="binary_crossentropy")
+    net.dataset.get("mnist")
+    net.dataset.split(100)
+    net.dataset.slice(100)
     assert net is not None
 
 
@@ -124,7 +119,7 @@ def test_dataset2():
 #     net.connect('input', 'hidden1')
 #     net.connect('hidden1', 'hidden2')
 #     net.connect('hidden2', 'output')
-#     net.compile(optimizer="adam", loss="binary_crossentropy")
+#     net.compile(optimizer="adam", error="binary_crossentropy")
 #     svg = net.build_svg() ## FAIL!
 #     assert svg is not None
 
@@ -132,15 +127,13 @@ def test_cifar10():
     """
     Test the cifar10 API and training.
     """
-    from conx import Network, Layer, Conv2DLayer, MaxPool2DLayer, FlattenLayer, Dataset
+    from conx import Network, Layer, Conv2DLayer, MaxPool2DLayer, FlattenLayer
 
     batch_size = 32
     num_classes = 10
     epochs = 200
     data_augmentation = True
     num_predictions = 20
-
-    ds = Dataset.get("cifar10")
 
     net = Network("CIRAR10")
     net.add(Layer("input", (32, 32, 3)))
@@ -157,19 +150,12 @@ def test_cifar10():
 
     # initiate RMSprop optimizer
     opt = RMSprop(lr=0.0001, decay=1e-6)
-
-    net.compile(loss='categorical_crossentropy',
+    net.compile(error='categorical_crossentropy',
                 optimizer=opt)
-
-    # Let's train the model using RMSprop
-    net.compile(loss='categorical_crossentropy',
-                optimizer=opt,
-                metrics=['accuracy'])
-
-    net.set_dataset(ds)
+    net.dataset.get("cifar10")
     net.dashboard()
     net.dataset.slice(10)
     net.dataset.shuffle()
     net.dataset.split(.5)
     net.train()
-    net.propagate(ds.inputs[0])
+    net.propagate(net.dataset.inputs[0])

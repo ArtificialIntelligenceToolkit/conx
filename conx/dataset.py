@@ -299,36 +299,9 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, pairs=None, inputs=None, targets=None):
-        self._data_to_load = []
-        self._loaded = False
-        self._num_input_banks = 0
-        self._num_target_banks = 0
-        self._inputs = []
-        self._targets = []
-        self._labels = []
-        self._train_inputs = []
-        self._train_targets = []
-        self._test_inputs = []
-        self._test_targets = []
-        self._test_labels = []
-        self._train_labels = []
-        self._inputs_range = (0,0)
-        self._targets_range = (0,0)
-        self._target_shapes = []
-        self._input_shapes = []
-        self._split = 0
-        if inputs is not None:
-            if targets is not None:
-                if pairs is not None:
-                    raise Exception("Use pairs or inputs/targets but not both")
-                self.load(zip(inputs, targets))
-            else:
-                raise Exception("you cannot set inputs without targets")
-        elif targets is not None:
-            raise Exception("you cannot set targets without inputs")
-        if pairs is not None:
-            self.load(pairs)
+    def __init__(self, network):
+        self.clear()
+        self.network = network
 
     def __getattr__(self, item):
         if item in [
@@ -344,8 +317,6 @@ class Dataset():
         """
         Remove all of the inputs/targets.
         """
-        self._data_to_load = []
-        self._loaded = False
         self._num_input_banks = 0
         self._num_target_banks = 0
         self._inputs = []
@@ -367,7 +338,7 @@ class Dataset():
         """
         Add a single (input, target) pair to the dataset.
         """
-        self.load(list(zip([inputs], [targets])), append=True)
+        self.load(list(zip([inputs], [targets])))
 
     def add_by_spec(self, width, frange, vfunction_name, tfunction):
         """
@@ -414,7 +385,7 @@ class Dataset():
             inputs.append(v)
             targets.append(tfunction(v))
             current += frange[2] # increment
-        self.load(list(zip(inputs, targets)), append=True)
+        self.load(list(zip(inputs, targets)))
 
     def load_direct(self, inputs=None, targets=None, labels=None):
         """
@@ -459,7 +430,7 @@ class Dataset():
             self._num_target_banks = 1
             self._target_shapes = [targets[0].shape]
 
-    def load(self, pairs, append=False):
+    def load(self, pairs=None, inputs=None, targets=None):
         """
         Set the human-specified dataset to a proper keras dataset.
 
@@ -470,6 +441,19 @@ class Dataset():
 
         See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
         """
+        if self.network.model is None:
+            raise Exception("compile network before setting dataset")
+        if inputs is not None:
+            if targets is not None:
+                if pairs is not None:
+                    raise Exception("Use pairs or inputs/targets but not both")
+                pairs = zip(inputs, targets)
+            else:
+                raise Exception("you cannot set inputs without targets")
+        elif targets is not None:
+            raise Exception("you cannot set targets without inputs")
+        if pairs is None:
+            raise Exception("you need to call with pairs or with input/targets")
         ## first we check the form of the inputs and targets:
         if len(pairs) == 0:
             raise Exception("need more than zero pairs of inputs/targets")
@@ -488,19 +472,11 @@ class Dataset():
             for i in range(1, len(targets)):
                 if form != get_form(targets[i]):
                     raise Exception("Malformed target at number %d" % (i + 1))
-        if append:
-            self._data_to_load.extend(pairs)
-        else:
-            self._data_to_load = pairs
+        self.compile(pairs)
 
-    def compile(self, net, append=False):
-        if net.model is None:
-            raise Exception("compile network before setting dataset")
-        if self._loaded:
-            raise Exception("dataset has already been loaded")
-        pairs = self._data_to_load
-        self._num_input_banks = len(net.input_bank_order)
-        self._num_target_banks = len(net.output_bank_order)
+    def compile(self, pairs):
+        self._num_input_banks = len(self.network.input_bank_order)
+        self._num_target_banks = len(self.network.output_bank_order)
         if self._num_input_banks > 1:
             inputs = []
             for i in range(len(pairs[0][0])):
@@ -513,30 +489,24 @@ class Dataset():
                 targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
             targets = np.array([y for (x, y) in pairs], "float32")
-        if append:
-            if len(self._inputs) == 0:
-                self._set_input_info(inputs)
-                self._set_target_info(targets)
-            else:
-                ## inputs:
-                if self._num_input_banks == 1: ## np.array
-                    self._inputs = np.append(self._inputs, inputs, 0)
-                else: ## list
-                    self._inputs.extend(inputs)
-                ## targets:
-                if self._num_target_banks == 1: ## np.array
-                    self._targets = np.append(self._targets, targets, 0)
-                else: ## list
-                    self._targets.extend(targets)
-        else:
-            self._labels = []
+        if len(self._inputs) == 0:
             self._set_input_info(inputs)
             self._set_target_info(targets)
+        else:
+            ## inputs:
+            if self._num_input_banks == 1: ## np.array
+                self._inputs = np.append(self._inputs, inputs, 0)
+            else: ## list
+                self._inputs.extend(inputs)
+            ## targets:
+            if self._num_target_banks == 1: ## np.array
+                self._targets = np.append(self._targets, targets, 0)
+            else: ## list
+                self._targets.extend(targets)
         self._cache_values()
         self.split(len(self.inputs))
 
-    @classmethod
-    def _get_cifar10(cls):
+    def _get_cifar10(self):
         from keras.datasets import cifar10
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         inputs = np.concatenate((x_train, x_test))
@@ -544,30 +514,22 @@ class Dataset():
         targets = to_categorical(labels, 10)
         inputs = inputs.astype('float32')
         inputs /= 255
-        ds = Dataset()
-        ds.load_direct(inputs, targets, labels)
-        return ds
+        self.load_direct(inputs, targets, labels)
 
-    def get(self=None, dataset_name=None):
+    def get(self, dataset_name=None):
         """
         Get a known dataset by name.
         """
-        if self is None:
-            raise Exception("dataset_name is required")
-        elif isinstance(self, str):
-            dataset_name = self
-            if dataset_name == "mnist":
-                return Dataset._get_mnist()
-            elif dataset_name == "cifar10":
-                return Dataset._get_cifar10()
-            elif dataset_name == "cifar100":
-                return Dataset._get_cifar100()
-            else:
-                raise Exception(
-                    ("unknown dataset name '%s': should be one of %s" %
-                     (dataset_name, Dataset.DATASETS)))
+        if dataset_name == "mnist":
+            self._get_mnist()
+        elif dataset_name == "cifar10":
+            self._get_cifar10()
+        elif dataset_name == "cifar100":
+            self._get_cifar100()
         else:
-            self.copy(Dataset.get(dataset_name))
+            raise Exception(
+                ("unknown dataset name '%s': should be one of %s" %
+                 (dataset_name, Dataset.DATASETS)))
 
     def copy(self, dataset):
         """
@@ -578,8 +540,7 @@ class Dataset():
                          targets=dataset._targets,
                          labels=dataset._labels)
 
-    @classmethod
-    def _get_cifar100(cls):
+    def _get_cifar100(self):
         from keras.datasets import cifar100
         (x_train, y_train), (x_test, y_test) = cifar100.load_data()
         inputs = np.concatenate((x_train, x_test))
@@ -587,18 +548,14 @@ class Dataset():
         targets = to_categorical(labels, 100)
         inputs = inputs.astype('float32')
         inputs /= 255
-        ds = Dataset()
-        ds.load_direct(inputs, targets, labels)
-        return ds
+        self.load_direct(inputs, targets, labels)
 
-    @classmethod
-    def _get_mnist(cls):
+    def _get_mnist(self):
         """
         Load the Keras MNIST dataset and format it as images.
         """
         from keras.datasets import mnist
         import keras.backend as K
-        dataset = Dataset()
         # input image dimensions
         img_rows, img_cols = 28, 28
         # the data, shuffled and split between train and test sets
@@ -620,8 +577,7 @@ class Dataset():
         inputs = np.concatenate((x_train,x_test))
         labels = np.concatenate((y_train,y_test))
         targets = to_categorical(labels)
-        dataset.load_direct(inputs, targets, labels)
-        return dataset
+        self.load_direct(inputs, targets, labels)
 
     def slice(self, start=None, stop=None):
         """
@@ -658,7 +614,6 @@ class Dataset():
         self.split(len(self.inputs))
 
     def _cache_values(self):
-        self._loaded = True
         if len(self.inputs) > 0:
             if self._num_input_banks > 1:
                 self._inputs_range = (min([x.min() for x in self._inputs]),
