@@ -372,16 +372,16 @@ class Network():
 
             >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
+            >>> net.compile(loss='mean_squared_error',
+            ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> # Method 1:
             >>> ds = [[[0, 0], [0]],
             ...       [[0, 1], [1]],
             ...       [[1, 0], [1]],
             ...       [[1, 1], [0]]]
-            >>> dataset = Dataset(ds)
+            >>> dataset = Dataset()
             >>> dataset.load(ds)
             >>> net.set_dataset(dataset)
-            >>> net.compile(loss='mean_squared_error',
-            ...             optimizer=SGD(lr=0.3, momentum=0.9))
             >>> out, err = net.train_one({"input": [0, 0]},
             ...                          {"output": [0]})
             >>> len(out)
@@ -389,6 +389,11 @@ class Network():
             >>> len(err)
             1
             >>> # Method 2:
+            >>> ds = [[[0, 0], [0]],
+            ...       [[0, 1], [1]],
+            ...       [[1, 0], [1]],
+            ...       [[1, 1], [0]]]
+            >>> dataset = Dataset(ds)
             >>> net.set_dataset(ds)
             >>> net.dataset._num_target_banks
             1
