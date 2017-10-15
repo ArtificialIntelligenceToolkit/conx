@@ -494,9 +494,13 @@ class Dataset():
             self._data_to_load = pairs
 
     def compile(self, net, append=False):
+        if net.model is None:
+            raise Exception("compile network before setting dataset")
+        if self._loaded:
+            raise Exception("dataset has already been loaded")
         pairs = self._data_to_load
-        self._num_input_banks = len(np.array(pairs[0][0]).shape)
-        self._num_target_banks = len(np.array(pairs[0][1]).shape)
+        self._num_input_banks = len(net.input_bank_order)
+        self._num_target_banks = len(self.target_bank_order)
         if self._num_input_banks > 1:
             inputs = []
             for i in range(len(pairs[0][0])):

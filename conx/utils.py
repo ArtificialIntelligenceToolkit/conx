@@ -39,8 +39,9 @@ def array2image(array):
     """
     Convert an array (with shape) to a PIL. Image.
     """
+    array =  (array * 255).astype("uint8")
     image = PIL.Image.fromarray(array)
-    return
+    return image
 
 def one_hot(vector, categories):
     """

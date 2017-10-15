@@ -737,6 +737,21 @@ class Network():
         outputs = outputs[0].tolist()
         return outputs
 
+    def propagate_to_features(self, layer_name, inputs, cols=5):
+        from IPython.display import HTML
+        output_shape = self[layer_name].keras_layer.output_shape
+        retval = """<table><tr>"""
+        if (isinstance(output_shape, tuple) and len(output_shape) == 4):
+            for i in range(output_shape[3]):
+                self[layer_name].feature = i
+                image = self.propagate_to_image(layer_name, inputs)
+                data_uri = self._image_to_uri(image)
+                retval += """<td><img src="%s"/><br/><center>Feature %s</center></td>""" % (data_uri, i)
+                if (i + 1) % cols == 0:
+                    retval += """</tr><tr>"""
+            retval += "</tr>"
+            return HTML(retval)
+
     def propagate_to_image(self, layer_name, input, batch_size=32):
         """
         Gets an image of activations at a layer.
