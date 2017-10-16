@@ -21,6 +21,7 @@
 The network module contains the code for the Network class.
 """
 
+import collections
 import operator
 import importlib
 from functools import reduce
@@ -33,6 +34,7 @@ import html
 import copy
 import io
 import os
+import re
 import PIL
 from typing import Any
 
@@ -146,8 +148,7 @@ class Network():
             "minmax": None,
             "colormap": None,
             "pixels_per_unit": 1,
-            "pp_max_length": 20,
-            "pp_precision": 2,
+            "precision": 2,
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -309,53 +310,51 @@ class Network():
             # Compile the whole model again:
             self.compile(**self.compile_options)
 
-    def test(self, inputs=None, targets=None, batch_size=32, tolerance=0.1, force=False):
+    def test(self, batch_size=32, tolerance=0.1, force=False):
         """
-        Requires items in proper internal format, if given (for now).
         """
-        ## FIXME: allow human format of inputs, if given
-        dataset_name = "provided"
-        if inputs is None:
-            if self.dataset._split == len(self.dataset.inputs):
-                inputs = self.dataset._train_inputs
-                dataset_name = "training"
-            else:
-                inputs = self.dataset._test_inputs
-                dataset_name = "testing"
-        if targets is None:
-            if self.dataset._split == len(self.dataset.targets):
-                targets = self.dataset._train_targets
-            else:
-                targets = self.dataset._test_targets
+        if self.dataset._split == len(self.dataset.inputs):
+            inputs = self.dataset._train_inputs
+            dataset_name = "training"
+        else:
+            inputs = self.dataset._test_inputs
+            dataset_name = "testing"
+        if self.dataset._split == len(self.dataset.targets):
+            targets = self.dataset._train_targets
+        else:
+            targets = self.dataset._test_targets
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
-        if self.num_input_layers == 1:
-            in_formatted = [self.pf(x) for x in inputs.tolist()]
-        else:
-            in_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
-                            for row in np.array(list(zip(*inputs))).tolist()]
-        if self.num_target_layers == 1:
-            out_formatted = [self.pf(x) for x in outputs.tolist()]
-            targ_formatted = [self.pf(x) for x in targets.tolist()]
-            correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                           np.abs(outputs - targets))]
-        else:
-            outs = np.array(list(zip(*[out.flatten().tolist() for out in outputs])))
-            targs = np.array(list(zip(*[out.flatten().tolist() for out in targets])))
-            correct = [all(row) for row in (np.abs(outs - targs) < tolerance)]
-            out_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
-                             for row in np.array(list(zip(*outputs))).tolist()]
-            targ_formatted = [("[" + ", ".join([self.pf(vector) for vector in row]) + "]")
-                              for row in np.array(list(zip(*targets))).tolist()]
+
+        in_formatted = self.pf_matrix(inputs, force)
+        targ_formatted = self.pf_matrix(targets, force)
+        out_formatted = self.pf_matrix(outputs, force)
+        correct = self.compute_correct(outputs, targets, tolerance)
+
         print("# | inputs | targets | outputs | result")
         print("---------------------------------------")
         for i in range(len(out_formatted)):
             print(i, "|", in_formatted[i], "|", targ_formatted[i], "|", out_formatted[i], "|", "correct" if correct[i] else "X")
-            if i > 100 and not force:
-                print("more...")
-                break
         print("Total count:", len(correct))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
+
+    def compute_correct(self, outputs, targets, tolerance):
+        """
+        Both are np.arrays. Return [True, ...].
+        """
+        if isinstance(outputs, list): ## multiple output banks
+            correct = []
+            for r in range(len(outputs[0])):
+                row = []
+                for c in range(len(outputs)):
+                    row.extend(list(map(lambda v: v <= tolerance, np.abs(outputs[c][r] - targets[c][r]))))
+                correct.append(all(row))
+            return correct
+        else:
+            outs = outputs.flatten()
+            tars = targets.flatten()
+            correct = list(map(lambda v: v <= tolerance, np.abs(outs - tars)))
+        return correct
 
     def train_one(self, inputs, targets, batch_size=32):
         """
@@ -1669,13 +1668,39 @@ require(['base/js/namespace'], function(Jupyter) {
             vector = args[0]
         print(label + self.pf(vector[:20], **opts))
 
+    def pf_matrix(self, matrix, force=False, **opts):
+        """
+        Pretty-fromat a matrix. If a list, then that implies multi-bank.
+        """
+        if isinstance(matrix, list): ## multiple output banks
+            rows = []
+            for r in range(len(matrix[0])):
+                row = []
+                for c in range(len(matrix)):
+                    row.append(self.pf(matrix[c][r], **opts))
+                    if c > 100 and not force:
+                        row.append("...")
+                rows.append("[" + (",".join(row)) + "]")
+                if r > 100 and not force:
+                    rows.append("...")
+                    break
+            return rows
+        else:
+            rows = []
+            for r in range(len(matrix)):
+                rows.append(self.pf(matrix[r], **opts))
+                if r > 100 and not force:
+                    rows.append("...")
+                    break
+            return rows
+
     def pf(self, vector, **opts):
         """
         Pretty-format a vector. Returns string.
 
         Parameters:
             vector (list): The first parameter.
-            pp_max_length (int): Number of decimal places to show for each
+            precision (int): Number of decimal places to show for each
                 value in vector.
 
         Returns:
@@ -1686,19 +1711,28 @@ require(['base/js/namespace'], function(Jupyter) {
 
             >>> import conx
             >>> net = Network("Test")
-            >>> net.pf([1])
-            '[1.00]'
+            >>> net.pf([1.01])
+            '[1.01]'
 
-            >>> net.pf(range(10), pp_max_length=5)
-            '[0.00, 1.00, 2.00, 3.00, 4.00...]'
+            >>> net.pf(range(10), precision=2)
+            '[0,1,2,3,4,5,6,7,8,9]'
+
+            >>> net.pf([0]*10000)
+            '[0,0,0,..., 0,0,0]'
         """
+        from IPython.lib.pretty import pretty
+        if isinstance(vector, collections.Iterable):
+            vector = list(vector)
+        if isinstance(vector, (list, tuple)):
+            vector = np.array(vector)
         config = copy.copy(self.config)
         config.update(opts)
-        max_length = config["pp_max_length"]
-        precision = config["pp_precision"]
-        truncated = len(vector) > max_length
-        return "[" + ", ".join([("%." + str(precision) + "f") % round(v, precision)
-                                for v in vector[:max_length]]) + ("..." if truncated else "") + "]"
+        precision  = "{0:.%df}" % config["precision"]
+        return np.array2string(
+            vector,
+            formatter={'float_kind': precision.format},
+            separator=",",
+            max_line_width=79).replace("\n", "")
 
     def to_array(self) -> list:
         """
