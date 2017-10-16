@@ -325,12 +325,11 @@ class Network():
             targets = self.dataset._test_targets
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
-
+        ## FIXME: outputs not shaped
         in_formatted = self.pf_matrix(inputs, force)
         targ_formatted = self.pf_matrix(targets, force)
         out_formatted = self.pf_matrix(outputs, force)
         correct = self.compute_correct(outputs, targets, tolerance)
-
         print("# | inputs | targets | outputs | result")
         print("---------------------------------------")
         for i in range(len(out_formatted)):
@@ -495,12 +494,9 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight)
                 outputs = self.model.predict(validation_inputs, batch_size=batch_size)
-                if self.num_target_layers == 1:
-                    correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                                   np.abs(outputs - validation_targets))].count(True)
-                else:
-                    correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                                   np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
+                ## FIXME: outputs not shaped
+                correct_list = self.compute_correct(outputs, validation_targets, tolerance)
+                correct = correct_list.count(True)
                 self.epoch_count += epochs
                 acc = 0
                 # In multi-outputs, acc is given by output layer name + "_acc"
@@ -523,6 +519,7 @@ class Network():
                                             class_weight=class_weight,
                                             sample_weight=sample_weight)
                     outputs = self.model.predict(validation_inputs, batch_size=batch_size)
+                    ## FIXME: outputs not shaped
                     if self.num_target_layers == 1:
                         correct = [all(x) for x in map(lambda v: v <= tolerance,
                                                        np.abs(outputs - validation_targets))].count(True)
@@ -596,10 +593,13 @@ class Network():
         else:
             inputs = [np.array([x], "float32") for x in input]
             outputs = self.model.predict(inputs, batch_size=batch_size)
+        ## Shape the outputs:
         if self.num_target_layers == 1:
-            outputs = outputs[0].tolist()
+            shape = self[self.output_bank_order[0]].shape
+            outputs = outputs[0].reshape(shape).tolist()
         else:
-            outputs = [y.tolist()[0] for y in outputs]
+            shapes = [self[layer_name].shape for layer_name in self.output_bank_order]
+            outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -653,6 +653,7 @@ class Network():
                 prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
+            ## FIXME: outputs not shaped
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -662,6 +663,7 @@ class Network():
                 for layer in topological_sort(self, [self[layer_name]]):
                     model = self.prop_from_dict[(layer_name, layer.name)]
                     vector = model.predict(inputs)[0]
+                    ## FIXME: outputs not shaped
                     image = layer.make_image(vector, self.config)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
@@ -703,6 +705,7 @@ class Network():
             vector = [np.array([inputs[self.input_bank_order.index(name)]]) for name in
                       self._get_sorted_input_names(self[layer_name].input_names)]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
+        ## output shaped below:
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -714,7 +717,9 @@ class Network():
                     image = self[layer.name].make_image(np.array(out), self.config) # single vector, as an np.array
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
-        outputs = outputs[0].tolist()
+        ## Shape the outputs:
+        shape = self[layer_name].shape
+        outputs = outputs[0].reshape(shape).tolist()
         return outputs
 
     def propagate_to_features(self, layer_name, inputs, cols=5):
@@ -1678,10 +1683,10 @@ require(['base/js/namespace'], function(Jupyter) {
                 row = []
                 for c in range(len(matrix)):
                     row.append(self.pf(matrix[c][r], **opts))
-                    if c > 100 and not force:
+                    if c > 99 and not force:
                         row.append("...")
                 rows.append("[" + (",".join(row)) + "]")
-                if r > 100 and not force:
+                if r > 99 and not force:
                     rows.append("...")
                     break
             return rows
@@ -1689,7 +1694,7 @@ require(['base/js/namespace'], function(Jupyter) {
             rows = []
             for r in range(len(matrix)):
                 rows.append(self.pf(matrix[r], **opts))
-                if r > 100 and not force:
+                if r > 99 and not force:
                     rows.append("...")
                     break
             return rows
