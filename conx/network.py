@@ -1583,6 +1583,10 @@ require(['base/js/namespace'], function(Jupyter) {
         def prop_one(button):
             update_slider_control({"name": "value"})
 
+        def refresh(button):
+            net_svg.value = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
+            update_control_slider(None)
+
         ## Hack to center SVG as justify-content is broken:
         net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.build_svg(),), layout=Layout(
             width=width, height=height, overflow_x='auto',
@@ -1606,6 +1610,7 @@ require(['base/js/namespace'], function(Jupyter) {
             description='Dataset:',
             rows=1
                )
+        refresh_button = Button(icon="refresh")
         length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
         control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
@@ -1623,9 +1628,10 @@ require(['base/js/namespace'], function(Jupyter) {
         button_train.on_click(train_one)
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
+        refresh_button.on_click(refresh)
 
         # Put them together:
-        control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='95%'))
+        control = VBox([HBox([control_select, refresh_button]), control_slider, control_buttons], layout=Layout(width='95%'))
         net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
