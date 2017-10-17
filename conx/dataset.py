@@ -394,6 +394,8 @@ class Dataset():
         """
         Dataset constructor requires a network.
         """
+        self._num_input_banks = 0
+        self._num_target_banks = 0
         self.clear()
         self.network = network
 
@@ -418,12 +420,52 @@ class Dataset():
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
 
+    def random(self, length, frange=(-1, 1)):
+        """
+        Append a number of random values in the range frange
+        to inputs and targets.
+
+        >>> from conx import *
+        >>> net = Network("Random", 5, 2, 3, 4)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.random(100)
+        >>> len(net.dataset.inputs)
+        100
+        >>> len(net.dataset.targets)
+        100
+        """
+        diff = abs(frange[1] - frange[0])
+        inputs = []
+        ## inputs:
+        if self._num_input_banks == 1:
+            for i in range(length):
+                shape = self.network[self.network.input_bank_order[0]].keras_layer.input_shape[1:]
+                inputs.append(np.random.rand(*shape) * diff + frange[0])
+        else:
+            for i in range(length):
+                row = []
+                for layer_name in self.network.input_bank_order:
+                    shape = self.network[layer_name].keras_layer.input_shape[1:]
+                    row.append(np.random.rand(*shape) * diff + frange[0])
+                inputs.append(row)
+        targets = []
+        if self._num_target_banks == 1:
+            for i in range(length):
+                shape = self.network[self.network.output_bank_order[0]].keras_layer.output_shape[1:]
+                targets.append(np.random.rand(*shape) * diff + frange[0])
+        else:
+            for i in range(length):
+                row = []
+                for layer_name in self.network.output_bank_order:
+                    shape = self.network[layer_name].keras_layer.output_shape[1:]
+                    row.append(np.random.rand(*shape) * diff + frange[0])
+                targets.append(row)
+        self.load(list(zip(inputs, targets)))
+
     def clear(self):
         """
         Remove all of the inputs/targets.
         """
-        self._num_input_banks = 0
-        self._num_target_banks = 0
         self._inputs = []
         self._targets = []
         self._labels = []
