@@ -17,8 +17,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-
+import sys
 from ._version import __version__
+
+print("conx, version %s" % __version__, file=sys.stderr)
+
 from .network import *
 from .layers import *
 from .dataset import *
