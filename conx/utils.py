@@ -35,12 +35,15 @@ def image2array(image):
     array = array.reshape(image.height, image.width, len(image.getbands()))
     return array
 
-def array2image(array):
+def array2image(array, scale=1.0):
     """
     Convert an array (with shape) to a PIL. Image.
     """
+    array = np.array(array) # let's make sure
     array =  (array * 255).astype("uint8")
     image = PIL.Image.fromarray(array)
+    if scale != 1.0:
+        image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
     return image
 
 def one_hot(vector, categories):

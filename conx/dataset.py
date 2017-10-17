@@ -18,10 +18,8 @@
 # Boston, MA 02110-1301  USA
 
 """
-
 The Dataset class is useful for loading standard datasets, or for
 manipulating a set of inputs/targets.
-
 """
 
 from functools import reduce
@@ -115,6 +113,12 @@ def all_same(iterator):
 def is_collapsed(item):
     """
     Is this a collapsed item?
+
+    >>> is_collapsed([int, 3])
+    True
+
+    >>> is_collapsed([int, int, int])
+    False
     """
     try:
         return (len(item) == 2 and
@@ -173,12 +177,31 @@ def get_shape(form):
         return [get_shape(x) for x in form]
 
 class _DataVector():
+    """
+    Class to make internal Keras numpy arrays look like
+    lists in the [bank, bank, ...] format.
+    """
     def __init__(self, dataset, item):
         self.dataset = dataset
         self.item = item
         self._iter_index = 0
 
     def __getitem__(self, pos):
+        """
+        >>> from conx import Network, Dataset
+        >>> net = Network("Test 0", 3, 2)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> ds = net.dataset
+        >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.inputs[0]
+        [1.0, 2.0, 3.0]
+        >>> ds.inputs[0][1]
+        2.0
+        >>> ds.targets[0]
+        [4.0, 5.0]
+        >>> ds.targets[0][1]
+        5.0
+        """
         if self.item == "targets":
             return self.dataset._get_target(pos)
         elif self.item == "inputs":
@@ -196,62 +219,36 @@ class _DataVector():
 
     def __setitem__(self, pos, value):
         """
-        Assign a human-formatted value to a position in the internal format.
+        Assigning a value is not permitted.
         """
-        v = np.array(value)
-        if self.item == "targets":
-            if self.dataset._num_target_banks > 1:
-                for i in range(self.dataset._num_target_banks):
-                    self.dataset._targets[i][pos] = v[i]
+        raise Exception("setting value in a dataset is not permitted;" +
+                        " you'll have to recreate the dataset and re-load")
+
+    def shape(self, bank_index=0):
+        """
+        Get the shape of the tensor at bank_index.
+        """
+        if self.item in ["targets", "test_targets", "train_targets"]:
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("targets bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                return self.dataset._targets.shape[1:]
             else:
-                self.dataset._targets[pos] = v
-            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
-                                           max(v.max(), self.dataset._targets_range[1]))
-        elif self.item == "inputs":
-            if self.dataset._num_input_banks > 1:
-                for i in range(self.dataset._num_input_banks):
-                    self.dataset._inputs[i][pos] = v[i]
+                return self.dataset._targets[bank_index].shape[1:]
+        elif self.item in ["inputs", "test_inputs", "train_inputs"]:
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("inputs bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                return self.dataset._inputs.shape[1:]
             else:
-                self.dataset._inputs[pos] = v
-            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
-                                          max(v.max(), self.dataset._inputs_range[1]))
-        elif self.item == "test_inputs":
-            if self.dataset._num_input_banks > 1:
-                for i in range(self.dataset._num_input_banks):
-                    self.dataset._test_inputs[i][pos] = v[i]
-            else:
-                self.dataset._test_inputs[pos] = v
-            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
-                                          max(v.max(), self.dataset._inputs_range[1]))
-        elif self.item == "train_inputs":
-            if self.dataset._num_input_banks > 1:
-                for i in range(self.dataset._num_input_banks):
-                    self.dataset._train_inputs[i][pos] = v[i]
-            else:
-                self.dataset._train_inputs[pos] = v
-            self.dataset._inputs_range = (min(v.min(), self.dataset._inputs_range[0]),
-                                          max(v.max(), self.dataset._inputs_range[1]))
-        elif self.item == "test_targets":
-            if self.dataset._num_target_banks > 1:
-                for i in range(self.dataset._num_target_banks):
-                    self.dataset._test_targets[i][pos] = v[i]
-            else:
-                self.dataset._test_targets[pos] = v
-            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
-                                           max(v.max(), self.dataset._targets_range[1]))
-        elif self.item == "train_targets":
-            if self.dataset._num_target_banks > 1:
-                for i in range(self.dataset._num_target_banks):
-                    self.dataset._train_targets[i][pos] = v[i]
-            else:
-                self.dataset._train_targets[pos] = v
-            self.dataset._targets_range = (min(v.min(), self.dataset._targets_range[0]),
-                                           max(v.max(), self.dataset._targets_range[1]))
+                return self.dataset._inputs[bank_index].shape[1:]
         else:
             raise Exception("unknown vector: %s" % (item,))
 
     def reshape(self, bank_index, new_shape):
         """
+        Reshape the tensor at bank_index.
+
         >>> from conx import Network
         >>> net = Network("Test 1", 10, 2, 3, 28 * 28)
         >>> net.compile(error="mse", optimizer="adam")
@@ -285,8 +282,67 @@ class _DataVector():
             else:
                 shape = self.dataset._inputs[0].shape
                 self.dataset._inputs[0] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
+        elif self.item in ["test_targets", "train_targets"]:
+            raise Exception("unable to reshape vector '%s';  call dataset.targets.reshape(), and re-split" % (item,))
+        elif self.item in ["test_inputs", "train_inputs"]:
+            raise Exception("unable to reshape vector '%s'; call dataset.inputs.rehsape(), and re-split" % (item,))
+        else:
+            raise Exception("unknown vector: %s" % (item,))
+
+    def flatten(self):
+        """
+        >>> from conx import Network
+        >>> net = Network("Test 2", 10, 2, 3, 28 * 28)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.add([0] * 10, [0] * 28 * 28)
+        >>> net.dataset.targets.reshape(0, (28, 28, 1))
+        >>> net.dataset._targets.shape
+        (1, 28, 28, 1)
+        >>> net.dataset.inputs.reshape(0, (2, 5))
+        >>> net.dataset._inputs.shape
+        (1, 2, 5)
+        """
+        if self.item == "targets":
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("targets bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                shape = self.dataset._targets.shape
+                self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
+            else:
+                shape = self.dataset._targets[0].shape
+                self.dataset_targets[0] = self.dataset._targets[0].reshape((shape[0],) + new_shape)
+        elif self.item == "inputs":
+            if bank_index >= self.dataset._num_target_banks:
+                raise Exception("inputs bank_index is out of range")
+            if self.dataset._num_target_banks == 1:
+                shape = self.dataset._inputs.shape
+                self.dataset._inputs = self.dataset._inputs.reshape((shape[0],) + new_shape)
+            else:
+                shape = self.dataset._inputs[0].shape
+                self.dataset._inputs[0] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
+        elif self.item in ["test_targets", "train_targets"]:
+            raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (item,))
+        elif self.item in ["test_inputs", "train_inputs"]:
+            raise Exception("unable to flatten vector '%s'; call dataset.inputs.flatten(), and re-split" % (item,))
+        else:
+            raise Exception("unknown vector: %s" % (item,))
 
     def __len__(self):
+        """
+        >>> from conx import Network
+        >>> net = Network("Test 3", 10, 2, 3, 28)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> for i in range(20):
+        ...     net.dataset.add([i] * 10, [i] * 28)
+        >>> len(net.dataset.targets)
+        20
+        >>> len(net.dataset.inputs)
+        20
+        >>> len(net.dataset.test_targets)
+        0
+        >>> len(net.dataset.train_targets)
+        20
+        """
         if self.item == "targets":
             return self.dataset._get_targets_length()
         elif self.item == "inputs":
@@ -326,7 +382,6 @@ class _DataVector():
                 self.item, length)
 
 class Dataset():
-
     DATASETS = ['mnist', 'cifar10', 'cifar100']
 
     """
@@ -336,14 +391,24 @@ class Dataset():
     target_shapes = [shape, ...]
     """
     def __init__(self, network):
+        """
+        Dataset constructor requires a network.
+        """
         self.clear()
         self.network = network
 
     def set_bank_counts(self):
+        """
+        Called when network is compiled.
+        """
         self._num_input_banks = len(self.network.input_bank_order)
         self._num_target_banks = len(self.network.output_bank_order)
 
     def __getattr__(self, item):
+        """
+        Construct a virtual Vector for easy access to internal
+        format.
+        """
         if item in [
                 "inputs", "targets",
                 "test_inputs", "test_targets",
@@ -386,14 +451,27 @@ class Dataset():
         frange - (start, stop) or (start, stop, step)
         vfunction_name - "onehot" or "binary" or callable(i, width)
         tfunction - a function given an input vector, return target vector
+
         To add an AND problem:
-        Dataset.add_by_spec(2, (0, 1), "binary", lambda v: [int(sum(v) == len(v))])
-        Adds the following inputs/targets:
+
+        >>> from conx import Network
+        >>> net = Network("Test 1", 2, 2, 3, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.add_by_spec(2, (0, 4), "binary", lambda v: [int(sum(v) == len(v))])
+        >>> len(net.dataset.inputs)
+        4
+
+        Adds the following for inputs/targets:
         [0, 0], [0]
         [0, 1], [0]
         [1, 0], [0]
         [1, 1], [1]
-        Dataset.add_by_spec(10, (0, 10), "onehot", lambda v: v)
+
+        >>> net = Network("Test 1", 10, 2, 3, 10)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.add_by_spec(10, (0, 10), "onehot", lambda v: v)
+        >>> len(net.dataset.inputs)
+        10
         """
         def onehot(i, width):
             v = [0] * width
@@ -740,30 +818,6 @@ class Dataset():
         """
         self._set_input_info(copy.copy(self._targets))
 
-    def reshape_inputs(self, new_shape):
-        """
-        Reshape the input vectors. WIP.
-        """
-        ## FIXME: allow working on multi inputs
-        if self._num_input_banks > 1:
-            raise Exception("reshape_inputs does not yet work on multi-input patterns")
-        if len(self.inputs) == 0:
-            raise Exception("no dataset loaded")
-        if isinstance(new_shape, numbers.Integral):
-            pass ## ok
-        elif not valid_shape(new_shape):
-            raise Exception("bad shape: %s" % (new_shape,))
-        if isinstance(new_shape, numbers.Integral):
-            new_size = len(self.inputs) * new_shape
-        else:
-            new_size = len(self.inputs) * reduce(operator.mul, new_shape)
-        if new_size != self._inputs.size:
-            raise Exception("shape %s is incompatible with inputs" % (new_shape,))
-        if isinstance(new_shape, numbers.Integral):
-            new_shape = (new_shape,)
-        self._set_input_info(self._inputs.reshape((len(self.inputs),) + new_shape))
-        self.split(self._split)
-
     def set_targets_from_labels(self, num_classes):
         """
         Given net.labels are integers, set the net.targets to one_hot() categories.
@@ -843,6 +897,20 @@ class Dataset():
     def split(self, split=0.50):
         """
         Split the inputs/targets into training/test datasets.
+
+        >>> from conx import Network, Dataset
+        >>> net = Network("Test 4", 3, 2)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> ds = net.dataset
+        >>> ds.add([1, 1.1, 1.2], [10, 10.1])
+        >>> ds.add([2, 2.1, 2.2], [11, 11.1])
+        >>> ds.add([3, 3.1, 3.2], [12, 12.1])
+        >>> ds.add([4, 4.1, 4.2], [13, 13.1])
+        >>> len(net.dataset.test_targets)
+        0
+        >>> ds.split(.5)
+        >>> len(net.dataset.test_targets)
+        2
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
@@ -872,6 +940,50 @@ class Dataset():
             else:
                 self._train_targets = self._targets[:self._split]
                 self._test_targets = self._targets[self._split:]
+
+    def chop(self, split=0.5):
+        """
+        Chop off the inputs/targets and reset split, test data.
+
+        >>> from conx import Network, Dataset
+        >>> net = Network("Test 5", 3, 2)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> ds = net.dataset
+        >>> ds.add([1, 1.1, 1.2], [10, 10.1])
+        >>> ds.add([2, 2.1, 2.2], [11, 11.1])
+        >>> ds.add([3, 3.1, 3.2], [12, 12.1])
+        >>> ds.add([4, 4.1, 4.2], [13, 13.1])
+        >>> len(net.dataset.targets)
+        4
+        >>> ds.chop(.5)
+        >>> len(net.dataset.targets)
+        2
+        """
+        if len(self.inputs) == 0:
+            raise Exception("no dataset loaded")
+        if isinstance(split, numbers.Integral):
+            if not 0 <= split <= len(self.inputs):
+                raise Exception("split out of range: %d" % split)
+        elif isinstance(split, numbers.Real):
+            if not 0.0 <= split <= 1.0:
+                raise Exception("split is not in the range 0-1: %s" % split)
+            split = int(len(self.inputs) * split)
+        else:
+            raise Exception("invalid split: %s" % split)
+        if self._num_input_banks > 1:
+            self._inputs = [col[:split] for col in self._inputs]
+        else:
+            self._inputs = self._inputs[split:]
+        if len(self._labels) != 0:
+            self._labels = self._labels[:split]
+        if len(self.targets) != 0:
+            if self._num_target_banks > 1:
+                self._targets = [col[:split] for col in self._targets]
+            else:
+                self._targets = self._targets[:split]
+        self._split = 0
+        self._test_inputs = []
+        self._test_targets = []
 
     def _get_input(self, i):
         """

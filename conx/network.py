@@ -722,7 +722,7 @@ class Network():
         outputs = outputs[0].reshape(shape).tolist()
         return outputs
 
-    def propagate_to_features(self, layer_name, inputs, cols=5):
+    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0):
         from IPython.display import HTML
         output_shape = self[layer_name].keras_layer.output_shape
         retval = """<table><tr>"""
@@ -730,6 +730,8 @@ class Network():
             for i in range(output_shape[3]):
                 self[layer_name].feature = i
                 image = self.propagate_to_image(layer_name, inputs)
+                if scale != 1.0:
+                    image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
                 data_uri = self._image_to_uri(image)
                 retval += """<td><img src="%s"/><br/><center>Feature %s</center></td>""" % (data_uri, i)
                 if (i + 1) % cols == 0:
@@ -737,7 +739,7 @@ class Network():
             retval += "</tr>"
             return HTML(retval)
 
-    def propagate_to_image(self, layer_name, input, batch_size=32):
+    def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0):
         """
         Gets an image of activations at a layer.
         """
@@ -748,6 +750,8 @@ class Network():
         outputs = self.propagate_to(layer_name, input, batch_size)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, self.config)
+        if scale != 1.0:
+            image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
         return image
 
     def propagate_to_plot(self, output_layer, output_index,
@@ -1438,17 +1442,23 @@ require(['base/js/namespace'], function(Jupyter) {
             raise Exception("foldername is required")
         elif isinstance(self, str):
             foldername = self
-            net = Network("Temp")
-            net.load_model(foldername)
-            net.load_weights(foldername)
-            if os.path.isfile("%s/network.pickle" % foldername):
-                with open("%s/network.pickle" % foldername, "rb") as fp:
-                    net = pickle.load(fp)
-                net._build_intermediary_models()
+            if isinstance(foldername, str) and os.path.isdir(foldername):
+                net = Network("Temp")
+                net.load_model(foldername)
+                net.load_weights(foldername)
+                if os.path.isfile("%s/network.pickle" % foldername):
+                    with open("%s/network.pickle" % foldername, "rb") as fp:
+                        net = pickle.load(fp)
+                    net._build_intermediary_models()
+            else:
+                raise Exception("Network.load() did not find folder '%s'" % foldername)
             return net
         else:
-            self.load_model(foldername)
-            self.load_weights(foldername)
+            if isinstance(foldername, str) and os.path.isdir(foldername):
+                self.load_model(foldername)
+                self.load_weights(foldername)
+            else:
+                raise Exception("Network.load() did not find folder '%s'" % foldername)
 
     def save_weights(self, foldername=None):
         """
