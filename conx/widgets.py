@@ -24,26 +24,43 @@ from ipywidgets import Widget, register, widget_serialization, DOMWidget
 from traitlets import Bool, Dict, Int, Float, Unicode, List, Instance
 
 from .utils import uri_to_image
+from ._version import __version__
 
 @register("Camera")
 class Camera(DOMWidget):
-    """Represents a camera source."""
-
-    # Specify audio constraint and video constraint as a boolean or dict.
-    audio = Bool(False).tag(sync=True)
-    video = Bool(True).tag(sync=True)
-
+    """Represents a media source."""
     _view_module = Unicode('camera').tag(sync=True)
     _view_name = Unicode('CameraView').tag(sync=True)
     _model_module = Unicode('camera').tag(sync=True)
     _model_name = Unicode('CameraModel').tag(sync=True)
+    _view_module_version = Unicode(__version__).tag(sync=True)
+    # Specify audio constraint and video constraint as a boolean or dict.
+    audio = Bool(False).tag(sync=True)
+    video = Bool(True).tag(sync=True)
     image = Unicode('').tag(sync=True)
+    image_count = Int(0).tag(sync=True)
+
+    def __init__(self, *args, **kwargs):
+        display(Javascript(get_camera_javascript()))
+        super().__init__(*args, **kwargs)
+
+    def get_image(self):
+        if self.image:
+            return uri_to_image(self.image)
+
+    def get_data(self):
+        if self.image:
+            image = uri_to_image(self.image)
+            ## trim from 4 to 3 dimensions: (remove alpha)
+            # remove the 3 index of dimension index 2 (the A of RGBA color)
+            image = np.delete(image, np.s_[3], 2)
+            return (np.array(image).astype("float32") / 255.0)
 
 def get_camera_javascript(width=320, height=240):
     camera_javascript = """
 require.undef('camera');
 
-define('camera', ["jupyter-js-widgets"], function(widgets) {
+define('camera', ["@jupyter-widgets/base"], function(widgets) {
     var CameraView = widgets.DOMWidgetView.extend({
         defaults: _.extend({}, widgets.DOMWidgetView.prototype.defaults, {
             _view_name: 'CameraView',
@@ -116,32 +133,3 @@ define('camera', ["jupyter-js-widgets"], function(widgets) {
 });
 """ % {"width": width, "height": height}
     return camera_javascript
-
-@register("Camera")
-class Camera(DOMWidget):
-    """Represents a media source."""
-    _view_module = Unicode('camera').tag(sync=True)
-    _view_name = Unicode('CameraView').tag(sync=True)
-    _model_module = Unicode('camera').tag(sync=True)
-    _model_name = Unicode('CameraModel').tag(sync=True)
-    # Specify audio constraint and video constraint as a boolean or dict.
-    audio = Bool(False).tag(sync=True)
-    video = Bool(True).tag(sync=True)
-    image = Unicode("").tag(sync=True)
-    image_count = Int(0).tag(sync=True)
-
-    def __init__(self, *args, **kwargs):
-        display(Javascript(get_camera_javascript()))
-        super().__init__(*args, **kwargs)
-
-    def get_image(self):
-        if self.image:
-            return uri_to_image(self.image)
-
-    def get_data(self):
-        if self.image:
-            image = uri_to_image(self.image)
-            ## trim from 4 to 3 dimensions: (remove alpha)
-            # remove the 3 index of dimension index 2 (the A of RGBA color)
-            image = np.delete(image, np.s_[3], 2) 
-            return (np.array(image).astype("float32") / 255.0)
