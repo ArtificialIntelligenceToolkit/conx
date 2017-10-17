@@ -65,7 +65,7 @@ def get_camera_javascript(width=320, height=240):
     camera_javascript = """
 require.undef('camera');
 
-define('camera', ["%(jupyter_widgets)"], function(widgets) {
+define('camera', ["%(jupyter_widgets)s"], function(widgets) {
     var CameraView = widgets.DOMWidgetView.extend({
         defaults: _.extend({}, widgets.DOMWidgetView.prototype.defaults, {
             _view_name: 'CameraView',
