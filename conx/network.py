@@ -1495,7 +1495,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if os.path.isfile("%s/model.h5" % foldername):
             self.model = keras.models.load_model("%s/model.h5" % foldername)
 
-    def dashboard(self, width="100%", height="550px"):
+    def dashboard(self, width="95%", height="550px"):
         """
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
@@ -1599,11 +1599,12 @@ require(['base/js/namespace'], function(Jupyter) {
             button_train,
             button_next,
             button_end,
-               ], layout=Layout(width='100%'))
+               ], layout=Layout(width='95%', height="50px"))
         control_select = Select(
             options=['Test', 'Train'],
             value='Train',
             description='Dataset:',
+            rows=1
                )
         length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
         control_slider = IntSlider(description="Dataset index",
@@ -1611,7 +1612,7 @@ require(['base/js/namespace'], function(Jupyter) {
                                    min=0,
                                    max=max(length, 0),
                                    value=0,
-                                   layout=Layout(width='100%'))
+                                   layout=Layout(width='95%'))
 
         ## Hook them up:
         button_begin.on_click(lambda button: dataset_move("begin"))
@@ -1624,29 +1625,13 @@ require(['base/js/namespace'], function(Jupyter) {
         control_slider.observe(update_slider_control)
 
         # Put them together:
-        control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='100%'))
-        net_page = VBox([net_svg, control], layout=Layout(width='100%', height=height))
+        control = VBox([control_select, control_slider, control_buttons], layout=Layout(width='95%'))
+        net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
         #camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
-        help_page = HTML("""
-<!-- TODO: Remove this SCRIPT when next version of ipywidgets comes out -->
-<style>
-.widget-html > .widget-html-content, .widget-htmlmath > .widget-html-content {
-    /* Fill out the area in the HTML widget */
-    align-self: stretch;
-    flex-grow: 1;
-    flex-shrink: 1;
-    /* Makes sure the baseline is still aligned with other elements */
-    line-height: var(--jp-widgets-inline-height);
-    /* Make it possible to have absolutely-positioned elements in the html */
-    position: relative;
-}
-</style>
-
-<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>
-""" % (height,),
-                         layout=Layout(width="100%", height=height))
+        help_page = HTML("""<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>""" % (height,),
+                         layout=Layout(width="95%", height=height))
         net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
         tabs = [
             ("Network", net_page),
