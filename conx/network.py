@@ -149,6 +149,7 @@ class Network():
             "colormap": None,
             "pixels_per_unit": 1,
             "precision": 2,
+            "svg_height": 780, # for svg
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -187,7 +188,7 @@ class Network():
         else:
             return self.layer_dict[layer_name]
 
-    def _repr_svg_(self):
+    def _repr_html_(self):
         if all([layer.model for layer in self.layers]):
             return self.build_svg()
         else:
@@ -1242,8 +1243,9 @@ class Network():
             level_num += 1
         cheight += config["border_bottom"]
         struct.append(["svg_head", {
-            "width": max_width,
-            "height": cheight,
+            "svg_height": config["svg_height"],
+            "width": max_width,  # view port width
+            "height": cheight,   # view port height
             "netname": self.name,
             "arrow_color": config["arrow_color"],
             "arrow_width": config["arrow_width"],
@@ -1302,7 +1304,7 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' width="{width}" height="{height}" image-rendering="pixelated">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" height="{svg_height}" image-rendering="pixelated" style="">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
@@ -1510,7 +1512,8 @@ require(['base/js/namespace'], function(Jupyter) {
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
-        from ipywidgets import HTML, Button, VBox, HBox, IntSlider, Select, Layout, Tab
+        from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select,
+                                Layout, Tab, Label)
 
         def dataset_move(position):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1537,11 +1540,13 @@ require(['base/js/namespace'], function(Jupyter) {
 
         def update_control_slider(change=None):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+                total_text.value = "of 0"
                 control_slider.disabled = True
                 for child in control_buttons.children:
                     child.disabled = True
                 return
             if control_select.value == "Test":
+                total_text.value = "of %s" % len(self.dataset.test_inputs)
                 control_slider.value = 0
                 control_slider.min = 0
                 control_slider.max = max(len(self.dataset.test_inputs) - 1, 0)
@@ -1550,6 +1555,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 else:
                     disabled = False
             elif control_select.value == "Train":
+                total_text.value = "of %s" % len(self.dataset.train_inputs)
                 control_slider.value = 0
                 control_slider.min = 0
                 control_slider.max = max(len(self.dataset.train_inputs) - 1, 0)
@@ -1563,19 +1569,22 @@ require(['base/js/namespace'], function(Jupyter) {
 
         def update_slider_control(change):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+                total_text.value = "of 0"
                 return
             if change["name"] == "value":
                 if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
+                    total_text.value = "of %s" % len(self.dataset.train_inputs)
                     output = self.propagate(self.dataset.train_inputs[control_slider.value])
                     if self.config["show_targets"]:
-                        self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.dataset.train_targets[control_slider.value]) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
                 elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
+                    total_text.value = "of %s" % len(self.dataset.test_inputs)
                     output = self.propagate(self.dataset.test_inputs[control_slider.value])
                     if self.config["show_targets"]:
-                        self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(0, 1))
+                        self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
                         errors = np.array(self.dataset.test_targets[control_slider.value]) - np.array(output)
                         self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
@@ -1613,7 +1622,7 @@ require(['base/js/namespace'], function(Jupyter) {
             button_train,
             button_next,
             button_end,
-               ], layout=Layout(width='95%', height="50px"))
+               ], layout=Layout(width='100%', height="50px"))
         control_select = Select(
             options=['Test', 'Train'],
             value='Train',
@@ -1628,6 +1637,7 @@ require(['base/js/namespace'], function(Jupyter) {
                                    max=max(length, 0),
                                    value=0,
                                    layout=Layout(width='95%'))
+        total_text = Label(value="of 0", layout=Layout(width="100px"))
 
         ## Hook them up:
         button_begin.on_click(lambda button: dataset_move("begin"))
@@ -1642,7 +1652,9 @@ require(['base/js/namespace'], function(Jupyter) {
 
         # Put them together:
         control = VBox([HBox([control_select, refresh_button], layout=Layout(height="40px")),
-                        control_slider, control_buttons], layout=Layout(width='95%'))
+                        HBox([control_slider, total_text], layout=Layout(height="40px")),
+                        control_buttons],
+                       layout=Layout(width='95%'))
         net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
