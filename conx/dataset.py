@@ -487,19 +487,19 @@ class Dataset():
         """
         self.load(list(zip([inputs], [targets])))
 
-    def add_by_spec(self, width, frange, vfunction_name, tfunction):
+    def add_by_function(self, width, frange, ifunction, tfunction):
         """
         width - length of an input vector
         frange - (start, stop) or (start, stop, step)
-        vfunction_name - "onehot" or "binary" or callable(i, width)
-        tfunction - a function given an input vector, return target vector
+        ifunction - "onehot" or "binary" or callable(i, width)
+        tfunction - a function given (i, input vector), return target vector
 
         To add an AND problem:
 
         >>> from conx import Network
         >>> net = Network("Test 1", 2, 2, 3, 1)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_by_spec(2, (0, 4), "binary", lambda v: [int(sum(v) == len(v))])
+        >>> net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
         >>> len(net.dataset.inputs)
         4
 
@@ -509,9 +509,16 @@ class Dataset():
         [1, 0], [0]
         [1, 1], [1]
 
-        >>> net = Network("Test 1", 10, 2, 3, 10)
+        >>> net = Network("Test 2", 10, 2, 3, 10)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_by_spec(10, (0, 10), "onehot", lambda v: v)
+        >>> net.dataset.add_by_function(10, (0, 10), "onehot", lambda i,v: v)
+        >>> len(net.dataset.inputs)
+        10
+
+        >>> import numpy as np
+        >>> net = Network("Test 3", 10, 2, 3, 10)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.add_by_function(10, (0, 10), lambda i, width: np.random.rand(width), lambda i,v: v)
         >>> len(net.dataset.inputs)
         10
         """
@@ -528,12 +535,12 @@ class Dataset():
 
         if len(frange) == 2:
             frange = frange + (1, )
-        if vfunction_name == "onehot":
-            vfunction = onehot
-        elif vfunction_name == "binary":
-            vfunction = binary
-        elif callable(vfunction_name):
-            vfunction = vfunction_name
+        if ifunction == "onehot":
+            ifunction = onehot
+        elif ifunction == "binary":
+            ifunction = binary
+        elif callable(ifunction):
+            pass # ok
         else:
             raise Exception("unknown vector construction function: " +
                             "use 'onehot', or 'binary' or callable")
@@ -541,9 +548,9 @@ class Dataset():
         targets = []
         current = frange[0] # start
         while current < frange[1]: # stop, inclusive
-            v = vfunction(current, width)
+            v = ifunction(current, width)
             inputs.append(v)
-            targets.append(tfunction(v))
+            targets.append(tfunction(current, v))
             current += frange[2] # increment
         self.load(list(zip(inputs, targets)))
 
