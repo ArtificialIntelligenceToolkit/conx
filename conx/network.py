@@ -435,7 +435,7 @@ class Network():
                 targs.append(np.array([y[i] for (x,y) in pairs], "float32"))
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
-        outputs = self.propagate(inputs, batch_size=batch_size)
+        outputs = self.propagate(inputs, batch_size=batch_size, visualize=False)
         errors = (np.array(targets) - np.array(outputs)).tolist() # FIXME: multi outputs?
         if self.visualize and get_ipython():
             if self.config["show_targets"]:
@@ -606,7 +606,7 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             if self._comm.kernel:
                 for layer in self.layers:
-                    image = self.propagate_to_image(layer.name, input, batch_size)
+                    image = self.propagate_to_image(layer.name, input, batch_size, visualize=False)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
@@ -729,7 +729,7 @@ class Network():
         if (isinstance(output_shape, tuple) and len(output_shape) == 4):
             for i in range(output_shape[3]):
                 self[layer_name].feature = i
-                image = self.propagate_to_image(layer_name, inputs)
+                image = self.propagate_to_image(layer_name, inputs, visualize=False)
                 if scale != 1.0:
                     image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
                 data_uri = self._image_to_uri(image)
@@ -739,7 +739,7 @@ class Network():
             retval += "</tr></table>"
             return HTML(retval)
 
-    def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0):
+    def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
         """
         Gets an image of activations at a layer.
         """
@@ -747,7 +747,7 @@ class Network():
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
-        outputs = self.propagate_to(layer_name, input, batch_size)
+        outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, self.config)
         if scale != 1.0:
@@ -949,7 +949,7 @@ class Network():
             # first make all images at this level
             total_width = 0 # for this row
             max_height = 0
-            for (layer_name, anchor) in level_tups:
+            for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible or anchor: # not need to handle anchors here
                     continue
                 if inputs is not None:
@@ -964,7 +964,7 @@ class Network():
                     else:
                         in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
                         v = in_layer.make_dummy_vector()
-                image = self.propagate_to_image(layer_name, v)
+                image = self.propagate_to_image(layer_name, v, visualize=False)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
                 max_dim = max(width, height)
@@ -1006,7 +1006,7 @@ class Network():
         ## Display targets?
         if config["show_targets"]:
             # Find the spacing for row:
-            for (layer_name, anchor) in ordering[0]:
+            for (layer_name, anchor, fname) in ordering[0]:
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
@@ -1014,7 +1014,7 @@ class Network():
             spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of targets:
             cwidth = 0
-            for (layer_name, anchor) in ordering[0]: ## no anchors in output
+            for (layer_name, anchor, fname) in ordering[0]: ## no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - width/2)
@@ -1044,7 +1044,7 @@ class Network():
         ## Display error?
         if config["show_errors"]:
             # Find the spacing for row:
-            for (layer_name, anchor) in ordering[0]: # no anchors in output
+            for (layer_name, anchor, fname) in ordering[0]: # no anchors in output
                 if not self[layer_name].visible:
                     continue
                 image = images[layer_name]
@@ -1052,7 +1052,7 @@ class Network():
             spacing = max_width / (len(ordering[0]) + 1)
             # draw the row of errors:
             cwidth = 0
-            for (layer_name, anchor) in ordering[0]: # no anchors in output
+            for (layer_name, anchor, fname) in ordering[0]: # no anchors in output
                 image = images[layer_name]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - (width/2))
@@ -1088,7 +1088,7 @@ class Network():
             # See if there are any connections up:
             any_connections_up = False
             last_connections_up = False
-            for (layer_name, anchor) in level_tups:
+            for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible or anchor:
                     continue
                 for out in self[layer_name].outgoing_connections:
@@ -1102,29 +1102,30 @@ class Network():
                     cheight += 5
             last_connections_up = any_connections_up
             max_height = 0 # for row of images
-            for (layer_name, anchor) in level_tups:
+            for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible:
                     continue
                 if anchor:
-                    anchor_name = "%s-anchor%s" % (layer_name, level_num)
+                    anchor_name = "%s-%s-anchor%s" % (layer_name, fname, level_num)
                     cwidth += spacing
                     positioning[anchor_name] = {"x": cwidth, "y": cheight}
                     x1 = cwidth
                     ## now we are at an anchor. Is the thing that it anchors in the
-                    ## next row?
-                    prev = [(oname, oanchor) for (oname, oanchor) in ordering[level_num - 1]
-                            if layer_name == oname]
+                    ## lower row? level_num is increasing
+                    prev = [(oname, oanchor, lfname) for (oname, oanchor, lfname) in ordering[level_num - 1] if
+                            (((layer_name == oname) and (oanchor is False)) or
+                             ((layer_name == oname) and (oanchor is True) and (fname == lfname)))]
                     if prev:
                         if prev[0][1]: # anchor
-                            anchor_name2 = "%s-anchor%s" % (layer_name, level_num - 1)
-                            ## draw a ling to this anchor point
+                            anchor_name2 = "%s-%s-anchor%s" % (layer_name, fname, level_num - 1)
+                            ## draw a line to this anchor point
                             x2 = positioning[anchor_name2]["x"]
                             y2 = positioning[anchor_name2]["y"]
                             struct.append(["line_svg", {"x1":cwidth,
                                                         "y1":cheight,
                                                         "x2":x2,
                                                         "y2":y2,
-                                                        "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
+                                                        "arrow_color": config["arrow_color"] if self[fname].dropout == 0 else "red",
                                                         "tooltip": tooltip
                             }])
                         else:
@@ -1136,7 +1137,7 @@ class Network():
                                                          "y1":cheight,
                                                          "x2":x2,
                                                          "y2":y2,
-                                                         "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
+                                                         "arrow_color": config["arrow_color"] if self[fname].dropout == 0 else "red",
                                                          "tooltip": tooltip
                             }])
                     else:
@@ -1182,9 +1183,8 @@ class Network():
                     if out.name not in positioning:
                         continue
                     # draw an arrow between layers:
-                    anchor_name = "%s-anchor%s" % (out.name, level_num - 1)
+                    anchor_name = "%s-%s-anchor%s" % (out.name, layer_name, level_num - 1)
                     ## Don't draw this error, if there is an anchor in the next level
-                    anchor_name = "%s-anchor%s" % (out.name, level_num - 1)
                     if anchor_name in positioning:
                         tooltip = "TODO"
                         x2 = positioning[anchor_name]["x"]
@@ -1337,7 +1337,7 @@ require(['base/js/namespace'], function(Jupyter) {
         Returns a list of lists of tuples from
         input to output of levels.
 
-        Each tuple contains: (layer_name, anchor?)
+        Each tuple contains: (layer_name, anchor?, from_name/None)
 
         If anchor is True, this is just an anchor point.
         """
@@ -1352,40 +1352,40 @@ require(['base/js/namespace'], function(Jupyter) {
         ordering = []
         for i in range(max_level + 1): # input to output
             layer_names = [layer.name for layer in self.layers if levels[layer.name] == i]
-            ordering.append([(name, False) for name in layer_names])
+            ordering.append([(name, False, None) for name in layer_names]) # (going_to/layer_name, anchor, coming_from)
         ## promote all output banks to last row:
         for level in range(len(ordering)): # input to output
             tuples = ordering[level]
-            for (name, anchor) in tuples[:]: # go through copy
+            for (name, anchor, none) in tuples[:]: # go through copy
                 if self[name].kind() == "output":
                     ## move it to last row
                     ## find it and remove
-                    index = tuples.index((name, anchor))
+                    index = tuples.index((name, anchor, None))
                     ordering[-1].append(tuples.pop(index))
         ## insert anchor points for any in next level
         ## that doesn't go to a bank in this level
         for level in range(len(ordering)): # input to output
             tuples = ordering[level]
-            for (name, anchor) in tuples:
+            for (name, anchor, fname) in tuples:
                 if anchor:
                     ## is this in next? if not add it
-                    next_level = [n for (n, anchor) in ordering[level + 1]]
-                    if not name in next_level:
-                        ordering[level + 1].append((name, True)) # add anchor point
+                    next_level = [(n, hfname) for (n, anchor, hfname) in ordering[level + 1]]
+                    if (name, None) not in next_level and (name, fname) not in next_level:
+                        ordering[level + 1].append((name, True, fname)) # add anchor point
                     else:
                         pass ## finally!
                 else:
                     ## if next level doesn't contain an outgoing
                     ## connection, add it to next level as anchor point
                     for layer in self[name].outgoing_connections:
-                        next_level = [n for (n, anchor) in ordering[level + 1]]
-                        if (layer.name not in next_level):
-                            ordering[level + 1].append((layer.name, True)) # add anchor point
+                        next_level = [(n,fname) for (n, anchor, fname) in ordering[level + 1]]
+                        if (layer.name, None) not in next_level:
+                            ordering[level + 1].append((layer.name, True, name)) # add anchor point
             ## replace level with sorted level:
             def input_index(name):
                 return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
-            lev = sorted([(input_index(name), name, anchor) for (name, anchor) in ordering[level]])
-            ordering[level] = [(name, anchor) for (index, name, anchor) in lev]
+            lev = sorted([(input_index(name), name, anchor, fname) for (name, anchor, fname) in ordering[level]])
+            ordering[level] = [(name, anchor, fname) for (index, name, anchor, fname) in lev]
         return ordering
 
     def describe_connection_to(self, layer1, layer2):
