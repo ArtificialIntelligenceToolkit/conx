@@ -1384,7 +1384,7 @@ require(['base/js/namespace'], function(Jupyter) {
             ## replace level with sorted level:
             def input_index(name):
                 return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
-            lev = sorted([(input_index(name), name, anchor, fname) for (name, anchor, fname) in ordering[level]])
+            lev = sorted([(input_index(fname if anchor else name), name, anchor, fname) for (name, anchor, fname) in ordering[level]])
             ordering[level] = [(name, anchor, fname) for (index, name, anchor, fname) in lev]
         return ordering
 
@@ -1535,7 +1535,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 else:
                     control_slider.value = min(control_slider.value + 1, length - 1)
 
-        def update_control_slider(change):
+        def update_control_slider(change=None):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 control_slider.disabled = True
                 for child in control_buttons.children:
@@ -1593,9 +1593,9 @@ require(['base/js/namespace'], function(Jupyter) {
         def prop_one(button):
             update_slider_control({"name": "value"})
 
-        def refresh(button):
+        def refresh(button=None):
             net_svg.value = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
-            update_control_slider(None)
+            update_control_slider()
 
         ## Hack to center SVG as justify-content is broken:
         net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.build_svg(),), layout=Layout(
@@ -1620,7 +1620,7 @@ require(['base/js/namespace'], function(Jupyter) {
             description='Dataset:',
             rows=1
                )
-        refresh_button = Button(icon="refresh")
+        refresh_button = Button(icon="refresh", layout=Layout(width="40px"))
         length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
         control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
@@ -1641,7 +1641,8 @@ require(['base/js/namespace'], function(Jupyter) {
         refresh_button.on_click(refresh)
 
         # Put them together:
-        control = VBox([HBox([control_select, refresh_button]), control_slider, control_buttons], layout=Layout(width='95%'))
+        control = VBox([HBox([control_select, refresh_button], layout=Layout(height="40px")),
+                        control_slider, control_buttons], layout=Layout(width='95%'))
         net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
