@@ -199,11 +199,11 @@ class Network():
             self.name, ("uncompiled" if not self.model else "compiled"))
 
     def snapshot(self, inputs=None, class_id=None, ):
-        from IPython.display import SVG
+        from IPython.display import HTML
         if class_id is None:
             r = random.randint(1,1000000)
             class_id = "snapshot-%s-%s" % (self.name, r)
-        return SVG(self.build_svg(class_id=class_id, inputs=inputs))
+        return HTML(self.build_svg(class_id=class_id, inputs=inputs))
 
     def add(self, layer: Layer):
         """
@@ -1117,6 +1117,7 @@ class Network():
                             (((layer_name == oname) and (oanchor is False)) or
                              ((layer_name == oname) and (oanchor is True) and (fname == lfname)))]
                     if prev:
+                        tooltip = html.escape(self.describe_connection_to(self[fname], self[layer_name]))
                         if prev[0][1]: # anchor
                             anchor_name2 = "%s-%s-anchor%s" % (layer_name, fname, level_num - 1)
                             ## draw a line to this anchor point
@@ -1187,7 +1188,7 @@ class Network():
                     anchor_name = "%s-%s-anchor%s" % (out.name, layer_name, level_num - 1)
                     ## Don't draw this error, if there is an anchor in the next level
                     if anchor_name in positioning:
-                        tooltip = "TODO"
+                        tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                         x2 = positioning[anchor_name]["x"]
                         y2 = positioning[anchor_name]["y"]
                         struct.append(["line_svg", {"x1":x1,
@@ -1304,7 +1305,7 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" height="{svg_height}" image-rendering="pixelated" style="">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" height="{svg_height}" image-rendering="pixelated">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
@@ -1512,8 +1513,9 @@ require(['base/js/namespace'], function(Jupyter) {
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
-        from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select,
-                                Layout, Tab, Label)
+        from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
+                                Layout, Tab, Label, FloatSlider, Checkbox, IntText,
+                                Box)
 
         def dataset_move(position):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1566,6 +1568,11 @@ require(['base/js/namespace'], function(Jupyter) {
             control_slider.disabled = disabled
             for child in control_buttons.children:
                 child.disabled = disabled
+
+        def update_zoom_slider(change):
+            if change["name"] == "value":
+                self.config["svg_height"] = zoom_slider.value * 780
+                refresh()
 
         def update_slider_control(change):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1638,6 +1645,8 @@ require(['base/js/namespace'], function(Jupyter) {
                                    value=0,
                                    layout=Layout(width='95%'))
         total_text = Label(value="of 0", layout=Layout(width="100px"))
+        zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
+                                  value=self.config["svg_height"]/780.0)
 
         ## Hook them up:
         button_begin.on_click(lambda button: dataset_move("begin"))
@@ -1649,13 +1658,65 @@ require(['base/js/namespace'], function(Jupyter) {
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
         refresh_button.on_click(refresh)
+        zoom_slider.observe(update_zoom_slider)
+
+        def set_attr(obj, attr, value):
+            if value != {}:
+                if isinstance(value, dict):
+                    value = value["value"]
+                if isinstance(obj, dict):
+                    obj[attr] = value
+                else:
+                    setattr(obj, attr, value)
+                refresh()
 
         # Put them together:
         control = VBox([HBox([control_select, refresh_button], layout=Layout(height="40px")),
                         HBox([control_slider, total_text], layout=Layout(height="40px")),
                         control_buttons],
                        layout=Layout(width='95%'))
+
+        layout = Layout()
+        style = {"description_width": "initial"}
+        checkbox1 = Checkbox(description="Show Targets", value=self.config["show_targets"],
+                             layout=layout)
+        checkbox1.observe(lambda change: set_attr(self.config, "show_targets", change["new"]))
+        checkbox2 = Checkbox(description="Show Errors", value=self.config["show_errors"],
+                             layout=layout)
+        checkbox2.observe(lambda change: set_attr(self.config, "show_errors", change["new"]))
+
+        hspace = IntText(value=self.config["hspace"], description="Horizontal space between banks:",
+                         style=style, layout=layout)
+        hspace.observe(lambda change: set_attr(self.config, "hspace", change["new"]))
+        vspace = IntText(value=self.config["vspace"], description="Vertical space between layers:",
+                         style=style, layout=layout)
+        vspace.observe(lambda change: set_attr(self.config, "vspace", change["new"]))
+
+        config_list = [
+            HTML(value="<p><h3>%s:</h3></p>" % self.name, layout=layout),
+            zoom_slider,
+            hspace,
+            vspace,
+            checkbox1,
+            checkbox2,
+        ]
+        for layer in self.layers:
+            config_list.append(HTML(value="<p><hr/><h3>%s bank:</h3></p>" % layer.name, layout=layout))
+            checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
+            checkbox.observe(lambda change, layer=layer: set_attr(layer, "visible", change["new"]))
+            config_list.append(checkbox)
+            colormap = Text(description="Colormap:", value=layer.colormap, layout=layout)
+            colormap.observe(lambda change, layer=layer: set_attr(layer, "colormap", change["new"]))
+            config_list.append(colormap)
+
+        vbox_layout = Layout(overflow_y='scroll',
+                             width='100%',
+                             height="overflow_x",
+                             flex_direction='col',
+                             display='')
+
         net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
+        config_page = VBox(config_list, layout=vbox_layout)
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
         #camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
@@ -1667,6 +1728,7 @@ require(['base/js/namespace'], function(Jupyter) {
             #("Graphs", graph_page),
             #("Analysis", analysis_page),
             #("Camera", camera_page),
+            ("Configuration", config_page),
             ("Help", help_page),
         ]
         tab = Tab([t[1] for t in tabs])

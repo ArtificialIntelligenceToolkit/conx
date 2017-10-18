@@ -245,7 +245,10 @@ class _BaseLayer():
         if colormap or self.colormap:
             if colormap is None:
                 colormap = self.colormap
-            cm_hot = cm.get_cmap(colormap)
+            try:
+                cm_hot = cm.get_cmap(colormap)
+            except:
+                cm_hot = cm.get_cmap("RdGy")
             vector = cm_hot(vector)
             vector = np.uint8(vector * 255)
             image = PIL.Image.fromarray(vector)
