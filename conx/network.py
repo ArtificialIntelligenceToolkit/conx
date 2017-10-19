@@ -311,9 +311,13 @@ class Network():
             # Compile the whole model again:
             self.compile(**self.compile_options)
 
-    def test(self, batch_size=32, tolerance=0.1, force=False):
+    def test(self, batch_size=32, tolerance=0.1, force=False,
+             show_inputs=True, show_outputs=True):
         """
+        Test a dataset.
         """
+        if len(self.dataset.inputs) == 0:
+            raise Exception("nothing to test")
         if self.dataset._split == len(self.dataset.inputs):
             inputs = self.dataset._train_inputs
             dataset_name = "training"
@@ -331,10 +335,22 @@ class Network():
         targ_formatted = self.pf_matrix(targets, force)
         out_formatted = self.pf_matrix(outputs, force)
         correct = self.compute_correct(outputs, targets, tolerance)
-        print("# | inputs | targets | outputs | result")
+        header = "# | "
+        if show_inputs:
+            header += "inputs | "
+        if show_outputs:
+            header += "targets | outputs | "
+        header += "result"
+        print(header)
         print("---------------------------------------")
         for i in range(len(out_formatted)):
-            print(i, "|", in_formatted[i], "|", targ_formatted[i], "|", out_formatted[i], "|", "correct" if correct[i] else "X")
+            line = "%d | " % i
+            if show_inputs:
+                line += "%s | " % in_formatted[i]
+            if show_outputs:
+                line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
+            line += "correct" if correct[i] else "X"
+            print(line)
         print("Total count:", len(correct))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
@@ -452,7 +468,7 @@ class Network():
         self.train_options.update(overrides)
         self.train(**self.train_options)
 
-    def train(self, epochs=1, accuracy=None, batch_size=None,
+    def train(self, epochs=1, accuracy=None, batch_size=32,
               report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
               class_weight=None, sample_weight=None):
         """
@@ -471,8 +487,6 @@ class Network():
             "class_weight": class_weight,
             "sample_weight": sample_weight,
             }
-        if batch_size is None:
-            batch_size = len(self.dataset.train_inputs)
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
@@ -869,6 +883,12 @@ class Network():
             layer.input_names = []
             layer.model = None
 
+    def update_model(self):
+        """
+        Useful if you change, say, an activation function after training.
+        """
+        self._build_intermediary_models()
+            
     def _build_intermediary_models(self):
         """
         Construct the layer.k, layer.input_names, and layer.model's.
@@ -1634,11 +1654,11 @@ require(['base/js/namespace'], function(Jupyter) {
         button_next = Button(icon="forward", layout=Layout(width='100%'))
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
-        button_train = Button(description="Train", layout=Layout(width='100%'))
+        #button_train = Button(description="Train", layout=Layout(width='100%'))
         control_buttons = HBox([
             button_begin,
             button_prev,
-            button_train,
+            #button_train,
             button_next,
             button_end,
                ], layout=Layout(width='100%', height="50px"))
@@ -1666,7 +1686,7 @@ require(['base/js/namespace'], function(Jupyter) {
         button_next.on_click(lambda button: dataset_move("next"))
         button_prev.on_click(lambda button: dataset_move("prev"))
         #button_prop.on_click(prop_one)
-        button_train.on_click(train_one)
+        #button_train.on_click(train_one)
         control_select.observe(update_control_slider)
         control_slider.observe(update_slider_control)
         refresh_button.on_click(refresh)

@@ -839,19 +839,73 @@ class Dataset():
     #     except:
     #         raise Exception("couldn't load .npz dataset %s" % filename)
 
-    def set_targets_from_inputs(self):
+    def set_targets_from_inputs(self, f=None):
         """
-        Copy the inputs to targets
+        Copy the inputs to targets. Optionally, apply a function f to
+        input copy.
+
+        >>> from conx import Network
+        >>> net = Network("Sample", 2, 2, 1)
+        >>> ds = [[[0, 0], [0]],
+        ...       [[0, 1], [1]],
+        ...       [[1, 0], [1]],
+        ...       [[1, 1], [0]]]
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.load(ds)
+        >>> net.dataset.set_targets_from_inputs(lambda iv: [iv[0]])
+        >>> net.dataset.targets[1]
+        [0.0]
         """
-        self._targets = copy.copy(self._inputs)
+        if f:
+            ## First, apply the function to human form:
+            ts = []
+            for i in range(len(self.inputs)):
+                ts.append(f(self.inputs[i]))
+            ## Next, we convert as normal:
+            if self._num_target_banks > 1:
+                targets = []
+                for i in range(len(ts)):
+                    targets.append(np.array(ts[i], "float32"))
+            else:
+                targets = np.array(ts, "float32")
+            self._targets = targets
+        else: ## no function: just copy the inputs directly
+            self._targets = copy.copy(self._inputs)
         self._cache_values()
         self.split(len(self.inputs))
 
-    def set_inputs_from_targets(self):
+    def set_inputs_from_targets(self, f=None):
         """
-        Copy the targets to inputs
+        Copy the targets to inputs. Optionally, apply a function f to
+        target copy.
+
+        >>> from conx import Network
+        >>> net = Network("Sample", 2, 2, 1)
+        >>> ds = [[[0, 0], [0]],
+        ...       [[0, 1], [1]],
+        ...       [[1, 0], [1]],
+        ...       [[1, 1], [0]]]
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.load(ds)
+        >>> net.dataset.set_inputs_from_targets(lambda tv: [tv[0], tv[0]])
+        >>> net.dataset.inputs[1]
+        [1.0, 1.0]
         """
-        self._inputs = copy.copy(self._targets)
+        if f:
+            ## First, apply the function to human form:
+            ins = []
+            for i in range(len(self.targets)):
+                ins.append(f(self.targets[i]))
+            ## Next, we convert as normal:
+            if self._num_target_banks > 1:
+                inputs = []
+                for i in range(len(ins)):
+                    inputs.append(np.array(ins[i], "float32"))
+            else:
+                inputs = np.array(ins, "float32")
+            self._inputs = inputs
+        else: ## no function: just copy the targets directly
+            self._inputs = copy.copy(self._targets)
         self._cache_values()
         self.split(len(self.inputs))
 
