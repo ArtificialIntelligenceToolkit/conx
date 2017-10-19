@@ -331,9 +331,11 @@ class Network():
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FIXME: outputs not shaped
-        in_formatted = self.pf_matrix(inputs, force)
-        targ_formatted = self.pf_matrix(targets, force)
-        out_formatted = self.pf_matrix(outputs, force)
+        if show_inputs:
+            in_formatted = self.pf_matrix(inputs, force)
+        if show_outputs:
+            targ_formatted = self.pf_matrix(targets, force)
+            out_formatted = self.pf_matrix(outputs, force)
         correct = self.compute_correct(outputs, targets, tolerance)
         header = "# | "
         if show_inputs:
@@ -343,7 +345,7 @@ class Network():
         header += "result"
         print(header)
         print("---------------------------------------")
-        for i in range(len(out_formatted)):
+        for i in range(len(correct)):
             line = "%d | " % i
             if show_inputs:
                 line += "%s | " % in_formatted[i]
@@ -358,7 +360,7 @@ class Network():
         """
         Both are np.arrays. Return [True, ...].
         """
-        if isinstance(outputs, list): ## multiple output banks
+        if self.num_target_layers > 1: ## multiple output banks
             correct = []
             for r in range(len(outputs[0])):
                 row = []
