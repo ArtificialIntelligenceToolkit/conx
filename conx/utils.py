@@ -31,9 +31,7 @@ def image2array(image):
     """
     Convert a PIL.Image into a numpy array.
     """
-    array = np.fromstring(image.tobytes(), dtype=np.uint8)
-    array = array.reshape(image.height, image.width, len(image.getbands()))
-    return array
+    return np.array(image, "float32") / 255.0
 
 def array2image(array, scale=1.0):
     """
@@ -46,11 +44,33 @@ def array2image(array, scale=1.0):
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
     return image
 
-def one_hot(vector, categories):
+def onehot(i, width):
     """
-    Given a vector of integers (i.e. labels), return a numpy array of one-hot vectors.
+    >>> onehot(0, 5)
+    [1, 0, 0, 0, 0]
+
+    >>> onehot(3, 5)
+    [0, 0, 0, 1, 0]
     """
-    return to_categorical(vector, categories)[0].tolist()
+    v = [0] * width
+    v[i] = 1
+    return v
+
+def binary(i, width):
+    """
+    >>> binary(0, 5)
+    [0, 0, 0, 0, 0]
+
+    >>> binary(15, 4)
+    [1, 1, 1, 1]
+
+    >>> binary(14, 4)
+    [1, 1, 1, 0]
+    """
+    bs = bin(i)[2:]
+    bs = ("0" * width + bs)[-width:]
+    b = [int(c) for c in bs]
+    return b
 
 def topological_sort(net, layers):
     """

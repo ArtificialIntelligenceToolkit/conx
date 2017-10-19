@@ -47,7 +47,9 @@ class CameraWidget(DOMWidget):
 
     def get_image(self):
         if self.image:
-            return uri_to_image(self.image)
+            image = uri_to_image(self.image)
+            image = image.convert("RGB")
+            return image
 
     def get_data(self):
         if self.image:

@@ -31,7 +31,7 @@ import numbers
 import keras
 from keras.utils import to_categorical
 
-from .utils import valid_shape
+from .utils import valid_shape, onehot, binary
 
 def atype(dtype):
     """
@@ -522,17 +522,6 @@ class Dataset():
         >>> len(net.dataset.inputs)
         10
         """
-        def onehot(i, width):
-            v = [0] * width
-            v[i] = 1
-            return v
-
-        def binary(i, width):
-            bs = bin(i)[2:]
-            bs = ("0" * width + bs)[-width:]
-            b = [int(c) for c in bs]
-            return b
-
         if len(frange) == 2:
             frange = frange + (1, )
         if ifunction == "onehot":
@@ -571,31 +560,13 @@ class Dataset():
         ## need to set: _num_target_banks, _target_shapes, _targets
         ## inputs is a list [multiple] or np.array() [single]
         if inputs is not None:
-            self._set_input_info(inputs)
+            self._inputs = inputs
         if targets is not None:
-            self._set_target_info(targets)
+            self._targets = targets
         if labels is not None:
             self._labels = labels # should be a np.array/list of single values
         self._cache_values()
         self.split(len(self.inputs))
-
-    def _set_input_info(self, inputs):
-        self._inputs = inputs
-        if isinstance(inputs, (list, tuple)): ## multiple inputs
-            self._num_input_banks = len(inputs)
-            self._input_shapes = [x.shape for x in inputs]
-        else:
-            self._num_input_banks = 1
-            self._input_shapes = [inputs[0].shape]
-
-    def _set_target_info(self, targets):
-        self._targets = targets
-        if isinstance(targets, (list, tuple)): ## multiple inputs
-            self._num_target_banks = len(targets)
-            self._target_shapes = [x.shape for x in targets]
-        else:
-            self._num_target_banks = 1
-            self._target_shapes = [targets[0].shape]
 
     def load(self, pairs=None, inputs=None, targets=None):
         """
@@ -674,20 +645,22 @@ class Dataset():
                 targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
             targets = np.array([y for (x, y) in pairs], "float32")
-        if len(self._inputs) == 0:
-            self._set_input_info(inputs)
-            self._set_target_info(targets)
-        else:
-            ## inputs:
-            if self._num_input_banks == 1: ## np.array
+        ## inputs:
+        if self._num_input_banks == 1: ## np.array
+            if len(self._inputs) == 0:
+                self._inputs = inputs
+            else:
                 self._inputs = np.append(self._inputs, inputs, 0)
-            else: ## list
-                self._inputs.extend(inputs)
-            ## targets:
-            if self._num_target_banks == 1: ## np.array
+        else: ## list
+            self._inputs.extend(inputs)
+        ## targets:
+        if self._num_target_banks == 1: ## np.array
+            if len(self._targets) == 0:
+                self._targets = targets
+            else:
                 self._targets = np.append(self._targets, targets, 0)
-            else: ## list
-                self._targets.extend(targets)
+        else: ## list
+            self._targets.extend(targets)
         self._cache_values()
         self.split(len(self.inputs))
 
@@ -784,17 +757,17 @@ class Dataset():
             else: # (None, #)
                 start = 0
         if self._num_input_banks > 1:
-            inputs = [np.array([vector for vector in row[start:stop]]) for row in self._inputs]
+            inputs = [np.array(row[start:stop]) for row in self._inputs]
         else:
             inputs = self._inputs[start:stop] # ok
+        self._inputs = inputs
         if self._num_target_banks > 1:
-            targets = [np.array([vector for vector in row[start:stop]]) for row in self._targets]
+            targets = [np.array(row[start:stop]) for row in self._targets]
         else:
             targets = self._targets[start:stop]
+        self._targets = targets
         if len(self._labels) > 0:
             self._labels = self._labels[start:stop]
-        self._set_input_info(inputs)
-        self._set_target_info(targets)
         self._cache_values()
         self.split(len(self.inputs))
 
@@ -820,11 +793,22 @@ class Dataset():
         self._train_targets = []
         self._test_inputs = []
         self._test_targets = []
+        ## Set shape cache:
+        if self._num_input_banks > 1:
+            self._input_shapes = [x[0].shape for x in self._inputs]
+        else:
+            self._input_shapes = [self._inputs[0].shape]
+        if self._num_target_banks > 1:
+            self._target_shapes = [x[0].shape for x in self._targets]
+        else:
+            self._target_shapes = [self._targets[0].shape]
         # Final checks:
-        assert len(self.test_inputs) == len(self.test_targets), "test inputs/targets lengths do not match"
-        assert len(self.train_inputs) == len(self.train_targets), "train inputs/targets lengths do not match"
+        if len(self.test_inputs) != len(self.test_targets):
+            raise Exception("test inputs/targets lengths do not match")
+        if len(self.train_inputs) != len(self.train_targets):
+            raise Exception("train inputs/targets lengths do not match")
         if len(self.inputs) != len(self.targets):
-            print("WARNING: inputs/targets lengths do not match")
+            raise Exception("WARNING: inputs/targets lengths do not match")
 
     ## FIXME: add these for users' convenience:
     #def matrix_to_channels_last(self, matrix): ## vecteor
@@ -859,13 +843,17 @@ class Dataset():
         """
         Copy the inputs to targets
         """
-        self._set_target_info(copy.copy(self._inputs))
+        self._targets = copy.copy(self._inputs)
+        self._cache_values()
+        self.split(len(self.inputs))
 
     def set_inputs_from_targets(self):
         """
         Copy the targets to inputs
         """
-        self._set_input_info(copy.copy(self._targets))
+        self._inputs = copy.copy(self._targets)
+        self._cache_values()
+        self.split(len(self.inputs))
 
     def set_targets_from_labels(self, num_classes):
         """
@@ -879,9 +867,9 @@ class Dataset():
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
         self._targets = to_categorical(self._labels, num_classes).astype("uint8")
-        self._train_targets = self._targets[:self._split]
-        self._test_targets = self._targets[self._split:]
-        print('Generated %d target vectors from %d labels' % (len(self.inputs), num_classes))
+        self._cache_values()
+        self.split(len(self.inputs))
+        print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
     def summary(self):
         """
@@ -974,18 +962,37 @@ class Dataset():
         else:
             raise Exception("invalid split: %s" % split)
         if self._num_input_banks > 1:
-            self._train_inputs = [col[:self._split] for col in self._inputs]
-            self._test_inputs = [col[self._split:] for col in self._inputs]
+            if self._split == len(self.inputs): ### don't copy!
+                self._train_inputs = self._inputs
+                self._test_inputs = []
+            else:
+                self._train_inputs = [col[:self._split] for col in self._inputs]
+                self._test_inputs = [col[self._split:] for col in self._inputs]
         else:
-            self._train_inputs = self._inputs[:self._split]
-            self._test_inputs = self._inputs[self._split:]
+            if self._split == len(self.inputs): ### don't copy!
+                self._train_inputs = self._inputs
+                self._test_inputs = []
+            else:
+                self._train_inputs = self._inputs[:self._split]
+                self._test_inputs = self._inputs[self._split:]
         if len(self._labels) != 0:
-            self._train_labels = self._labels[:self._split]
-            self._test_labels = self._labels[self._split:]
-        if len(self.targets) != 0:
-            if self._num_target_banks > 1:
+            if self._split == len(self._labels): ### don't copy!
+                self._train_labels = self._labels
+                self._test_labels = []
+            else:
+                self._train_labels = self._labels[:self._split]
+                self._test_labels = self._labels[self._split:]
+        if self._num_target_banks > 1:
+            if self._split == len(self._targets): ### don't copy!
+                self._train_targets = self._targets
+                self._test_targets = []
+            else:
                 self._train_targets = [col[:self._split] for col in self._targets]
                 self._test_targets = [col[self._split:] for col in self._targets]
+        else:
+            if self._split == len(self._targets): ### don't copy!
+                self._train_targets = self._targets
+                self._test_targets = []
             else:
                 self._train_targets = self._targets[:self._split]
                 self._test_targets = self._targets[self._split:]

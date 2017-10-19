@@ -584,11 +584,7 @@ class Network():
             if self.num_input_layers == 1:
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
-            input = np.array(input)
-            if len(input.shape) == 2:
-                input = input.reshape(input.shape + (1,))
-            if K.image_data_format() == 'channels_first':
-                input = self.matrix_to_channels_first(input)
+            input = image2array(input)
         if self.num_input_layers == 1:
             outputs = self.model.predict(np.array([input]), batch_size=batch_size)
         else:
@@ -623,6 +619,8 @@ class Network():
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
+        elif isinstance(input, PIL.Image.Image):
+            input = image2array(input)
         if output_layer_names is None:
             if self.num_target_layers == 1:
                 output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
@@ -699,6 +697,8 @@ class Network():
             inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 inputs = inputs[0]
+        elif isinstance(inputs, PIL.Image.Image):
+            inputs = image2array(inputs)
         if self.num_input_layers == 1:
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
@@ -725,6 +725,12 @@ class Network():
 
     def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0):
         from IPython.display import HTML
+        if isinstance(inputs, dict):
+            inputs = [inputs[name] for name in self.input_bank_order]
+            if self.num_input_layers == 1:
+                inputs = inputs[0]
+        elif isinstance(inputs, PIL.Image.Image):
+            inputs = image2array(inputs)
         output_shape = self[layer_name].keras_layer.output_shape
         retval = """<table><tr>"""
         if (isinstance(output_shape, tuple) and len(output_shape) == 4):
@@ -748,6 +754,8 @@ class Network():
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
                 input = input[0]
+        elif isinstance(input, PIL.Image.Image):
+            input = image2array(input)
         outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, self.config)
@@ -1440,11 +1448,13 @@ require(['base/js/namespace'], function(Jupyter) {
     def load(self=None, foldername=None):
         """
         Load the network from a folder.
+
+        Network.load()
+        network.load()
         """
         if self is None:
-            raise Exception("foldername is required")
-        elif isinstance(self, str):
-            foldername = self
+            if foldername is None:
+                raise Exception("foldername is required")
             if isinstance(foldername, str) and os.path.isdir(foldername):
                 net = Network("Temp")
                 net.load_model(foldername)
@@ -1453,10 +1463,12 @@ require(['base/js/namespace'], function(Jupyter) {
                     with open("%s/network.pickle" % foldername, "rb") as fp:
                         net = pickle.load(fp)
                     net._build_intermediary_models()
+                return net
             else:
                 raise Exception("Network.load() did not find folder '%s'" % foldername)
-            return net
         else:
+            if foldername is None:
+                foldername = "%s.conx" % self.name
             if isinstance(foldername, str) and os.path.isdir(foldername):
                 self.load_model(foldername)
                 self.load_weights(foldername)
@@ -1515,7 +1527,7 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
                                 Layout, Tab, Label, FloatSlider, Checkbox, IntText,
-                                Box)
+                                Box, Accordion)
 
         def dataset_move(position):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1661,13 +1673,14 @@ require(['base/js/namespace'], function(Jupyter) {
         zoom_slider.observe(update_zoom_slider)
 
         def set_attr(obj, attr, value):
-            if value != {}:
+            if value not in [{}, None]: ## value is None when shutting down
                 if isinstance(value, dict):
                     value = value["value"]
                 if isinstance(obj, dict):
                     obj[attr] = value
                 else:
                     setattr(obj, attr, value)
+                ## was crashing on Widgets.__del__, if get_ipython() no longer existed
                 refresh()
 
         # Put them together:
@@ -1692,31 +1705,41 @@ require(['base/js/namespace'], function(Jupyter) {
                          style=style, layout=layout)
         vspace.observe(lambda change: set_attr(self.config, "vspace", change["new"]))
 
-        config_list = [
-            HTML(value="<p><h3>%s:</h3></p>" % self.name, layout=layout),
-            zoom_slider,
-            hspace,
-            vspace,
-            checkbox1,
-            checkbox2,
-        ]
-        for layer in self.layers:
-            config_list.append(HTML(value="<p><hr/><h3>%s bank:</h3></p>" % layer.name, layout=layout))
+        config_children = [VBox(
+            [HTML(value="<p><h3>%s:</h3></p>" % self.name, layout=layout),
+             zoom_slider,
+             hspace,
+             vspace,
+             checkbox1,
+             checkbox2,
+            ])]
+
+        for layer in reversed(self.layers):
+            children = []
+            children.append(HTML(value="<p><hr/><h3>%s bank:</h3></p>" % layer.name, layout=layout))
             checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
             checkbox.observe(lambda change, layer=layer: set_attr(layer, "visible", change["new"]))
-            config_list.append(checkbox)
+            children.append(checkbox)
             colormap = Text(description="Colormap:", value=layer.colormap, layout=layout)
             colormap.observe(lambda change, layer=layer: set_attr(layer, "colormap", change["new"]))
-            config_list.append(colormap)
+            children.append(colormap)
+            output_shape = layer.keras_layer.output_shape
+            if (isinstance(output_shape, tuple) and
+                len(output_shape) == 4 and
+                "ImageLayer" != layer.__class__.__name__):
+                ## Allow feature to be selected:
+                feature = IntText(value=layer.feature, description="Feature to show:", style=style)
+                feature.observe(lambda change, layer=layer: set_attr(layer, "feature", change["new"]))
+                children.append(feature)
+            config_children.append(VBox(children))
 
-        vbox_layout = Layout(overflow_y='scroll',
-                             width='100%',
-                             height="overflow_x",
-                             flex_direction='col',
-                             display='')
+        accordion = Accordion(children=config_children)
+        accordion.set_title(0, "%s network" % self.name)
+        for i in range(len(self.layers)):
+            accordion.set_title(i + 1, "%s bank" % self.layers[len(self.layers) - i - 1].name)
 
-        net_page = VBox([net_svg, control], layout=Layout(width='95%', height=height))
-        config_page = VBox(config_list, layout=vbox_layout)
+        net_page = VBox([net_svg, control], layout=Layout(width='95%'))
+        config_page = VBox([accordion], layout=Layout(width='95%', overflow_y="auto"))
         #graph_page = VBox(layout=Layout(width='100%', height=height))
         #analysis_page = VBox(layout=Layout(width='100%', height=height))
         #camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
