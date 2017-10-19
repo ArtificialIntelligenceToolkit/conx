@@ -312,7 +312,8 @@ class Network():
             self.compile(**self.compile_options)
 
     def test(self, batch_size=32, tolerance=0.1, force=False,
-             show_inputs=True, show_outputs=True):
+             show_inputs=True, show_outputs=True,
+             filter="all"):
         """
         Test a dataset.
         """
@@ -349,13 +350,17 @@ class Network():
         print(header)
         print("---------------------------------------")
         for i in range(count):
-            line = "%d | " % i
-            if show_inputs:
-                line += "%s | " % in_formatted[i]
-            if show_outputs:
-                line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
-            line += "correct" if correct[i] else "X"
-            print(line)
+            show_it = ((filter == "all") or
+                       (filter == "correct" and correct[i]) or
+                       (filter == "incorrect" and not correct[i]))
+            if show_it:
+                line = "%d | " % i
+                if show_inputs:
+                    line += "%s | " % in_formatted[i]
+                if show_outputs:
+                    line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
+                line += "correct" if correct[i] else "X"
+                print(line)
         print("Total count:", len(correct))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
