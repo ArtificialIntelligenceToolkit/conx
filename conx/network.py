@@ -900,7 +900,7 @@ class Network():
         Useful if you change, say, an activation function after training.
         """
         self._build_intermediary_models()
-            
+
     def _build_intermediary_models(self):
         """
         Construct the layer.k, layer.input_names, and layer.model's.
@@ -937,7 +937,7 @@ class Network():
                 ## get the inputs to this branch, in order:
                 input_ks = self._get_input_ks_in_order(layer.input_names)
                 layer.model = keras.models.Model(inputs=input_ks, outputs=layer.k)
-                ## IS THIS A BETTER WAY?: 
+                ## IS THIS A BETTER WAY?:
                 #layer.model = keras.models.Model(inputs=input_ks, outputs=layer.keras_layer.output)
 
     def _get_input_ks_in_order(self, layer_names):
@@ -1447,37 +1447,6 @@ require(['base/js/namespace'], function(Jupyter) {
         ## FIXME: how to show merged layer weights?
         return retval
 
-    def save(self, foldername=None, save_all=True):
-        """
-        Save the network to a folder.
-        """
-        if foldername is None:
-            foldername = "%s.conx" % self.name
-        if not os.path.isdir(foldername):
-            os.makedirs(foldername)
-        if self.model and save_all:
-            self.save_model(foldername)
-            self.save_weights(foldername)
-            self._delete_intermediary_models()
-        self.model, tmp_model = None, self.model
-        self._comm, tmp_comm = None, self._comm
-        self.compile_options, tmp_co = {}, self.compile_options
-        for layer in self.layers:
-            layer.keras_layer = None
-        try:
-            with open("%s/network.pickle" % foldername, "wb") as fp:
-                pickle.dump(self, fp)
-        except:
-            raise
-        finally:
-            self.model = tmp_model
-            self._comm = tmp_comm
-            self.compile_options = tmp_co
-            if self.model and save_all:
-                self._build_intermediary_models()
-                for layer in self.layers:
-                    layer.keras_layer = self._find_keras_layer(layer.name)
-
     def load_weights(self, filename=None):
         """
         Load the network weights from a file.
@@ -1535,33 +1504,48 @@ require(['base/js/namespace'], function(Jupyter) {
                     control_slider.value = 0 # wrap around
                 else:
                     control_slider.value = min(control_slider.value + 1, length - 1)
+            position_text.value = control_slider.value
+
 
         def update_control_slider(change=None):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 total_text.value = "of 0"
+                control_slider.value = 0
+                position_text.value = 0
                 control_slider.disabled = True
+                position_text.disabled = True
                 for child in control_buttons.children:
                     child.disabled = True
                 return
             if control_select.value == "Test":
                 total_text.value = "of %s" % len(self.dataset.test_inputs)
-                control_slider.value = 0
-                control_slider.min = 0
-                control_slider.max = max(len(self.dataset.test_inputs) - 1, 0)
+                minmax = (0, max(len(self.dataset.test_inputs) - 1, 0))
+                if minmax[0] <= control_slider.value <= minmax[1]:
+                    pass # ok
+                else:
+                    control_slider.value = 0
+                control_slider.min = minmax[0]
+                control_slider.max = minmax[1]
                 if len(self.dataset.test_inputs) == 0:
                     disabled = True
                 else:
                     disabled = False
             elif control_select.value == "Train":
                 total_text.value = "of %s" % len(self.dataset.train_inputs)
-                control_slider.value = 0
-                control_slider.min = 0
-                control_slider.max = max(len(self.dataset.train_inputs) - 1, 0)
+                minmax = (0, max(len(self.dataset.train_inputs) - 1, 0))
+                if minmax[0] <= control_slider.value <= minmax[1]:
+                    pass # ok
+                else:
+                    control_slider.value = 0
+                control_slider.min = minmax[0]
+                control_slider.max = minmax[1]
                 if len(self.dataset.train_inputs) == 0:
                     disabled = True
                 else:
                     disabled = False
             control_slider.disabled = disabled
+            position_text.disbaled = disabled
+            position_text.value = control_slider.value
             for child in control_buttons.children:
                 child.disabled = disabled
 
@@ -1569,6 +1553,12 @@ require(['base/js/namespace'], function(Jupyter) {
             if change["name"] == "value":
                 self.config["svg_height"] = zoom_slider.value * 780
                 refresh()
+
+        def update_position_text(change):
+            if (change["name"] == "_property_lock" and
+                isinstance(change["new"], dict) and
+                "value" in change["new"]):
+                control_slider.value = change["new"]["value"]
 
         def update_slider_control(change):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1602,12 +1592,13 @@ require(['base/js/namespace'], function(Jupyter) {
                 outputs = self.train_one(self.dataset.test_inputs[control_slider.value],
                                          self.dataset.test_targets[control_slider.value])
 
-        def prop_one(button):
+        def prop_one(button=None):
             update_slider_control({"name": "value"})
 
         def refresh(button=None):
             net_svg.value = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
             update_control_slider()
+            prop_one()
 
         ## Hack to center SVG as justify-content is broken:
         net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.build_svg(),), layout=Layout(
@@ -1619,10 +1610,14 @@ require(['base/js/namespace'], function(Jupyter) {
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         #button_train = Button(description="Train", layout=Layout(width='100%'))
+
+        position_text = IntText(value=0, layout=Layout(width="100%"))
+
         control_buttons = HBox([
             button_begin,
             button_prev,
             #button_train,
+            position_text,
             button_next,
             button_end,
                ], layout=Layout(width='100%', height="50px"))
@@ -1655,6 +1650,7 @@ require(['base/js/namespace'], function(Jupyter) {
         control_slider.observe(update_slider_control)
         refresh_button.on_click(refresh)
         zoom_slider.observe(update_zoom_slider)
+        position_text.observe(update_position_text)
 
         def set_attr(obj, attr, value):
             if value not in [{}, None]: ## value is None when shutting down
