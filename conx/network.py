@@ -331,12 +331,15 @@ class Network():
         print("Testing on %s dataset..." % dataset_name)
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FIXME: outputs not shaped
+        correct = self.compute_correct(outputs, targets, tolerance)
+        count = len(correct)
         if show_inputs:
             in_formatted = self.pf_matrix(inputs, force)
+            count = len(in_formatted)
         if show_outputs:
             targ_formatted = self.pf_matrix(targets, force)
             out_formatted = self.pf_matrix(outputs, force)
-        correct = self.compute_correct(outputs, targets, tolerance)
+            count = len(out_formatted)
         header = "# | "
         if show_inputs:
             header += "inputs | "
@@ -345,7 +348,7 @@ class Network():
         header += "result"
         print(header)
         print("---------------------------------------")
-        for i in range(len(correct)):
+        for i in range(count):
             line = "%d | " % i
             if show_inputs:
                 line += "%s | " % in_formatted[i]
@@ -369,9 +372,7 @@ class Network():
                 correct.append(all(row))
             return correct
         else:
-            outs = outputs.flatten()
-            tars = targets.flatten()
-            correct = list(map(lambda v: v <= tolerance, np.abs(outs - tars)))
+            correct = [all(x) for x in map(lambda v: v <= tolerance, np.abs(outputs - targets))]
         return correct
 
     def train_one(self, inputs, targets, batch_size=32):
