@@ -362,6 +362,8 @@ class Network():
                 line += "correct" if correct[i] else "X"
                 print(line)
         print("Total count:", len(correct))
+        print("      correct:", len([c for c in correct if c]))
+        print("      incorrect:", len([c for c in correct if not c]))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
     def compute_correct(self, outputs, targets, tolerance):
