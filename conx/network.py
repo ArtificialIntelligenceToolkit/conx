@@ -439,6 +439,8 @@ class Network():
             >>> net.dataset._num_target_banks
             2
         """
+        if len(self.dataset.inputs) == 0:
+            raise Exception("need to set dataset")
         if isinstance(inputs, dict):
             inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -935,6 +937,8 @@ class Network():
                 ## get the inputs to this branch, in order:
                 input_ks = self._get_input_ks_in_order(layer.input_names)
                 layer.model = keras.models.Model(inputs=input_ks, outputs=layer.k)
+                ## IS THIS A BETTER WAY?: 
+                #layer.model = keras.models.Model(inputs=input_ks, outputs=layer.keras_layer.output)
 
     def _get_input_ks_in_order(self, layer_names):
         """
@@ -1474,81 +1478,31 @@ require(['base/js/namespace'], function(Jupyter) {
                 for layer in self.layers:
                     layer.keras_layer = self._find_keras_layer(layer.name)
 
-    ## classmethod or method
-    def load(self=None, foldername=None):
+    def load_weights(self, filename=None):
         """
-        Load the network from a folder.
+        Load the network weights from a file.
 
-        Network.load()
-        network.load()
-        """
-        if self is None:
-            if foldername is None:
-                raise Exception("foldername is required")
-            if isinstance(foldername, str) and os.path.isdir(foldername):
-                net = Network("Temp")
-                net.load_model(foldername)
-                net.load_weights(foldername)
-                if os.path.isfile("%s/network.pickle" % foldername):
-                    with open("%s/network.pickle" % foldername, "rb") as fp:
-                        net = pickle.load(fp)
-                    net._build_intermediary_models()
-                return net
-            else:
-                raise Exception("Network.load() did not find folder '%s'" % foldername)
-        else:
-            if foldername is None:
-                foldername = "%s.conx" % self.name
-            if isinstance(foldername, str) and os.path.isdir(foldername):
-                self.load_model(foldername)
-                self.load_weights(foldername)
-            else:
-                raise Exception("Network.load() did not find folder '%s'" % foldername)
-
-    def save_weights(self, foldername=None):
-        """
-        Save the model weights to a folder.
+        network.load_weights()
         """
         if self.model:
-            if foldername is None:
-                foldername = "%s.conx" % self.name
-            if not os.path.isdir(foldername):
-                os.makedirs(foldername)
-            self.model.save_weights("%s/weights.h5" % foldername)
+            if filename is None:
+                filename = "%s.h5" % self.name.replace(" ", "_")
+            self.model.load_weights(filename)
         else:
-            raise Exception("need to compile network first")
+            raise Exception("need to compile network before loading weights")
 
-    def save_model(self, foldername=None):
+    def save_weights(self, filename=None):
         """
-        Save the model to a folder.
+        Save the network weights to a file.
+
+        network.save_weights()
         """
         if self.model:
-            if foldername is None:
-                foldername = "%s.conx" % self.name
-            if not os.path.isdir(foldername):
-                os.makedirs(foldername)
-            self.model.save("%s/model.h5" % foldername)
+            if filename is None:
+                filename = "%s.h5" % self.name.replace(" ", "_")
+            self.model.save_weights(filename)
         else:
-            raise Exception("need to compile network first")
-
-    def load_weights(self, foldername=None):
-        """
-        Load the model weights from a folder.
-        """
-        if self.model:
-            if foldername is None:
-                foldername = "%s.conx" % self.name
-            if os.path.isfile("%s/model.h5" % foldername):
-                self.model.load_weights("%s/weights.h5" % foldername)
-
-    def load_model(self, foldername=None):
-        """
-        Load and set the model from a folder.
-        """
-        if foldername is None:
-            foldername = "%s.conx" % self.name
-        if os.path.isfile("%s/model.h5" % foldername):
-            self.model = keras.models.load_model("%s/model.h5" % foldername)
+            raise Exception("need to compile network before saving weights")
 
     def dashboard(self, width="95%", height="550px"):
         """
