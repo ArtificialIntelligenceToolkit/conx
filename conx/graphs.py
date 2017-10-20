@@ -21,6 +21,7 @@
 import base64
 import io
 import numpy as np
+from .utils import get_colormap
 
 from IPython.display import SVG
 
@@ -75,7 +76,8 @@ def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
 
 def plot_activations(net, output_layer="output", output_index=0,
                      input_layer="input",input_index1=0, input_index2=1,
-                     colormap="RdGy", default_input_value=0, resolution=0.1):
+                     colormap=None, default_input_value=0, resolution=0.1):
+    if colormap is None: colormap = get_colormap()
     if plt is None:
         raise Exception("matplotlib was not loaded")
     act_range = net[input_layer].minmax

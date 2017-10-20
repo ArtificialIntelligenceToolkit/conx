@@ -78,8 +78,8 @@ class _BaseLayer():
         self.image_maxdim = None
         self.image_pixels_per_unit = None
         self.visible = True
-        self.colormap = "RdGy"
-        self.minmax = None
+        self.colormap = None
+        self.minmax = (-1, 1)
         self.model = None
         self.decode_model = None
         self.input_names = []
@@ -197,7 +197,8 @@ class _BaseLayer():
         else:
             return [k]
 
-    def make_image(self, vector, config={}):
+    # class: _BaseLayer
+    def make_image(self, vector, colormap=None, config={}):
         """
         Given an activation name (or function), and an output vector, display
         make and return an image widget.
@@ -233,27 +234,23 @@ class _BaseLayer():
                             count += 1
             vector = vector[args]
         minmax = config.get("minmax")
-        if minmax is None:
-            minmax = self.get_minmax(vector)
-        vector = self.scale_output_for_image(vector, minmax, truncate=True)
+        # if minmax is None:
+        #     minmax = self.get_minmax(vector)
+        vector = self.scale_output_for_image(vector, self.minmax, truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         size = config["pixels_per_unit"]
         new_width = vector.shape[0] * size # in, pixels
         new_height = vector.shape[1] * size # in, pixels
-        colormap = config.get("colormap")
-        if colormap or self.colormap:
-            if colormap is None:
-                colormap = self.colormap
-            try:
-                cm_hot = cm.get_cmap(colormap)
-            except:
-                cm_hot = cm.get_cmap("RdGy")
-            vector = cm_hot(vector)
-            vector = np.uint8(vector * 255)
-            image = PIL.Image.fromarray(vector)
-        else:
-            image = PIL.Image.fromarray(vector, 'P')
+        if colormap is None:
+            colormap = get_colormap() if self.colormap is None else self.colormap
+        try:
+            cm_hot = cm.get_cmap(colormap)
+        except:
+            cm_hot = cm.get_cmap("RdGy")
+        vector = cm_hot(vector)
+        vector = np.uint8(vector * 255)
+        image = PIL.Image.fromarray(vector)
         image = image.resize((new_height, new_width))
         return image
 
@@ -401,10 +398,11 @@ class ImageLayer(Layer):
             self.shape = tuple([depth] + list(self.shape))
             self.image_indexes = (1, 2)
 
-    def make_image(self, vector, config={}):
+    # class: ImageLayer
+    def make_image(self, vector, colormap=None, config={}):
         """
         Given an activation name (or function), and an output vector, display
-        make and return an image widget.
+        make and return an image widget. Colormap is ignored.
         """
         ## see K.image_data_format() == 'channels_last': above
         ## We keep the dataset data in the right format.
