@@ -29,6 +29,20 @@ try:
 except:
     plt = None
 
+def plot_f(f, frange=(-1, 1, .1), symbol="o-"):
+    """
+    Plot a function.
+    """
+    xs = np.arange(*frange)
+    ys = [f(x) for x in xs]
+    fig = plt.figure()
+    plt.plot(xs, ys, symbol)
+    bytes = io.BytesIO()
+    plt.savefig(bytes, format='svg')
+    svg = bytes.getvalue()
+    plt.close(fig)
+    return SVG(svg.decode())
+
 def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
     """
     SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],

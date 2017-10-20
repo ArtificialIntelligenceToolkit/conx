@@ -125,6 +125,13 @@ class Network():
     """
     OPTIMIZERS = ("sgd", "rmsprop", "adagrad", "adadelta", "adam",
                   "adamax", "nadam", "tfoptimizer")
+    ERROR_FUNCTIONS = ['binary_crossentropy', 'categorical_crossentropy',
+                       'categorical_hinge', 'cosine', 'cosine_proximity', 'hinge',
+                       'kld', 'kullback_leibler_divergence', 'logcosh', 'mae', 'mape',
+                       'mean_absolute_error', 'mean_absolute_percentage_error', 'mean_squared_error',
+                       'mean_squared_logarithmic_error', 'mse', 'msle', 'poisson',
+                       'sparse_categorical_crossentropy', 'squared_hinge']
+
     def __init__(self, name: str, *sizes: int, **config: Any):
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
@@ -749,7 +756,7 @@ class Network():
         outputs = outputs[0].reshape(shape).tolist()
         return outputs
 
-    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0):
+    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True):
         from IPython.display import HTML
         if isinstance(inputs, dict):
             inputs = [inputs[name] for name in self.input_bank_order]
@@ -770,7 +777,10 @@ class Network():
                 if (i + 1) % cols == 0:
                     retval += """</tr><tr>"""
             retval += "</tr></table>"
-            return HTML(retval)
+            if html:
+                return HTML(retval)
+            else:
+                return retval
 
     def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
         """
@@ -1560,6 +1570,12 @@ require(['base/js/namespace'], function(Jupyter) {
                 "value" in change["new"]):
                 control_slider.value = change["new"]["value"]
 
+        def get_current_input():
+            if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
+                return self.dataset.train_inputs[control_slider.value]
+            elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
+                return self.dataset.test_inputs[control_slider.value]
+
         def update_slider_control(change):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
                 total_text.value = "of 0"
@@ -1596,7 +1612,13 @@ require(['base/js/namespace'], function(Jupyter) {
             update_slider_control({"name": "value"})
 
         def refresh(button=None):
-            net_svg.value = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
+            svg = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
+            #inputs = get_current_input()
+            #if inputs is not None:
+            #    features = self.propagate_to_features("conv1", inputs, cols=3, scale=2, html=False)
+            #    net_svg.value = "<table><tr><td>%s</td><td>%s</td></tr></table>" % (svg, features)
+            #else:
+            net_svg.value = svg
             update_control_slider()
             prop_one()
 
