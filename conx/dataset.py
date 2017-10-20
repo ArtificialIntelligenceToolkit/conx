@@ -911,7 +911,7 @@ class Dataset():
 
     def set_targets_from_labels(self, num_classes):
         """
-        Given net.labels are integers, set the net.targets to one_hot() categories.
+        Given net.labels are integers, set the net.targets to onehot() categories.
         """
         ## FIXME: allow working on multi-targets
         if self._num_target_banks > 1:
