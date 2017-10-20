@@ -23,6 +23,30 @@ import base64
 import io
 import numpy as np
 from keras.utils import to_categorical
+import matplotlib.pyplot as plt
+
+#------------------------------------------------------------------------
+# configuration constants
+
+AVAILABLE_COLORMAPS = list(plt.cm.datad.keys())
+CURRENT_COLORMAP = "RdBu"
+ERROR_COLORMAP = "RdBu"
+
+def set_colormap(s):
+    global CURRENT_COLORMAP
+    assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
+    CURRENT_COLORMAP = s
+
+def set_error_colormap(s):
+    global ERROR_COLORMAP
+    assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
+    ERROR_COLORMAP = s
+
+def get_error_colormap():
+    return ERROR_COLORMAP
+
+def get_colormap():
+    return CURRENT_COLORMAP
 
 #------------------------------------------------------------------------
 # utility functions

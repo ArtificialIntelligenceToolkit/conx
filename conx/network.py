@@ -153,7 +153,6 @@ class Network():
             "show_targets": False,
             "show_errors": False,
             "minmax": None,
-            "colormap": None,
             "pixels_per_unit": 1,
             "precision": 2,
             "svg_height": 780, # for svg
@@ -472,12 +471,12 @@ class Network():
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, visualize=False)
-        errors = (np.array(targets) - np.array(outputs)).tolist() # FIXME: multi outputs?
+        errors = (np.array(outputs) - np.array(targets)).tolist() # FIXME: multi outputs?
         if self.visualize and get_ipython():
             if self.config["show_targets"]:
                 self.display_component([targets], "targets") # FIXME: use output layers' minmax
             if self.config["show_errors"]:
-                self.display_component([errors], "errors", minmax=(-1, 1), colormap="RdGy")
+                self.display_component([errors], "errors", minmax=(-1, 1))
         return (outputs, errors)
 
     def retrain(self, **overrides):
@@ -727,7 +726,7 @@ class Network():
                     model = self.prop_from_dict[(layer_name, layer.name)]
                     vector = model.predict(inputs)[0]
                     ## FIXME: outputs not shaped
-                    image = layer.make_image(vector, self.config)
+                    image = layer.make_image(vector, config=self.config)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if len(output_layer_names) == 1:
@@ -746,7 +745,11 @@ class Network():
         if self._comm.kernel:
             for (target, layer_name) in zip(vector, output_names):
                 array = np.array(target)
-                image = self[layer_name].make_image(array, config) # minmax=minmax, colormap=colormap)
+                if component == "targets":
+                    colormap = self[layer_name].colormap
+                else:
+                    colormap = get_error_colormap()
+                image = self[layer_name].make_image(array, colormap, config) # minmax=minmax, colormap=colormap)
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
@@ -779,7 +782,7 @@ class Network():
             if self._comm.kernel:
                 for layer in self.layers: # FIXME??: update all layers for now
                     out = self.propagate_to(layer.name, inputs, visualize=False)
-                    image = self[layer.name].make_image(np.array(out), self.config) # single vector, as an np.array
+                    image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
@@ -825,15 +828,16 @@ class Network():
             input = image2array(input)
         outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize)
         array = np.array(outputs)
-        image = self[layer_name].make_image(array, self.config)
+        image = self[layer_name].make_image(array, config=self.config)
         if scale != 1.0:
             image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
         return image
 
     def propagate_to_plot(self, output_layer, output_index,
                           input_layer, input_index1, input_index2,
-                          colormap="RdGy", default_input_value=0.0,
+                          colormap=None, default_input_value=0.0,
                           resolution=0.1):
+        if colormap is None: colormap = get_colormap()
         ## FIXME: work on multi-input banks
         from .graphs import plot_activations
         return plot_activations(self, output_layer, output_index,
@@ -1657,16 +1661,16 @@ require(['base/js/namespace'], function(Jupyter) {
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.dataset.train_targets[control_slider.value]) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
+                        errors = np.array(output) - np.array(self.dataset.train_targets[control_slider.value])
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1))
                 elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
                     total_text.value = "of %s" % len(self.dataset.test_inputs)
                     output = self.propagate(self.dataset.test_inputs[control_slider.value])
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
-                        errors = np.array(self.dataset.test_targets[control_slider.value]) - np.array(output)
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1), colormap="RdGy")
+                        errors = np.array(output) - np.array(self.dataset.test_targets[control_slider.value])
+                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1))
 
         def train_one(button):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
