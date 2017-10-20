@@ -597,6 +597,37 @@ class Network():
         # #print('Most recent weights saved in model.weights')
         # #self.model.save_weights('model.weights')
 
+    def set_activation(self, layer_name, activation):
+        """
+        Swap activation function of a layer after compile.
+        """
+        from keras.models import load_model
+        import keras.activations
+        import tempfile
+        if not isinstance(activation, str):
+            activation = activation.__name__
+        acts = {
+            'relu': keras.activations.relu,
+            'sigmoid': keras.activations.sigmoid,
+            'linear': keras.activations.linear,
+            'softmax': keras.activations.softmax,
+            'tanh': keras.activations.tanh,
+            'elu': keras.activations.elu,
+            'selu': keras.activations.selu,
+            'softplus': keras.activations.softplus,
+            'softsign': keras.activations.softsign,
+            'hard_sigmoid': keras.activations.hard_sigmoid,
+        }
+        if self.model:
+            self[layer_name].keras_layer.activation = acts[activation]
+            self[layer_name].activation = activation
+            with tempfile.NamedTemporaryFile() as tf:
+                filename = tf.name
+                self.model.save(filename)
+                self.model = load_model(filename)
+        else:
+            raise Exception("can't change activation until after compile")
+
     def get_weights(self, layer_name):
         """
         Get the weights from the model in an easy to read format.
@@ -1457,29 +1488,68 @@ require(['base/js/namespace'], function(Jupyter) {
         ## FIXME: how to show merged layer weights?
         return retval
 
-    def load_weights(self, filename=None):
+    def load(self, dir=None):
+        self.load_model(dir)
+        self.load_weights(dir)
+
+    def save(self, dir=None):
+        if self.model:
+            self.save_model(dir)
+            self.save_weights(dir)
+        else:
+            raise Exception("need to compile network before saving")
+
+    def load_model(self, dir=None, filename=None):
+        from keras.models import load_model
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        if filename is None:
+            filename = "model.h5"
+        self.model = load_model(os.path.join(dir, filename))
+        if self.compile_options:
+            self.reset()
+
+    def save_model(self, dir=None, filename=None):
+        if self.model:
+            if dir is None:
+                dir = "%s.conx" % self.name.replace(" ", "_")
+            if filename is None:
+                filename = "model.h5"
+            if not os.path.isdir(dir):
+                os.makedirs(dir)
+            self.model.save(os.path.join(dir, filename))
+        else:
+            raise Exception("need to compile network before saving")
+
+    def load_weights(self, dir=None, filename=None):
         """
         Load the network weights from a file.
 
         network.load_weights()
         """
         if self.model:
+            if dir is None:
+                dir = "%s.conx" % self.name.replace(" ", "_")
             if filename is None:
-                filename = "%s.h5" % self.name.replace(" ", "_")
-            self.model.load_weights(filename)
+                filename = "weights.h5"
+            self.model.load_weights(os.path.join(dir, filename))
         else:
             raise Exception("need to compile network before loading weights")
 
-    def save_weights(self, filename=None):
+    def save_weights(self, dir=None, filename=None):
         """
         Save the network weights to a file.
 
         network.save_weights()
         """
         if self.model:
+            if dir is None:
+                dir = "%s.conx" % self.name.replace(" ", "_")
             if filename is None:
-                filename = "%s.h5" % self.name.replace(" ", "_")
-            self.model.save_weights(filename)
+                filename = "weights.h5"
+            if not os.path.isdir(dir):
+                os.makedirs(dir)
+            self.model.save_weights(os.path.join(dir, filename))
         else:
             raise Exception("need to compile network before saving weights")
 
