@@ -27,11 +27,14 @@ import importlib
 from functools import reduce
 import signal
 import numbers
+import threading
+import time
 import random
 import pickle
 import base64
 import html
 import copy
+import sys
 import io
 import os
 import re
@@ -52,6 +55,34 @@ except:
     get_ipython = lambda: None
 
 #------------------------------------------------------------------------
+
+class _Player(threading.Thread):
+    """
+    Background thread for running dashboard Play.
+    """
+    def __init__(self, time_wait=.1):
+        threading.Thread.__init__(self)
+        self.time_wait = time_wait
+        self.can_run = threading.Event()
+        self.can_run.clear()  ## paused
+        self.running = False
+
+    def run(self):
+        self.running = True
+        while self.running:
+            self.can_run.wait()
+            print('do the thing')
+            time.sleep(self.time_wait)
+                    
+    def pause(self):
+        self.can_run.clear()
+
+    def resume(self):
+        self.can_run.set()
+
+    def __del__(self):
+        self.can_run.set()
+        self.running = False
 
 class Network():
     """
@@ -288,6 +319,10 @@ class Network():
             from_layer.outgoing_connections.append(to_layer)
             if from_layer in to_layer.incoming_connections:
                 raise Exception("attempting to duplicate connection: %s to %s" % (to_layer_name, from_layer_name))
+            ## Check for input going to a Dense to warn:
+            if from_layer.shape and len(from_layer.shape) > 1 and to_layer.CLASS.__name__ == "Dense":
+                print("WARNING: connected multi-dimensional input layer '%s' to layer '%s'; consider adding a FlattenLayer between them" % (
+                    from_layer.name, to_layer.name), file=sys.stderr)
             to_layer.incoming_connections.append(from_layer)
             input_layers = [layer for layer in self.layers if layer.kind() == "input"]
             self.num_input_layers = len(input_layers)
@@ -794,7 +829,7 @@ class Network():
         output_shape = self[layer_name].keras_layer.output_shape
         return (isinstance(output_shape, tuple) and len(output_shape) == 4)
 
-    
+
     def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True, size=None, display=True):
         """
         if html is True, then generate HTML, otherwise send images.
@@ -1717,10 +1752,20 @@ require(['base/js/namespace'], function(Jupyter) {
                 outputs = self.train_one(self.dataset.test_inputs[control_slider.value],
                                          self.dataset.test_targets[control_slider.value])
 
+
+        def toggle_play(button):
+            ## toggle
+            if button_play.description == "Play":
+                button_play.description = "Stop"
+            else:
+                button_play.description = "Play"
+            
         def prop_one(button=None):
             update_slider_control({"name": "value"})
 
         def refresh(button=None):
+            if isinstance(button, dict) and 'new' in button and button['new'] is None:
+                return
             inputs = get_current_input()
             features = None
             if feature_bank.value in self.layer_dict.keys():
@@ -1751,6 +1796,7 @@ require(['base/js/namespace'], function(Jupyter) {
         button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         #button_train = Button(description="Train", layout=Layout(width='100%'))
+        button_play = Button(icon="play", description="Play", layout=Layout(width="100%"))
 
         position_text = IntText(value=0, layout=Layout(width="100%"))
 
@@ -1761,6 +1807,7 @@ require(['base/js/namespace'], function(Jupyter) {
             position_text,
             button_next,
             button_end,
+            button_play,
                ], layout=Layout(width='100%', height="50px"))
         control_select = Select(
             options=['Test', 'Train'],
@@ -1785,6 +1832,7 @@ require(['base/js/namespace'], function(Jupyter) {
         button_end.on_click(lambda button: dataset_move("end"))
         button_next.on_click(lambda button: dataset_move("next"))
         button_prev.on_click(lambda button: dataset_move("prev"))
+        button_play.on_click(toggle_play)
         #button_prop.on_click(prop_one)
         #button_train.on_click(train_one)
         control_select.observe(update_control_slider)
