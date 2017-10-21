@@ -790,7 +790,10 @@ class Network():
         outputs = outputs[0].reshape(shape).tolist()
         return outputs
 
-    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True):
+    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True, display=True):
+        """
+        if html is True, then generate HTML, otherwise send images.
+        """
         from IPython.display import HTML
         if isinstance(inputs, dict):
             inputs = [inputs[name] for name in self.input_bank_order]
@@ -801,20 +804,34 @@ class Network():
         output_shape = self[layer_name].keras_layer.output_shape
         retval = """<table><tr>"""
         if (isinstance(output_shape, tuple) and len(output_shape) == 4):
-            for i in range(output_shape[3]):
-                self[layer_name].feature = i
-                image = self.propagate_to_image(layer_name, inputs, visualize=False)
-                if scale != 1.0:
-                    image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
-                data_uri = self._image_to_uri(image)
-                retval += """<td><img src="%s"/><br/><center>Feature %s</center></td>""" % (data_uri, i)
-                if (i + 1) % cols == 0:
-                    retval += """</tr><tr>"""
-            retval += "</tr></table>"
             if html:
-                return HTML(retval)
+                for i in range(output_shape[3]):
+                    self[layer_name].feature = i
+                    image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    if scale != 1.0:
+                        image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                    data_uri = self._image_to_uri(image)
+                    retval += """<td style="border: 1px solid black;"><img style="image-rendering: pixelated;" class="%s_%s_feature%s" src="%s"/><br/><center>Feature %s</center></td>""" % (
+                        self.name, layer_name, i, data_uri, i)
+                    if (i + 1) % cols == 0:
+                        retval += """</tr><tr>"""
+                retval += "</tr></table>"
+                if display:
+                    return HTML(retval)
+                else:
+                    return retval
             else:
-                return retval
+                for i in range(output_shape[3]):
+                    self[layer_name].feature = i
+                    image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    if scale != 1.0:
+                        image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                    data_uri = self._image_to_uri(image)
+                    if not self._comm:
+                        from ipykernel.comm import Comm
+                        self._comm = Comm(target_name='conx_svg_control')
+                    if self._comm.kernel:
+                        self._comm.send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
 
     def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
         """
@@ -1349,7 +1366,12 @@ require(['base/js/namespace'], function(Jupyter) {
             var data = msg["content"]["data"];
             var images = document.getElementsByClassName(data["class"]);
             for (var i = 0; i < images.length; i++) {
-                images[i].setAttributeNS(null, "href", data["href"]);
+                if (data["href"]) {
+                    images[i].setAttributeNS(null, "href", data["href"]);
+                }
+                if (data["src"]) {
+                    images[i].setAttributeNS(null, "src", data["src"]);
+                }
             }
         });
     });
@@ -1658,6 +1680,8 @@ require(['base/js/namespace'], function(Jupyter) {
                 if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
                     total_text.value = "of %s" % len(self.dataset.train_inputs)
                     output = self.propagate(self.dataset.train_inputs[control_slider.value])
+                    if feature_bank.value in self.layer_dict.keys():
+                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value], cols=3, scale=2, html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1666,6 +1690,8 @@ require(['base/js/namespace'], function(Jupyter) {
                 elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
                     total_text.value = "of %s" % len(self.dataset.test_inputs)
                     output = self.propagate(self.dataset.test_inputs[control_slider.value])
+                    if feature_bank.value in self.layer_dict.keys():
+                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value], cols=3, scale=2, html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1686,13 +1712,21 @@ require(['base/js/namespace'], function(Jupyter) {
             update_slider_control({"name": "value"})
 
         def refresh(button=None):
+            inputs = get_current_input()
+            features = None
+            if feature_bank.value in self.layer_dict.keys():
+                features = self.propagate_to_features(feature_bank.value, inputs, cols=3, scale=2, display=False)
             svg = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
-            #inputs = get_current_input()
-            #if inputs is not None:
-            #    features = self.propagate_to_features("conv1", inputs, cols=3, scale=2, html=False)
-            #    net_svg.value = "<table><tr><td>%s</td><td>%s</td></tr></table>" % (svg, features)
-            #else:
-            net_svg.value = svg
+            if inputs is not None and features is not None:
+                net_svg.value = """
+<table align="center" style="width: 100%%;">
+ <tr>
+  <td valign="top">%s</td>
+  <td valign="top" align="center"><p style="text-align:center"><b>%s</b></p>%s</td>
+</tr>
+</table>""" % (svg, "conv features", features)
+            else:
+                net_svg.value = svg
             update_control_slider()
             prop_one()
 
@@ -1747,6 +1781,7 @@ require(['base/js/namespace'], function(Jupyter) {
         refresh_button.on_click(refresh)
         zoom_slider.observe(update_zoom_slider)
         position_text.observe(update_position_text)
+        feature_bank = Text(description="Feature bank:", value="")
 
         def set_attr(obj, attr, value):
             if value not in [{}, None]: ## value is None when shutting down
@@ -1760,7 +1795,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 refresh()
 
         # Put them together:
-        control = VBox([HBox([control_select, refresh_button], layout=Layout(height="40px")),
+        control = VBox([HBox([control_select, feature_bank, refresh_button], layout=Layout(height="40px")),
                         HBox([control_slider, total_text], layout=Layout(height="40px")),
                         control_buttons],
                        layout=Layout(width='95%'))
