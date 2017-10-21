@@ -1593,7 +1593,7 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
                                 Layout, Tab, Label, FloatSlider, Checkbox, IntText,
-                                Box, Accordion, Image)
+                                Box, Accordion, FloatText)
 
         def dataset_move(position):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1688,7 +1688,8 @@ require(['base/js/namespace'], function(Jupyter) {
                     total_text.value = "of %s" % len(self.dataset.train_inputs)
                     output = self.propagate(self.dataset.train_inputs[control_slider.value])
                     if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value], cols=3, size=(400,256), html=False)
+                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value],
+                                                   cols=feature_columns.value, scale=feature_scale.value, html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1698,7 +1699,8 @@ require(['base/js/namespace'], function(Jupyter) {
                     total_text.value = "of %s" % len(self.dataset.test_inputs)
                     output = self.propagate(self.dataset.test_inputs[control_slider.value])
                     if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value], cols=3, size=(400,256), html=False)
+                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value],
+                                                   cols=feature_columns.value, scale=feature_scale.value, html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1722,7 +1724,9 @@ require(['base/js/namespace'], function(Jupyter) {
             inputs = get_current_input()
             features = None
             if feature_bank.value in self.layer_dict.keys():
-                features = self.propagate_to_features(feature_bank.value, inputs, cols=3, size=(400,256), display=False)
+                features = self.propagate_to_features(feature_bank.value, inputs,
+                                                      cols=feature_columns.value,
+                                                      scale=feature_scale.value, display=False)
             svg = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
             if inputs is not None and features is not None:
                 net_svg.value = """
@@ -1792,6 +1796,10 @@ require(['base/js/namespace'], function(Jupyter) {
                               options=[""] + [layer.name for layer in self.layers if self._layer_has_features(layer.name)],
                               rows=1)
         feature_bank.observe(refresh)
+        feature_columns = IntText(description="Feature columns", value=3)
+        feature_scale = FloatText(description="Feature scale", value=2.0)
+        feature_columns.observe(refresh)
+        feature_scale.observe(refresh)
 
         def set_attr(obj, attr, value):
             if value not in [{}, None]: ## value is None when shutting down
@@ -1842,12 +1850,14 @@ require(['base/js/namespace'], function(Jupyter) {
         vspace.observe(lambda change: set_attr(self.config, "vspace", change["new"]))
 
         config_children = [VBox(
-            [HTML(value="<p><h3>%s:</h3></p>" % self.name, layout=layout),
+            [HTML(value="<p><h3>Network display:</h3></p>", layout=layout),
              zoom_slider,
              hspace,
              vspace,
              checkbox1,
              checkbox2,
+             feature_columns,
+             feature_scale
             ])]
 
         for layer in reversed(self.layers):
@@ -1874,7 +1884,7 @@ require(['base/js/namespace'], function(Jupyter) {
             config_children.append(VBox(children))
 
         accordion = Accordion(children=config_children)
-        accordion.set_title(0, "%s network" % self.name)
+        accordion.set_title(0, "Network configuration")
         for i in range(len(self.layers)):
             accordion.set_title(i + 1, "%s bank" % self.layers[len(self.layers) - i - 1].name)
 
