@@ -790,7 +790,12 @@ class Network():
         outputs = outputs[0].reshape(shape).tolist()
         return outputs
 
-    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True, display=True):
+    def _layer_has_features(self, layer_name):
+        output_shape = self[layer_name].keras_layer.output_shape
+        return (isinstance(output_shape, tuple) and len(output_shape) == 4)
+
+    
+    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True, size=None, display=True):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -803,13 +808,15 @@ class Network():
             inputs = image2array(inputs)
         output_shape = self[layer_name].keras_layer.output_shape
         retval = """<table><tr>"""
-        if (isinstance(output_shape, tuple) and len(output_shape) == 4):
+        if self._layer_has_features(layer_name):
             if html:
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, visualize=False)
                     if scale != 1.0:
                         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                    #if size:
+                    #    image = image.resize(size)
                     data_uri = self._image_to_uri(image)
                     retval += """<td style="border: 1px solid black;"><img style="image-rendering: pixelated;" class="%s_%s_feature%s" src="%s"/><br/><center>Feature %s</center></td>""" % (
                         self.name, layer_name, i, data_uri, i)
@@ -1681,7 +1688,7 @@ require(['base/js/namespace'], function(Jupyter) {
                     total_text.value = "of %s" % len(self.dataset.train_inputs)
                     output = self.propagate(self.dataset.train_inputs[control_slider.value])
                     if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value], cols=3, scale=2, html=False)
+                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value], cols=3, size=(400,256), html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1691,7 +1698,7 @@ require(['base/js/namespace'], function(Jupyter) {
                     total_text.value = "of %s" % len(self.dataset.test_inputs)
                     output = self.propagate(self.dataset.test_inputs[control_slider.value])
                     if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value], cols=3, scale=2, html=False)
+                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value], cols=3, size=(400,256), html=False)
                     if self.config["show_targets"]:
                         self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
                     if self.config["show_errors"]:
@@ -1715,7 +1722,7 @@ require(['base/js/namespace'], function(Jupyter) {
             inputs = get_current_input()
             features = None
             if feature_bank.value in self.layer_dict.keys():
-                features = self.propagate_to_features(feature_bank.value, inputs, cols=3, scale=2, display=False)
+                features = self.propagate_to_features(feature_bank.value, inputs, cols=3, size=(400,256), display=False)
             svg = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
             if inputs is not None and features is not None:
                 net_svg.value = """
@@ -1724,7 +1731,7 @@ require(['base/js/namespace'], function(Jupyter) {
   <td valign="top">%s</td>
   <td valign="top" align="center"><p style="text-align:center"><b>%s</b></p>%s</td>
 </tr>
-</table>""" % (svg, "conv features", features)
+</table>""" % (svg, "%s features" % feature_bank.value, features)
             else:
                 net_svg.value = svg
             update_control_slider()
@@ -1781,7 +1788,10 @@ require(['base/js/namespace'], function(Jupyter) {
         refresh_button.on_click(refresh)
         zoom_slider.observe(update_zoom_slider)
         position_text.observe(update_position_text)
-        feature_bank = Text(description="Feature bank:", value="")
+        feature_bank = Select(description="Features:", value="",
+                              options=[""] + [layer.name for layer in self.layers if self._layer_has_features(layer.name)],
+                              rows=1)
+        feature_bank.observe(refresh)
 
         def set_attr(obj, attr, value):
             if value not in [{}, None]: ## value is None when shutting down
