@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 #------------------------------------------------------------------------
 # configuration constants
 
-AVAILABLE_COLORMAPS = list(plt.cm.datad.keys())
+AVAILABLE_COLORMAPS = sorted(list(plt.cm.cmap_d.keys()))
 CURRENT_COLORMAP = "RdBu"
 ERROR_COLORMAP = "RdBu"
 

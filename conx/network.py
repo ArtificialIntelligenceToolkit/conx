@@ -1586,7 +1586,7 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
                                 Layout, Tab, Label, FloatSlider, Checkbox, IntText,
-                                Box, Accordion)
+                                Box, Accordion, Image)
 
         def dataset_move(position):
             if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -1794,6 +1794,21 @@ require(['base/js/namespace'], function(Jupyter) {
                 ## was crashing on Widgets.__del__, if get_ipython() no longer existed
                 refresh()
 
+        def make_colormap_image(colormap_name):
+            from .layers import Layer
+            if not colormap_name:
+                colormap_name = get_colormap()
+            layer = Layer("Colormap", 100)
+            image = layer.make_image(np.arange(-1, 1, .01), colormap_name,
+                                     {"pixels_per_unit": 1}).resize((250, 25))
+            return image
+
+        def on_colormap_change(change, layer, colormap_image):
+            if change["name"] == "value":
+                layer.colormap = change["new"]
+                colormap_image.value = """<img src="%s"/>""" % self._image_to_uri(make_colormap_image(layer.colormap))
+                prop_one()
+
         # Put them together:
         control = VBox([HBox([control_select, feature_bank, refresh_button], layout=Layout(height="40px")),
                         HBox([control_slider, total_text], layout=Layout(height="40px")),
@@ -1831,9 +1846,13 @@ require(['base/js/namespace'], function(Jupyter) {
             checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
             checkbox.observe(lambda change, layer=layer: set_attr(layer, "visible", change["new"]))
             children.append(checkbox)
-            colormap = Text(description="Colormap:", value=layer.colormap, layout=layout)
-            colormap.observe(lambda change, layer=layer: set_attr(layer, "colormap", change["new"]))
-            children.append(colormap)
+            colormap = Select(description="Colormap:",
+                              options=AVAILABLE_COLORMAPS,
+                              value=layer.colormap, layout=layout, rows=1)
+            colormap_image = HTML(value="""<img src="%s"/>""" % self._image_to_uri(make_colormap_image(layer.colormap)))
+            colormap.observe(lambda change, layer=layer, colormap_image=colormap_image:
+                             on_colormap_change(change, layer, colormap_image))
+            children.append(HBox([colormap, colormap_image]))
             output_shape = layer.keras_layer.output_shape
             if (isinstance(output_shape, tuple) and
                 len(output_shape) == 4 and
