@@ -1652,13 +1652,13 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             raise Exception("need to compile network before saving weights")
 
-    def dashboard(self, width="95%", height="550px"):
+    def dashboard(self, width="95%", height="550px", play_rate=0.5):
         """
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
         from .dashboard import Dashboard
-        return Dashboard(self, width, height)
+        return Dashboard(self, width, height, play_rate)
 
     def pp(self, *args, **opts):
         """

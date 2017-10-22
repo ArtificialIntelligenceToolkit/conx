@@ -30,7 +30,7 @@ class _Player(threading.Thread):
     """
     Background thread for running dashboard Play.
     """
-    def __init__(self, dashboard, time_wait=1.0):
+    def __init__(self, dashboard, time_wait=0.5):
         self.dashboard = dashboard
         threading.Thread.__init__(self)
         self.time_wait = time_wait
@@ -55,8 +55,8 @@ class Dashboard(Tab):
     Build the dashboard for Jupyter widgets. Requires running
     in a notebook/jupyterlab.
     """
-    def __init__(self, net, width="95%", height="550px"):
-        self.player = _Player(self)
+    def __init__(self, net, width="95%", height="550px", play_rate=0.5):
+        self.player = _Player(self, play_rate)
         self.player.start()
         self.net = net
         self.dataset = net.dataset
@@ -207,9 +207,11 @@ class Dashboard(Tab):
         ## toggle
         if self.button_play.description == "Play":
             self.button_play.description = "Stop"
+            self.button_play.icon = "pause"
             self.player.resume()
         else:
             self.button_play.description = "Play"
+            self.button_play.icon = "play"
             self.player.pause()
 
     def prop_one(self, button=None):
