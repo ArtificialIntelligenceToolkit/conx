@@ -540,6 +540,9 @@ class Network():
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
         if epochs == 0: return
+        if len(self.dataset.inputs) == 0:
+            print("No training data available")
+            return
         if len(self.history) == 0:
             values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
             epoch0_info = {}
@@ -890,15 +893,34 @@ class Network():
                                 input_layer, input_index1, input_index2,
                                 colormap, default_input_value, resolution)
 
-    def plot(self, metrics='loss', ymin=None, ymax=None, start=0, end=None):
-        """
+    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right'):
+        """Plots the current network history for the specific epoch range and
+        metrics. Metrics is a single string or a list of strings.
+
+        >>> net = Network("Plot Test", 1, 3, 1)
+        >>> net.compile(error="mse", optimizer="rmsprop") 
+        >>> net.dataset.add([0.0], [1.0])
+        >>> net.dataset.add([1.0], [0.0])
+        >>> net.train()  # doctest: +ELLIPSIS
+        Training...
+        ...
+        >>> net.plot()
+        Available metrics: acc, loss
+
         https://matplotlib.org/api/markers_api.html
         https://matplotlib.org/api/colors_api.html
+
         """
         if len(self.history) == 0:
             print("No history available")
             return
-        if type(metrics) is str:
+        if metrics is None:
+            options = set()
+            for epoch in self.history:
+                options = options.union(set(epoch.keys()))
+            print("Available metrics:", ", ".join(sorted(options)))
+            return
+        elif type(metrics) is str:
             metrics = [metrics]
         elif type(metrics) in [list, tuple]:
             pass
@@ -911,6 +933,7 @@ class Network():
         x_values = range(self.epoch_count+1)
         x_values = x_values[start:end]
         ax.set_xlabel('epoch')
+        found_something = False
         for metric in metrics:
             y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
             y_values = y_values[start:end]
@@ -918,11 +941,16 @@ class Network():
                 print("WARNING: No %s data available for the specified epochs" % metric)
             else:
                 ax.plot(x_values, y_values, label=metric)
+                found_something = True
+        if not found_something:
+            plt.close(fig)
+            return
         if ymin is not None:
             plt.ylim(ymin=ymin)
         if ymax is not None:
             plt.ylim(ymax=ymax)
-        plt.legend(loc='upper right')
+        if legend is not None:
+            plt.legend(loc=legend)
         plt.show()
         # bytes = io.BytesIO()
         # plt.savefig(bytes, format='svg')
