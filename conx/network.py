@@ -43,6 +43,7 @@ from typing import Any
 
 import numpy as np
 import keras
+from keras.callbacks import Callback, History
 
 from .utils import *
 from .layers import Layer
@@ -56,33 +57,40 @@ except:
 
 #------------------------------------------------------------------------
 
-class _Player(threading.Thread):
-    """
-    Background thread for running dashboard Play.
-    """
-    def __init__(self, time_wait=.1):
-        threading.Thread.__init__(self)
-        self.time_wait = time_wait
-        self.can_run = threading.Event()
-        self.can_run.clear()  ## paused
-        self.running = False
+class ReportCallback(Callback):
+    def __init__(self, network, report_rate):
+        super().__init__()
+        self.network = network
+        self.report_rate = report_rate
 
-    def run(self):
-        self.running = True
-        while self.running:
-            self.can_run.wait()
-            print('do the thing')
-            time.sleep(self.time_wait)
-                    
-    def pause(self):
-        self.can_run.clear()
+    def on_epoch_end(self, epoch, results=None):
+        if epoch % self.report_rate == 0:
+            self.network.report_epoch(epoch + self.network.epoch_count + 1, results)
 
-    def resume(self):
-        self.can_run.set()
+class StoppingCriteria(Callback):
+    def __init__(self, item, op, value):
+        super().__init__()
+        self.item = item
+        self.op = op
+        self.value = value
 
-    def __del__(self):
-        self.can_run.set()
-        self.running = False
+    def on_epoch_end(self, epoch, results=None):
+        if self.item not in results: return
+        if self.compare(results[self.item], self.op, self.value):
+            self.model.stop_training = True
+
+    def compare(self, v1, op, v2):
+        if v2 is None: return False
+        if op == "<":
+            return v1 < v2
+        elif op == ">":
+            return v1 > v2
+        elif op == "==":
+            return v1 == v2
+        elif op == "<=":
+            return v1 <= v2
+        elif op == ">=":
+            return v1 >= v2
 
 class Network():
     """
@@ -348,7 +356,7 @@ class Network():
             # Compile the whole model again:
             self.compile(**self.compile_options)
 
-    def test(self, batch_size=32, tolerance=0.1, force=False,
+    def test(self, batch_size=32, tolerance=0.5, force=False,
              show_inputs=True, show_outputs=True,
              filter="all"):
         """
@@ -356,17 +364,9 @@ class Network():
         """
         if len(self.dataset.inputs) == 0:
             raise Exception("nothing to test")
-        if self.dataset._split == len(self.dataset.inputs):
-            inputs = self.dataset._train_inputs
-            dataset_name = "training"
-        else:
-            inputs = self.dataset._test_inputs
-            dataset_name = "testing"
-        if self.dataset._split == len(self.dataset.targets):
-            targets = self.dataset._train_targets
-        else:
-            targets = self.dataset._test_targets
-        print("Testing on %s dataset..." % dataset_name)
+        inputs = self.dataset._inputs
+        targets = self.dataset._targets
+        print("Testing entire dataset...")
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FIXME: outputs not shaped
         correct = self.compute_correct(outputs, targets, tolerance)
@@ -518,7 +518,7 @@ class Network():
         self.train(**self.train_options)
 
     def train(self, epochs=1, accuracy=None, batch_size=32,
-              report_rate=1, tolerance=0.1, verbose=1, shuffle=True,
+              report_rate=1, verbose=1, kverbose=0, shuffle=True,
               class_weight=None, sample_weight=None):
         """
         Train the network.
@@ -530,7 +530,6 @@ class Network():
             "accuracy": accuracy,
             "batch_size": batch_size,
             "report_rate": report_rate,
-            "tolerance": tolerance,
             "verbose": verbose,
             "shuffle": shuffle,
             "class_weight": class_weight,
@@ -549,30 +548,40 @@ class Network():
             self.history = [epoch0_info]
         if verbose: print("Training...")
         interrupted = False
-        with _InterruptHandler() as handler:
+        with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
                                         self.dataset._targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         validation_data=(self.dataset._inputs, self.dataset._targets),
-                                        verbose=verbose,
+                                        callbacks=[
+                                            StoppingCriteria("acc", ">=", accuracy),
+                                            History(),
+                                            ReportCallback(self, report_rate),
+                                        ],
                                         shuffle=shuffle,
                                         class_weight=class_weight,
-                                        sample_weight=sample_weight)
+                                        sample_weight=sample_weight,
+                                        verbose=kverbose)
             else:
                 result = self.model.fit(self.dataset._inputs,
                                         self.dataset._targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         validation_split=self.dataset._split,
-                                        verbose=verbose,
+                                        callbacks=[
+                                            StoppingCriteria("acc", ">=", accuracy),
+                                            History(),
+                                            ReportCallback(self, report_rate),
+                                        ],
                                         shuffle=shuffle,
                                         class_weight=class_weight,
-                                        sample_weight=sample_weight)
-            self.epoch_count += epochs
+                                        sample_weight=sample_weight,
+                                        verbose=kverbose)
+            self.epoch_count += len(result.epoch)
             # add results to history
-            for i in range(epochs):
+            for i in range(len(result.epoch)):
                 epoch_info = {}
                 for metric in result.history:
                     epoch_info[metric] = result.history[metric][i]
@@ -581,19 +590,33 @@ class Network():
                 interrupted = True
         last_epoch = self.history[-1]
         assert len(self.history) == self.epoch_count+1
-        assert 'loss' in last_epoch and 'acc' in last_epoch
-        loss = last_epoch['loss']
-        acc = last_epoch['acc']
         if verbose:
-            s = "Epoch #%5d | train loss %7.5f | train accuracy %7.5f " % (self.epoch_count, loss, acc)
-            if 'val_acc' in last_epoch:
-                s += "| validate accuracy %7.5f" % (last_epoch['val_acc'],)
             print("=" * 72)
-            print(s)
+            self.report_epoch(self.epoch_count, last_epoch)
         if interrupted:
             raise KeyboardInterrupt
-        else:
-            return (self.epoch_count, loss, acc)
+
+    def report_epoch(self, epoch_count, results):
+        """
+        Print out stats for the epoch.
+        """
+        s = "Epoch #%5d " % (epoch_count,)
+        if 'loss' in results:
+            s += "| train loss %7.5f " % (results['loss'],)
+        if 'acc' in results:
+            s += "| train accuracy %7.5f " % (results['acc'],)
+        if 'val_loss' in results:
+            s += "| validate loss %7.5f " % (results['val_loss'],)
+        if 'val_acc' in results:
+            s += "| validate accuracy %7.5f " % (results['val_acc'],)
+        for other in sorted(results):
+            if other not in ["loss", "acc", "val_loss", "val_acc"]:
+                if not other.endswith("_loss"):
+                    other_str = other
+                    if other.endswith("_acc"):
+                        other_str = other[:-4] + " accuracy"
+                    s += "| %s %7.5f " % (other_str.replace("_", " "), results[other])
+        print(s)
 
     def set_activation(self, layer_name, activation):
         """
@@ -1606,337 +1629,8 @@ require(['base/js/namespace'], function(Jupyter) {
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
-        from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
-                                Layout, Tab, Label, FloatSlider, Checkbox, IntText,
-                                Box, Accordion, FloatText)
-
-        def dataset_move(position):
-            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
-                return
-            if control_select.value == "Train":
-                length = len(self.dataset.train_inputs)
-            elif control_select.value == "Test":
-                length = len(self.dataset.test_inputs)
-            #### Position it:
-            if position == "begin":
-                control_slider.value = 0
-            elif position == "end":
-                control_slider.value = length - 1
-            elif position == "prev":
-                if control_slider.value - 1 < 0:
-                    control_slider.value = length - 1 # wrap around
-                else:
-                    control_slider.value = max(control_slider.value - 1, 0)
-            elif position == "next":
-                if control_slider.value + 1 > length - 1:
-                    control_slider.value = 0 # wrap around
-                else:
-                    control_slider.value = min(control_slider.value + 1, length - 1)
-            position_text.value = control_slider.value
-
-
-        def update_control_slider(change=None):
-            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
-                total_text.value = "of 0"
-                control_slider.value = 0
-                position_text.value = 0
-                control_slider.disabled = True
-                position_text.disabled = True
-                for child in control_buttons.children:
-                    child.disabled = True
-                return
-            if control_select.value == "Test":
-                total_text.value = "of %s" % len(self.dataset.test_inputs)
-                minmax = (0, max(len(self.dataset.test_inputs) - 1, 0))
-                if minmax[0] <= control_slider.value <= minmax[1]:
-                    pass # ok
-                else:
-                    control_slider.value = 0
-                control_slider.min = minmax[0]
-                control_slider.max = minmax[1]
-                if len(self.dataset.test_inputs) == 0:
-                    disabled = True
-                else:
-                    disabled = False
-            elif control_select.value == "Train":
-                total_text.value = "of %s" % len(self.dataset.train_inputs)
-                minmax = (0, max(len(self.dataset.train_inputs) - 1, 0))
-                if minmax[0] <= control_slider.value <= minmax[1]:
-                    pass # ok
-                else:
-                    control_slider.value = 0
-                control_slider.min = minmax[0]
-                control_slider.max = minmax[1]
-                if len(self.dataset.train_inputs) == 0:
-                    disabled = True
-                else:
-                    disabled = False
-            control_slider.disabled = disabled
-            position_text.disbaled = disabled
-            position_text.value = control_slider.value
-            for child in control_buttons.children:
-                child.disabled = disabled
-
-        def update_zoom_slider(change):
-            if change["name"] == "value":
-                self.config["svg_height"] = zoom_slider.value * 780
-                refresh()
-
-        def update_position_text(change):
-            if (change["name"] == "_property_lock" and
-                isinstance(change["new"], dict) and
-                "value" in change["new"]):
-                control_slider.value = change["new"]["value"]
-
-        def get_current_input():
-            if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-                return self.dataset.train_inputs[control_slider.value]
-            elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-                return self.dataset.test_inputs[control_slider.value]
-
-        def update_slider_control(change):
-            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
-                total_text.value = "of 0"
-                return
-            if change["name"] == "value":
-                if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-                    total_text.value = "of %s" % len(self.dataset.train_inputs)
-                    output = self.propagate(self.dataset.train_inputs[control_slider.value])
-                    if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.train_inputs[control_slider.value],
-                                                   cols=feature_columns.value, scale=feature_scale.value, html=False)
-                    if self.config["show_targets"]:
-                        self.display_component([self.dataset.train_targets[control_slider.value]], "targets", minmax=(-1, 1))
-                    if self.config["show_errors"]:
-                        errors = np.array(output) - np.array(self.dataset.train_targets[control_slider.value])
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1))
-                elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-                    total_text.value = "of %s" % len(self.dataset.test_inputs)
-                    output = self.propagate(self.dataset.test_inputs[control_slider.value])
-                    if feature_bank.value in self.layer_dict.keys():
-                        self.propagate_to_features(feature_bank.value, self.dataset.test_inputs[control_slider.value],
-                                                   cols=feature_columns.value, scale=feature_scale.value, html=False)
-                    if self.config["show_targets"]:
-                        self.display_component([self.dataset.test_targets[control_slider.value]], "targets", minmax=(-1, 1))
-                    if self.config["show_errors"]:
-                        errors = np.array(output) - np.array(self.dataset.test_targets[control_slider.value])
-                        self.display_component([errors.tolist()], "errors", minmax=(-1, 1))
-
-        def train_one(button):
-            if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
-                return
-            if control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-                outputs = self.train_one(self.dataset.train_inputs[control_slider.value],
-                                         self.dataset.train_targets[control_slider.value])
-            elif control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-                outputs = self.train_one(self.dataset.test_inputs[control_slider.value],
-                                         self.dataset.test_targets[control_slider.value])
-
-
-        def toggle_play(button):
-            ## toggle
-            if button_play.description == "Play":
-                button_play.description = "Stop"
-            else:
-                button_play.description = "Play"
-            
-        def prop_one(button=None):
-            update_slider_control({"name": "value"})
-
-        def refresh(button=None):
-            if isinstance(button, dict) and 'new' in button and button['new'] is None:
-                return
-            inputs = get_current_input()
-            features = None
-            if feature_bank.value in self.layer_dict.keys():
-                features = self.propagate_to_features(feature_bank.value, inputs,
-                                                      cols=feature_columns.value,
-                                                      scale=feature_scale.value, display=False)
-            svg = """<p style="text-align:center">%s</p>""" % (self.build_svg(),)
-            if inputs is not None and features is not None:
-                net_svg.value = """
-<table align="center" style="width: 100%%;">
- <tr>
-  <td valign="top">%s</td>
-  <td valign="top" align="center"><p style="text-align:center"><b>%s</b></p>%s</td>
-</tr>
-</table>""" % (svg, "%s features" % feature_bank.value, features)
-            else:
-                net_svg.value = svg
-            update_control_slider()
-            prop_one()
-
-        ## Hack to center SVG as justify-content is broken:
-        net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.build_svg(),), layout=Layout(
-            width=width, height=height, overflow_x='auto',
-            justify_content="center"))
-        button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
-        button_prev = Button(icon="backward", layout=Layout(width='100%'))
-        button_next = Button(icon="forward", layout=Layout(width='100%'))
-        button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
-        #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
-        #button_train = Button(description="Train", layout=Layout(width='100%'))
-        button_play = Button(icon="play", description="Play", layout=Layout(width="100%"))
-
-        position_text = IntText(value=0, layout=Layout(width="100%"))
-
-        control_buttons = HBox([
-            button_begin,
-            button_prev,
-            #button_train,
-            position_text,
-            button_next,
-            button_end,
-            button_play,
-               ], layout=Layout(width='100%', height="50px"))
-        control_select = Select(
-            options=['Test', 'Train'],
-            value='Train',
-            description='Dataset:',
-            rows=1
-               )
-        refresh_button = Button(icon="refresh", layout=Layout(width="40px"))
-        length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
-        control_slider = IntSlider(description="Dataset index",
-                                   continuous_update=False,
-                                   min=0,
-                                   max=max(length, 0),
-                                   value=0,
-                                   layout=Layout(width='95%'))
-        total_text = Label(value="of 0", layout=Layout(width="100px"))
-        zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
-                                  value=self.config["svg_height"]/780.0)
-
-        ## Hook them up:
-        button_begin.on_click(lambda button: dataset_move("begin"))
-        button_end.on_click(lambda button: dataset_move("end"))
-        button_next.on_click(lambda button: dataset_move("next"))
-        button_prev.on_click(lambda button: dataset_move("prev"))
-        button_play.on_click(toggle_play)
-        #button_prop.on_click(prop_one)
-        #button_train.on_click(train_one)
-        control_select.observe(update_control_slider)
-        control_slider.observe(update_slider_control)
-        refresh_button.on_click(refresh)
-        zoom_slider.observe(update_zoom_slider)
-        position_text.observe(update_position_text)
-        feature_bank = Select(description="Features:", value="",
-                              options=[""] + [layer.name for layer in self.layers if self._layer_has_features(layer.name)],
-                              rows=1)
-        feature_bank.observe(refresh)
-        feature_columns = IntText(description="Feature columns", value=3)
-        feature_scale = FloatText(description="Feature scale", value=2.0)
-        feature_columns.observe(refresh)
-        feature_scale.observe(refresh)
-
-        def set_attr(obj, attr, value):
-            if value not in [{}, None]: ## value is None when shutting down
-                if isinstance(value, dict):
-                    value = value["value"]
-                if isinstance(obj, dict):
-                    obj[attr] = value
-                else:
-                    setattr(obj, attr, value)
-                ## was crashing on Widgets.__del__, if get_ipython() no longer existed
-                refresh()
-
-        def make_colormap_image(colormap_name):
-            from .layers import Layer
-            if not colormap_name:
-                colormap_name = get_colormap()
-            layer = Layer("Colormap", 100)
-            image = layer.make_image(np.arange(-1, 1, .01), colormap_name,
-                                     {"pixels_per_unit": 1}).resize((250, 25))
-            return image
-
-        def on_colormap_change(change, layer, colormap_image):
-            if change["name"] == "value":
-                layer.colormap = change["new"]
-                colormap_image.value = """<img src="%s"/>""" % self._image_to_uri(make_colormap_image(layer.colormap))
-                prop_one()
-
-        # Put them together:
-        control = VBox([HBox([control_select, feature_bank, refresh_button], layout=Layout(height="40px")),
-                        HBox([control_slider, total_text], layout=Layout(height="40px")),
-                        control_buttons],
-                       layout=Layout(width='95%'))
-
-        layout = Layout()
-        style = {"description_width": "initial"}
-        checkbox1 = Checkbox(description="Show Targets", value=self.config["show_targets"],
-                             layout=layout)
-        checkbox1.observe(lambda change: set_attr(self.config, "show_targets", change["new"]))
-        checkbox2 = Checkbox(description="Show Errors", value=self.config["show_errors"],
-                             layout=layout)
-        checkbox2.observe(lambda change: set_attr(self.config, "show_errors", change["new"]))
-
-        hspace = IntText(value=self.config["hspace"], description="Horizontal space between banks:",
-                         style=style, layout=layout)
-        hspace.observe(lambda change: set_attr(self.config, "hspace", change["new"]))
-        vspace = IntText(value=self.config["vspace"], description="Vertical space between layers:",
-                         style=style, layout=layout)
-        vspace.observe(lambda change: set_attr(self.config, "vspace", change["new"]))
-
-        config_children = [VBox(
-            [HTML(value="<p><h3>Network display:</h3></p>", layout=layout),
-             zoom_slider,
-             hspace,
-             vspace,
-             checkbox1,
-             checkbox2,
-             feature_columns,
-             feature_scale
-            ])]
-
-        for layer in reversed(self.layers):
-            children = []
-            children.append(HTML(value="<p><hr/><h3>%s bank:</h3></p>" % layer.name, layout=layout))
-            checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
-            checkbox.observe(lambda change, layer=layer: set_attr(layer, "visible", change["new"]))
-            children.append(checkbox)
-            colormap = Select(description="Colormap:",
-                              options=AVAILABLE_COLORMAPS,
-                              value=layer.colormap, layout=layout, rows=1)
-            colormap_image = HTML(value="""<img src="%s"/>""" % self._image_to_uri(make_colormap_image(layer.colormap)))
-            colormap.observe(lambda change, layer=layer, colormap_image=colormap_image:
-                             on_colormap_change(change, layer, colormap_image))
-            children.append(HBox([colormap, colormap_image]))
-            output_shape = layer.keras_layer.output_shape
-            if (isinstance(output_shape, tuple) and
-                len(output_shape) == 4 and
-                "ImageLayer" != layer.__class__.__name__):
-                ## Allow feature to be selected:
-                feature = IntText(value=layer.feature, description="Feature to show:", style=style)
-                feature.observe(lambda change, layer=layer: set_attr(layer, "feature", change["new"]))
-                children.append(feature)
-            config_children.append(VBox(children))
-
-        accordion = Accordion(children=config_children)
-        accordion.set_title(0, "Network configuration")
-        for i in range(len(self.layers)):
-            accordion.set_title(i + 1, "%s bank" % self.layers[len(self.layers) - i - 1].name)
-
-        net_page = VBox([net_svg, control], layout=Layout(width='95%'))
-        config_page = VBox([accordion], layout=Layout(width='95%', overflow_y="auto"))
-        #graph_page = VBox(layout=Layout(width='100%', height=height))
-        #analysis_page = VBox(layout=Layout(width='100%', height=height))
-        #camera_page = VBox([Button(description="Turn on webcamera")], layout=Layout(width='100%', height=height))
-        help_page = HTML("""<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>""" % (height,),
-                         layout=Layout(width="95%", height=height))
-        net_page.on_displayed(lambda widget: update_slider_control({"name": "value"}))
-        tabs = [
-            ("Network", net_page),
-            #("Graphs", graph_page),
-            #("Analysis", analysis_page),
-            #("Camera", camera_page),
-            ("Configuration", config_page),
-            ("Help", help_page),
-        ]
-        tab = Tab([t[1] for t in tabs])
-        for i in range(len(tabs)):
-            name, widget = tabs[i]
-            tab.set_title(i, name)
-        return tab
+        from .dashboard import Dashboard
+        return Dashboard(self, width, height)
 
     def pp(self, *args, **opts):
         """
@@ -2070,7 +1764,8 @@ class _InterruptHandler():
     Class for handling interrupts so that state is not left
     in inconsistant situation.
     """
-    def __init__(self, sig=signal.SIGINT):
+    def __init__(self, network, sig=signal.SIGINT):
+        self.network = network
         self.sig = sig
 
     def __enter__(self):
@@ -2084,6 +1779,7 @@ class _InterruptHandler():
                 raise KeyboardInterrupt
             print("\nStopping at end of epoch... (^C again to quit now)...")
             self.interrupted = True
+            self.network.model.stop_training = True
 
         signal.signal(self.sig, handler)
         return self

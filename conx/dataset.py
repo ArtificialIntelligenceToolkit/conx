@@ -224,11 +224,16 @@ class _DataVector():
         raise Exception("setting value in a dataset is not permitted;" +
                         " you'll have to recreate the dataset and re-load")
 
-    def shape(self, bank_index=0):
+    def shape(self, bank_index=None):
         """
         Get the shape of the tensor at bank_index.
         """
         if self.item in ["targets", "test_targets", "train_targets"]:
+            if bank_index is None:
+                if self.dataset._num_target_banks > 1:
+                    return [self.shape(i) for i in range(self.dataset._num_target_banks)]
+                else:
+                    bank_index = 0
             if bank_index >= self.dataset._num_target_banks:
                 raise Exception("targets bank_index is out of range")
             if self.dataset._num_target_banks == 1:
@@ -236,16 +241,21 @@ class _DataVector():
             else:
                 return self.dataset._targets[bank_index].shape[1:]
         elif self.item in ["inputs", "test_inputs", "train_inputs"]:
-            if bank_index >= self.dataset._num_target_banks:
+            if bank_index is None:
+                if self.dataset._num_input_banks > 1:
+                    return [self.shape(i) for i in range(self.dataset._num_input_banks)]
+                else:
+                    bank_index = 0
+            if bank_index >= self.dataset._num_input_banks:
                 raise Exception("inputs bank_index is out of range")
-            if self.dataset._num_target_banks == 1:
+            if self.dataset._num_input_banks == 1:
                 return self.dataset._inputs.shape[1:]
             else:
                 return self.dataset._inputs[bank_index].shape[1:]
         else:
             raise Exception("unknown vector: %s" % (item,))
 
-    def reshape(self, bank_index, new_shape):
+    def reshape(self, bank_index, new_shape=None):
         """
         Reshape the tensor at bank_index.
 
@@ -260,6 +270,9 @@ class _DataVector():
         >>> net.dataset._inputs.shape
         (1, 2, 5)
         """
+        if new_shape is None:
+            new_shape = bank_index
+            bank_index = 0
         if not isinstance(new_shape, (list, tuple)):
             new_shape = tuple([new_shape])
         else:
@@ -288,6 +301,7 @@ class _DataVector():
             raise Exception("unable to reshape vector '%s'; call dataset.inputs.rehsape(), and re-split" % (item,))
         else:
             raise Exception("unknown vector: %s" % (item,))
+        self.dataset._cache_values()
 
     def flatten(self):
         """
@@ -303,29 +317,22 @@ class _DataVector():
         (1, 2, 5)
         """
         if self.item == "targets":
-            if bank_index >= self.dataset._num_target_banks:
-                raise Exception("targets bank_index is out of range")
             if self.dataset._num_target_banks == 1:
-                shape = self.dataset._targets.shape
                 self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
             else:
-                shape = self.dataset._targets[0].shape
-                self.dataset_targets[0] = self.dataset._targets[0].reshape((shape[0],) + new_shape)
+                self.dataset._targets = [[c.flatten() for c in row] for row in self.dataset_targets]
         elif self.item == "inputs":
-            if bank_index >= self.dataset._num_target_banks:
-                raise Exception("inputs bank_index is out of range")
             if self.dataset._num_target_banks == 1:
-                shape = self.dataset._inputs.shape
-                self.dataset._inputs = self.dataset._inputs.reshape((shape[0],) + new_shape)
+                self.dataset._inputs = np.array([row.flatten() for row in self.dataset._inputs])
             else:
-                shape = self.dataset._inputs[0].shape
-                self.dataset._inputs[0] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
+                self.dataset._inputs = [[c.flatten() for c in row] for row in self.dataset_inputs]
         elif self.item in ["test_targets", "train_targets"]:
             raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (item,))
         elif self.item in ["test_inputs", "train_inputs"]:
             raise Exception("unable to flatten vector '%s'; call dataset.inputs.flatten(), and re-split" % (item,))
         else:
             raise Exception("unknown vector: %s" % (item,))
+        self.dataset._cache_values()
 
     def __len__(self):
         """
@@ -347,6 +354,14 @@ class _DataVector():
             return self.dataset._get_targets_length()
         elif self.item == "inputs":
             return self.dataset._get_inputs_length()
+        elif self.item == "train_targets":
+            return int((1 - self.dataset._split) * len(self.dataset.targets))
+        elif self.item == "train_inputs":
+            return int((1 - self.dataset._split) * len(self.dataset.inputs))
+        elif self.item == "test_targets":
+            return int(self.dataset._split * len(self.dataset.targets))
+        elif self.item == "test_inputs":
+            return int(self.dataset._split * len(self.dataset.inputs))
         else:
             raise Exception("unknown vector type: %s" % (item,))
 
@@ -1044,11 +1059,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_input_banks == 1:
-            return self._train_inputs[i].tolist()
+            return self._inputs[i].tolist()
         else:
             inputs = []
             for c in range(self._num_input_banks):
-                inputs.append(self._train_inputs[c][i].tolist())
+                inputs.append(self._inputs[c][i].tolist())
             return inputs
 
     def _get_train_target(self, i):
@@ -1057,11 +1072,11 @@ class Dataset():
         format it in the human API.
         """
         if self._num_target_banks == 1:
-            return self._train_targets[i].tolist()
+            return self._targets[i].tolist()
         else:
             targets = []
             for c in range(self._num_target_banks):
-                targets.append(self._train_targets[c][i].tolist())
+                targets.append(self._targets[c][i].tolist())
             return targets
 
     def _get_test_input(self, i):
@@ -1069,12 +1084,13 @@ class Dataset():
         Get a test input from the internal dataset and
         format it in the human API.
         """
+        pos = int((1 - self._split) * len(self.targets))
         if self._num_input_banks == 1:
-            return self._test_inputs[i].tolist()
+            return self._inputs[pos + i].tolist()
         else:
             inputs = []
             for c in range(self._num_input_banks):
-                inputs.append(self._test_inputs[c][i].tolist())
+                inputs.append(self._inputs[c][pos + i].tolist())
             return inputs
 
     def _get_test_target(self, i):
@@ -1082,12 +1098,13 @@ class Dataset():
         Get a test target from the internal dataset and
         format it in the human API.
         """
+        pos = int((1 - self._split) * len(self.targets))
         if self._num_target_banks == 1:
-            return self._test_targets[i].tolist()
+            return self._targets[pos + i].tolist()
         else:
             targets = []
             for c in range(self._num_target_banks):
-                targets.append(self._test_targets[c][i].tolist())
+                targets.append(self._targets[c][pos + i].tolist())
             return targets
 
     def _get_inputs_length(self):
@@ -1116,42 +1133,42 @@ class Dataset():
         """
         Get the number of test input patterns.
         """
-        if len(self._test_inputs) == 0:
+        if len(self._inputs) == 0:
             return 0
         if self._num_input_banks > 1:
-            return self._test_inputs[0].shape[0]
+            return self._inputs[0].shape[0]
         else:
-            return self._test_inputs.shape[0]
+            return self._inputs.shape[0]
 
     def _get_test_targets_length(self):
         """
         Get the number of test target patterns.
         """
-        if len(self._test_targets) == 0:
+        if len(self._targets) == 0:
             return 0
         if self._num_target_banks > 1:
-            return self._test_targets[0].shape[0]
+            return self._targets[0].shape[0]
         else:
-            return self._test_targets.shape[0]
+            return self._targets.shape[0]
 
     def _get_train_inputs_length(self):
         """
         Get the number of training input patterns.
         """
-        if len(self._train_inputs) == 0:
+        if len(self._inputs) == 0:
             return 0
         if self._num_input_banks > 1:
-            return self._train_inputs[0].shape[0]
+            return self._inputs[0].shape[0]
         else:
-            return self._train_inputs.shape[0]
+            return self._inputs.shape[0]
 
     def _get_train_targets_length(self):
         """
         Get the number of training target patterns.
         """
-        if len(self._train_targets) == 0:
+        if len(self._targets) == 0:
             return 0
         if self._num_target_banks > 1:
-            return self._train_targets[0].shape[0]
+            return self._targets[0].shape[0]
         else:
-            return self._train_targets.shape[0]
+            return self._targets.shape[0]

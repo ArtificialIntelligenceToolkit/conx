@@ -12,6 +12,7 @@ Welcome to conx's documentation!
 
    README
    Getting Started with conx
+   ActivationFunctions
    Datasets
    XOR
    Autoencoder
