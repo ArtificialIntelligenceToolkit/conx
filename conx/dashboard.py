@@ -262,7 +262,7 @@ class Dashboard(Tab):
 
     def on_colormap_change(self, change, layer, colormap_image):
         if change["name"] == "value":
-            layer.colormap = change["new"]
+            layer.colormap = change["new"] if change["new"] else None
             colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
             self.prop_one()
 
@@ -363,8 +363,8 @@ class Dashboard(Tab):
             checkbox.observe(lambda change, layer=layer: self.set_attr(layer, "visible", change["new"]))
             children.append(checkbox)
             colormap = Select(description="Colormap:",
-                              options=AVAILABLE_COLORMAPS,
-                              value=layer.colormap, layout=layout, rows=1)
+                              options=[""] + AVAILABLE_COLORMAPS,
+                              value=layer.colormap if layer.colormap is not None else "", layout=layout, rows=1)
             colormap_image = HTML(value="""<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap)))
             colormap.observe(lambda change, layer=layer, colormap_image=colormap_image:
                              self.on_colormap_change(change, layer, colormap_image))
