@@ -835,6 +835,7 @@ class Network():
         retval = """<table><tr>"""
         if self._layer_has_features(layer_name):
             if html:
+                orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, visualize=False)
@@ -848,11 +849,13 @@ class Network():
                     if (i + 1) % cols == 0:
                         retval += """</tr><tr>"""
                 retval += "</tr></table>"
+                self[layer_name].feature = orig_feature
                 if display:
                     return HTML(retval)
                 else:
                     return retval
             else:
+                orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, visualize=False)
@@ -864,6 +867,7 @@ class Network():
                         self._comm = Comm(target_name='conx_svg_control')
                     if self._comm.kernel:
                         self._comm.send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
+                self[layer_name].feature = orig_feature
 
     def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
         """
