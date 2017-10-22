@@ -60,7 +60,6 @@ class Dashboard(Tab):
         self.player.start()
         self.net = net
         self.dataset = net.dataset
-        self.config = net.config
         self.net = net
         self._width = width
         self._height = height
@@ -151,7 +150,7 @@ class Dashboard(Tab):
 
     def update_zoom_slider(self, change):
         if change["name"] == "value":
-            self.config["svg_height"] = self.zoom_slider.value * 780
+            self.net.config["svg_height"] = self.zoom_slider.value * 780
             self.refresh()
 
     def update_position_text(self, change):
@@ -177,9 +176,9 @@ class Dashboard(Tab):
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
-                if self.config["show_targets"]:
+                if self.net.config["show_targets"]:
                     self.net.display_component([self.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
-                if self.config["show_errors"]:
+                if self.net.config["show_errors"]:
                     errors = np.array(output) - np.array(self.dataset.train_targets[self.control_slider.value])
                     self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
             elif self.control_select.value == "Test" and len(self.dataset.test_targets) > 0:
@@ -188,9 +187,9 @@ class Dashboard(Tab):
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.dataset.test_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
-                if self.config["show_targets"]:
+                if self.net.config["show_targets"]:
                     self.net.display_component([self.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
-                if self.config["show_errors"]:
+                if self.net.config["show_errors"]:
                     errors = np.array(output) - np.array(self.dataset.test_targets[self.control_slider.value])
                     self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
 
@@ -301,7 +300,7 @@ class Dashboard(Tab):
                                    layout=Layout(width='95%'))
         self.total_text = Label(value="of 0", layout=Layout(width="100px"))
         self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
-                                  value=self.config["svg_height"]/780.0)
+                                  value=self.net.config["svg_height"]/780.0)
 
         ## Hook them up:
         button_begin.on_click(lambda button: self.dataset_move("begin"))
@@ -331,19 +330,19 @@ class Dashboard(Tab):
     def make_config_page(self):
         layout = Layout()
         style = {"description_width": "initial"}
-        checkbox1 = Checkbox(description="Show Targets", value=self.config["show_targets"],
+        checkbox1 = Checkbox(description="Show Targets", value=self.net.config["show_targets"],
                              layout=layout)
-        checkbox1.observe(lambda change: self.set_attr(self.config, "show_targets", change["new"]))
-        checkbox2 = Checkbox(description="Show Errors", value=self.config["show_errors"],
+        checkbox1.observe(lambda change: self.set_attr(self.net.config, "show_targets", change["new"]))
+        checkbox2 = Checkbox(description="Show Errors", value=self.net.config["show_errors"],
                              layout=layout)
-        checkbox2.observe(lambda change: self.set_attr(self.config, "show_errors", change["new"]))
+        checkbox2.observe(lambda change: self.set_attr(self.net.config, "show_errors", change["new"]))
 
-        hspace = IntText(value=self.config["hspace"], description="Horizontal space between banks:",
+        hspace = IntText(value=self.net.config["hspace"], description="Horizontal space between banks:",
                          style=style, layout=layout)
-        hspace.observe(lambda change: self.set_attr(self.config, "hspace", change["new"]))
-        vspace = IntText(value=self.config["vspace"], description="Vertical space between layers:",
+        hspace.observe(lambda change: self.set_attr(self.net.config, "hspace", change["new"]))
+        vspace = IntText(value=self.net.config["vspace"], description="Vertical space between layers:",
                          style=style, layout=layout)
-        vspace.observe(lambda change: self.set_attr(self.config, "vspace", change["new"]))
+        vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]))
         config_children = [VBox(
             [HTML(value="<p><h3>Network display:</h3></p>", layout=layout),
              self.zoom_slider,
