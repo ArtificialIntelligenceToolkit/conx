@@ -347,14 +347,6 @@ class _DataVector():
             return self.dataset._get_targets_length()
         elif self.item == "inputs":
             return self.dataset._get_inputs_length()
-        elif self.item == "test_inputs":
-            return self.dataset._get_test_inputs_length()
-        elif self.item == "train_inputs":
-            return self.dataset._get_train_inputs_length()
-        elif self.item == "test_targets":
-            return self.dataset._get_test_targets_length()
-        elif self.item == "train_targets":
-            return self.dataset._get_train_targets_length()
         else:
             raise Exception("unknown vector type: %s" % (item,))
 
@@ -469,13 +461,6 @@ class Dataset():
         self._inputs = []
         self._targets = []
         self._labels = []
-        self._train_inputs = []
-        self._train_targets = []
-        self._test_inputs = []
-        self._test_targets = []
-        self._test_labels = []
-        self._train_labels = []
-        self._inputs_range = (0,0)
         self._targets_range = (0,0)
         self._target_shapes = []
         self._input_shapes = []
@@ -566,7 +551,6 @@ class Dataset():
         if labels is not None:
             self._labels = labels # should be a np.array/list of single values
         self._cache_values()
-        self.split(len(self.inputs))
 
     def load(self, pairs=None, inputs=None, targets=None):
         """
@@ -662,7 +646,6 @@ class Dataset():
         else: ## list
             self._targets.extend(targets)
         self._cache_values()
-        self.split(len(self.inputs))
 
     def _get_cifar10(self):
         from keras.datasets import cifar10
@@ -769,7 +752,6 @@ class Dataset():
         if len(self._labels) > 0:
             self._labels = self._labels[start:stop]
         self._cache_values()
-        self.split(len(self.inputs))
 
     def _cache_values(self):
         if len(self.inputs) > 0:
@@ -788,11 +770,6 @@ class Dataset():
                 self._targets_range = (self._targets.min(), self._targets.max())
         else:
             self._targets_range = (0,0)
-        # Clear any previous settings:
-        self._train_inputs = []
-        self._train_targets = []
-        self._test_inputs = []
-        self._test_targets = []
         ## Set shape cache:
         if self._num_input_banks > 1:
             self._input_shapes = [x[0].shape for x in self._inputs]
@@ -803,10 +780,6 @@ class Dataset():
         else:
             self._target_shapes = [self._targets[0].shape]
         # Final checks:
-        if len(self.test_inputs) != len(self.test_targets):
-            raise Exception("test inputs/targets lengths do not match")
-        if len(self.train_inputs) != len(self.train_targets):
-            raise Exception("train inputs/targets lengths do not match")
         if len(self.inputs) != len(self.targets):
             raise Exception("WARNING: inputs/targets lengths do not match")
 
@@ -872,7 +845,6 @@ class Dataset():
         else: ## no function: just copy the inputs directly
             self._targets = copy.copy(self._inputs)
         self._cache_values()
-        self.split(len(self.inputs))
 
     def set_inputs_from_targets(self, f=None):
         """
@@ -907,7 +879,6 @@ class Dataset():
         else: ## no function: just copy the targets directly
             self._inputs = copy.copy(self._targets)
         self._cache_values()
-        self.split(len(self.inputs))
 
     def set_targets_from_labels(self, num_classes):
         """
@@ -922,7 +893,6 @@ class Dataset():
             raise Exception("number of classes must be a positive integer")
         self._targets = to_categorical(self._labels, num_classes).astype("uint8")
         self._cache_values()
-        self.split(len(self.inputs))
         print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
     def summary(self):
@@ -930,8 +900,14 @@ class Dataset():
         Print out a summary of the dataset.
         """
         print('Input Summary:')
-        print('   count  : %d (%d for training, %s for testing)' % (
-            len(self.inputs), self._split, len(self.inputs) - self._split))
+        if self._split == 1:
+            num_validation = len(self.inputs)
+            num_training = len(self.inputs)
+        else:
+            num_validation = int(self._split * len(self.inputs))
+            num_training = len(self.inputs) - num_validation
+        print('   count  : %d (%d for training, %s for testing)' %
+              (len(self.inputs), num_training, num_validation))
         if len(self.inputs) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._inputs],))
@@ -939,8 +915,8 @@ class Dataset():
                 print('   shape  : %s' % (self._inputs[0].shape,))
             print('   range  : %s' % (self._inputs_range,))
         print('Target Summary:')
-        print('   count  : %d (%d for training, %s for testing)' % (
-            len(self.targets), self._split, len(self.inputs) - self._split))
+        print('   count  : %d (%d for training, %s for testing)' %
+              (len(self.targets), num_training, num_validation))
         if len(self.targets) != 0:
             if self._num_target_banks > 1:
                 print('   shape  : %s' % ([x[0].shape for x in self._targets],))
@@ -983,117 +959,58 @@ class Dataset():
             self._labels = self._labels[indices]
         if len(self.targets) != 0:
             self._targets = self._targets[indices]
-        self.split(self._split)
 
     def split(self, split=0.50):
-        """
-        Split the inputs/targets into training/test datasets.
+        """Splits the inputs/targets into training and validation sets. The
+        split parameter specifies what portion of the dataset to use
+        for validation. It can be a fraction in the range [0,1), or an
+        integer number of patterns, or 'all'. For example, a split of
+        0.25 reserves the last 1/4 of the dataset for validation.
 
-        >>> from conx import Network, Dataset
-        >>> net = Network("Test 4", 3, 2)
-        >>> net.compile(error="mse", optimizer="adam")
-        >>> ds = net.dataset
-        >>> ds.add([1, 1.1, 1.2], [10, 10.1])
-        >>> ds.add([2, 2.1, 2.2], [11, 11.1])
-        >>> ds.add([3, 3.1, 3.2], [12, 12.1])
-        >>> ds.add([4, 4.1, 4.2], [13, 13.1])
-        >>> len(net.dataset.test_targets)
-        0
-        >>> ds.split(.5)
-        >>> len(net.dataset.test_targets)
-        2
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
-        if isinstance(split, numbers.Integral):
+        if split == 'all':
+            self._split = 1.0
+        elif isinstance(split, numbers.Integral):
             if not 0 <= split <= len(self.inputs):
                 raise Exception("split out of range: %d" % split)
+            self._split = split/len(self.inputs)
+        elif isinstance(split, numbers.Real):
+            if not 0 <= split < 1:
+                raise Exception("split is not in the range [0,1): %s" % split)
             self._split = split
-        elif isinstance(split, numbers.Real):
-            if not 0 <= split <= 1:
-                raise Exception("split is not in the range 0-1: %s" % split)
-            self._split = int(len(self.inputs) * split)
         else:
             raise Exception("invalid split: %s" % split)
-        if self._num_input_banks > 1:
-            if self._split == len(self.inputs): ### don't copy!
-                self._train_inputs = self._inputs
-                self._test_inputs = []
-            else:
-                self._train_inputs = [col[:self._split] for col in self._inputs]
-                self._test_inputs = [col[self._split:] for col in self._inputs]
-        else:
-            if self._split == len(self.inputs): ### don't copy!
-                self._train_inputs = self._inputs
-                self._test_inputs = []
-            else:
-                self._train_inputs = self._inputs[:self._split]
-                self._test_inputs = self._inputs[self._split:]
-        if len(self._labels) != 0:
-            if self._split == len(self._labels): ### don't copy!
-                self._train_labels = self._labels
-                self._test_labels = []
-            else:
-                self._train_labels = self._labels[:self._split]
-                self._test_labels = self._labels[self._split:]
-        if self._num_target_banks > 1:
-            if self._split == len(self._targets): ### don't copy!
-                self._train_targets = self._targets
-                self._test_targets = []
-            else:
-                self._train_targets = [col[:self._split] for col in self._targets]
-                self._test_targets = [col[self._split:] for col in self._targets]
-        else:
-            if self._split == len(self._targets): ### don't copy!
-                self._train_targets = self._targets
-                self._test_targets = []
-            else:
-                self._train_targets = self._targets[:self._split]
-                self._test_targets = self._targets[self._split:]
 
-    def chop(self, split=0.5):
-        """
-        Chop off the inputs/targets and reset split, test data.
-
-        >>> from conx import Network, Dataset
-        >>> net = Network("Test 5", 3, 2)
-        >>> net.compile(error="mse", optimizer="adam")
-        >>> ds = net.dataset
-        >>> ds.add([1, 1.1, 1.2], [10, 10.1])
-        >>> ds.add([2, 2.1, 2.2], [11, 11.1])
-        >>> ds.add([3, 3.1, 3.2], [12, 12.1])
-        >>> ds.add([4, 4.1, 4.2], [13, 13.1])
-        >>> len(net.dataset.targets)
-        4
-        >>> ds.chop(.5)
-        >>> len(net.dataset.targets)
-        2
+    def chop(self, retain=0.5):
+        """Chop off the inputs/targets and reset split, test data. Retains
+        only the specified portion of the original dataset patterns,
+        starting from the beginning. retain can be a fraction in the
+        range 0-1, or an integer number of patterns to retain.
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
-        if isinstance(split, numbers.Integral):
-            if not 0 <= split <= len(self.inputs):
-                raise Exception("split out of range: %d" % split)
-        elif isinstance(split, numbers.Real):
-            if not 0.0 <= split <= 1.0:
-                raise Exception("split is not in the range 0-1: %s" % split)
-            split = int(len(self.inputs) * split)
+        if isinstance(retain, numbers.Integral):
+            if not 0 <= retain <= len(self.inputs):
+                raise Exception("out of range: %d" % retain)
+        elif isinstance(retain, numbers.Real):
+            if not 0.0 <= retain <= 1.0:
+                raise Exception("not in the range [0,1]: %s" % retain)
+            retain = int(len(self.inputs) * retain)
         else:
-            raise Exception("invalid split: %s" % split)
+            raise Exception("invalid input: %s" % retain)
         if self._num_input_banks > 1:
-            self._inputs = [col[:split] for col in self._inputs]
+            self._inputs = [col[:retain] for col in self._inputs]
         else:
-            self._inputs = self._inputs[split:]
+            self._inputs = self._inputs[:retain]
         if len(self._labels) != 0:
-            self._labels = self._labels[:split]
+            self._labels = self._labels[:retain]
         if len(self.targets) != 0:
             if self._num_target_banks > 1:
-                self._targets = [col[:split] for col in self._targets]
+                self._targets = [col[:retain] for col in self._targets]
             else:
-                self._targets = self._targets[:split]
-        self._split = 0
-        self._test_inputs = []
-        self._test_targets = []
+                self._targets = self._targets[:retain]
 
     def _get_input(self, i):
         """

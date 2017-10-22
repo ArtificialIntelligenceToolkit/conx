@@ -210,9 +210,7 @@ class Network():
         for i in range(len(sizes) - 1):
             self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
         self.epoch_count = 0
-        self.acc_history = []
-        self.loss_history = []
-        self.val_percent_history = []
+        self.history = []
         self.visualize = get_ipython() is not None
         self._comm = None
         self.model = None
@@ -345,9 +343,7 @@ class Network():
         The magnitude is based on the size of the network.
         """
         self.epoch_count = 0
-        self.acc_history = []
-        self.loss_history = []
-        self.val_percent_history = []
+        self.history = []
         if self.model:
             # Compile the whole model again:
             self.compile(**self.compile_options)
@@ -544,92 +540,60 @@ class Network():
             raise Exception("bad batch size: %s" % (batch_size,))
         if accuracy is None and epochs > 1 and report_rate > 1:
             print("Warning: report_rate is ignored when in epoch mode")
-        if self.dataset._split == len(self.dataset.inputs):
-            validation_inputs = self.dataset._train_inputs
-            validation_targets = self.dataset._train_targets
-        else:
-            validation_inputs = self.dataset._test_inputs
-            validation_targets = self.dataset._test_targets
+        if epochs == 0: return
+        if len(self.history) == 0:
+            values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
+            epoch0_info = {}
+            for metric, value in zip(self.model.metrics_names, values):
+                epoch0_info[metric] = value
+            self.history = [epoch0_info]
         if verbose: print("Training...")
+        interrupted = False
         with _InterruptHandler() as handler:
-            if accuracy is None: # train them all using fit
-                result = self.model.fit(self.dataset._train_inputs,
-                                        self.dataset._train_targets,
+            if self.dataset._split == 1:
+                result = self.model.fit(self.dataset._inputs,
+                                        self.dataset._targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
+                                        validation_data=(self.dataset._inputs, self.dataset._targets),
                                         verbose=verbose,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight)
-                outputs = self.model.predict(validation_inputs, batch_size=batch_size)
-                ## FIXME: outputs not shaped
-                correct_list = self.compute_correct(outputs, validation_targets, tolerance)
-                correct = correct_list.count(True)
-                self.epoch_count += epochs
-                acc = 0
-                # In multi-outputs, acc is given by output layer name + "_acc"
-                for key in result.history:
-                    if key.endswith("acc"):
-                        acc += result.history[key][0]
-                #acc = result.history['acc'][0]
-                self.acc_history.append(acc)
-                loss = result.history['loss'][0]
-                self.loss_history.append(loss)
-                val_percent = correct/len(validation_targets)
-                self.val_percent_history.append(val_percent)
             else:
-                for e in range(1, epochs+1):
-                    result = self.model.fit(self.dataset._train_inputs, self.dataset._train_targets,
-                                            batch_size=batch_size,
-                                            epochs=1,
-                                            verbose=0,
-                                            shuffle=shuffle,
-                                            class_weight=class_weight,
-                                            sample_weight=sample_weight)
-                    outputs = self.model.predict(validation_inputs, batch_size=batch_size)
-                    ## FIXME: outputs not shaped
-                    if self.num_target_layers == 1:
-                        correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                                       np.abs(outputs - validation_targets))].count(True)
-                    else:
-                        correct = [all(x) for x in map(lambda v: v <= tolerance,
-                                                       np.abs(np.array(outputs) - np.array(validation_targets)))].count(True)
-                    self.epoch_count += 1
-                    acc = 0
-                    # In multi-outputs, acc is given by output layer name + "_acc"
-                    for key in result.history:
-                        if key.endswith("acc"):
-                            acc += result.history[key][0]
-                    #acc = result.history['acc'][0]
-                    self.acc_history.append(acc)
-                    loss = result.history['loss'][0]
-                    self.loss_history.append(loss)
-                    val_percent = correct/len(validation_targets)
-                    self.val_percent_history.append(val_percent)
-                    if self.epoch_count % report_rate == 0:
-                        if verbose: print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
-                                          (self.epoch_count, loss, acc, val_percent))
-                    if val_percent >= accuracy or handler.interrupted:
-                        break
+                result = self.model.fit(self.dataset._inputs,
+                                        self.dataset._targets,
+                                        batch_size=batch_size,
+                                        epochs=epochs,
+                                        validation_split=self.dataset._split,
+                                        verbose=verbose,
+                                        shuffle=shuffle,
+                                        class_weight=class_weight,
+                                        sample_weight=sample_weight)
+            self.epoch_count += epochs
+            # add results to history
+            for i in range(epochs):
+                epoch_info = {}
+                for metric in result.history:
+                    epoch_info[metric] = result.history[metric][i]
+                self.history.append(epoch_info)
             if handler.interrupted:
-                print("=" * 72)
-                print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
-                      (self.epoch_count, loss, acc, val_percent))
-                raise KeyboardInterrupt
+                interrupted = True
+        last_epoch = self.history[-1]
+        assert len(self.history) == self.epoch_count+1
+        assert 'loss' in last_epoch and 'acc' in last_epoch
+        loss = last_epoch['loss']
+        acc = last_epoch['acc']
         if verbose:
+            s = "Epoch #%5d | train loss %7.5f | train accuracy %7.5f " % (self.epoch_count, loss, acc)
+            if 'val_acc' in last_epoch:
+                s += "| validate accuracy %7.5f" % (last_epoch['val_acc'],)
             print("=" * 72)
-            print("Epoch #%5d | train error %7.5f | train accuracy %7.5f | validate%% %7.5f" %
-                  (self.epoch_count, loss, acc, val_percent))
+            print(s)
+        if interrupted:
+            raise KeyboardInterrupt
         else:
-            return (self.epoch_count, loss, acc, val_percent)
-
-        # # evaluate the model
-        # print('Evaluating performance...')
-        # loss, accuracy = self.model.evaluate(self.test_inputs, self.test_targets, verbose=0)
-        # print('Test loss:', loss)
-        # print('Test accuracy:', accuracy)
-        # #print('Most recent weights saved in model.weights')
-        # #self.model.save_weights('model.weights')
+            return (self.epoch_count, loss, acc)
 
     def set_activation(self, layer_name, activation):
         """
@@ -903,29 +867,45 @@ class Network():
                                 input_layer, input_index1, input_index2,
                                 colormap, default_input_value, resolution)
 
-    def plot(self, *whats):
+    def plot(self, metrics='loss', ymin=None, ymax=None, start=0, end=None):
         """
-        whats - "error", "accuracy", and/or "test"
-        symbols are matplotlib markers or colors:
-
         https://matplotlib.org/api/markers_api.html
         https://matplotlib.org/api/colors_api.html
         """
-        from .graphs import plot
-        symbols = {"error": "r", # red
-                   "accuracy": "g", # green
-                   "test": "m"} # magenta
-        lines = []
-        for i in range(len(whats)):
-            what = whats[i]
-            symbol = symbols[what]
-            if what == "error":
-                lines.append(["Error", symbol, self.loss_history])
-            elif what == "accuracy":
-                lines.append(["Accuracy", symbol, self.acc_history])
-            elif what == "test":
-                lines.append(["Test %", symbol, self.val_percent_history])
-        return plot(lines, ylabel="value", xlabel="epoch")
+        if len(self.history) == 0:
+            print("No history available")
+            return
+        if type(metrics) is str:
+            metrics = [metrics]
+        elif type(metrics) in [list, tuple]:
+            pass
+        else:
+            print("expected a list or a string")
+            return
+        plt.ion()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        x_values = range(self.epoch_count+1)
+        x_values = x_values[start:end]
+        ax.set_xlabel('epoch')
+        for metric in metrics:
+            y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
+            y_values = y_values[start:end]
+            if y_values.count(None) == len(y_values):
+                print("WARNING: No %s data available for the specified epochs" % metric)
+            else:
+                ax.plot(x_values, y_values, label=metric)
+        if ymin is not None:
+            plt.ylim(ymin=ymin)
+        if ymax is not None:
+            plt.ylim(ymax=ymax)
+        plt.legend(loc='upper right')
+        plt.show()
+        # bytes = io.BytesIO()
+        # plt.savefig(bytes, format='svg')
+        # svg = bytes.getvalue()
+        # plt.close(fig)
+        # return SVG(svg.decode())
 
     def compile(self, **kwargs):
         """
