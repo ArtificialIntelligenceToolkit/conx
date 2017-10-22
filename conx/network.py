@@ -893,7 +893,7 @@ class Network():
                                 input_layer, input_index1, input_index2,
                                 colormap, default_input_value, resolution)
 
-    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right'):
+    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right', title=None):
         """Plots the current network history for the specific epoch range and
         metrics. Metrics is a single string or a list of strings.
 
@@ -951,6 +951,8 @@ class Network():
             plt.ylim(ymax=ymax)
         if legend is not None:
             plt.legend(loc=legend)
+        if title is not None:
+            plt.title(title)
         plt.show()
         # bytes = io.BytesIO()
         # plt.savefig(bytes, format='svg')
