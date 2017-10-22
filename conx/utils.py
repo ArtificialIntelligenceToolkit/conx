@@ -29,8 +29,8 @@ import matplotlib.pyplot as plt
 # configuration constants
 
 AVAILABLE_COLORMAPS = sorted(list(plt.cm.cmap_d.keys()))
-CURRENT_COLORMAP = "RdBu"
-ERROR_COLORMAP = "RdBu"
+CURRENT_COLORMAP = "seismic_r"
+ERROR_COLORMAP = "seismic_r"
 
 def set_colormap(s):
     global CURRENT_COLORMAP

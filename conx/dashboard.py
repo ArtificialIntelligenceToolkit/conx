@@ -170,6 +170,7 @@ class Dashboard(Tab):
             self.total_text.value = "of 0"
             return
         if change["name"] == "value":
+            self.position_text.value = self.control_slider.value
             if self.control_select.value == "Train" and len(self.dataset.train_targets) > 0:
                 self.total_text.value = "of %s" % len(self.dataset.train_inputs)
                 output = self.net.propagate(self.dataset.train_inputs[self.control_slider.value])
