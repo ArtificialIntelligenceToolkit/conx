@@ -71,7 +71,7 @@ class Dashboard(Tab):
         self.feature_scale.observe(self.refresh)
         ## Hack to center SVG as justify-content is broken:
         self.net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.net.build_svg(),), layout=Layout(
-            width=self._width, height=self._height, overflow_x='auto',
+            width=self._width, height=self._height, overflow_x='auto', overflow_y="auto",
             justify_content="center"))
         tabs = [
             ("Network", self.make_net_page()),
@@ -406,7 +406,7 @@ class Dashboard(Tab):
         accordion.set_title(0, "Network configuration")
         for i in range(len(self.net.layers)):
             accordion.set_title(i + 1, "%s bank" % self.net.layers[len(self.net.layers) - i - 1].name)
-        config_page = VBox([accordion], layout=Layout(width='95%', overflow_y="auto"))
+        config_page = VBox([accordion], layout=Layout(width='95%', overflow_x="auto", overflow_y="auto"))
         return config_page
 
     def make_help_page(self):
