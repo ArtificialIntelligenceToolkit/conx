@@ -64,8 +64,9 @@ class Dashboard(Tab):
         self._width = width
         self._height = height
         ## Global widgets:
-        self.feature_columns = IntText(description="Feature columns", value=3)
-        self.feature_scale = FloatText(description="Feature scale", value=2.0)
+        style = {"description_width": "initial"}
+        self.feature_columns = IntText(description="Feature columns:", value=3, style=style)
+        self.feature_scale = FloatText(description="Feature scale:", value=2.0, style=style)
         self.feature_columns.observe(self.refresh)
         self.feature_scale.observe(self.refresh)
         ## Hack to center SVG as justify-content is broken:
@@ -252,6 +253,22 @@ class Dashboard(Tab):
             ## was crashing on Widgets.__del__, if get_ipython() no longer existed
             self.refresh()
 
+    def set_min(self, obj, value):
+        if value not in [{}, None]: ## value is None when shutting down
+            if isinstance(value, dict):
+                value = value["value"]
+            obj.minmax = (value, obj.minmax[1])
+            ## was crashing on Widgets.__del__, if get_ipython() no longer existed
+            self.refresh()
+
+    def set_max(self, obj, value):
+        if value not in [{}, None]: ## value is None when shutting down
+            if isinstance(value, dict):
+                value = value["value"]
+            obj.minmax = (obj.minmax[0], value)
+            ## was crashing on Widgets.__del__, if get_ipython() no longer existed
+            self.refresh()
+
     def make_colormap_image(self, colormap_name):
         from .layers import Layer
         if not colormap_name:
@@ -370,6 +387,11 @@ class Dashboard(Tab):
             colormap.observe(lambda change, layer=layer, colormap_image=colormap_image:
                              self.on_colormap_change(change, layer, colormap_image))
             children.append(HBox([colormap, colormap_image]))
+            mindim = IntText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
+            maxdim = IntText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
+            mindim.observe(lambda change, layer=layer: (self.set_min(layer, change["new"]), self.prop_one()))
+            maxdim.observe(lambda change, layer=layer: (self.set_max(layer, change["new"]), self.prop_one()))
+            children.append(HBox([mindim, maxdim]))
             output_shape = layer.keras_layer.output_shape
             if (isinstance(output_shape, tuple) and
                 len(output_shape) == 4 and
