@@ -1626,6 +1626,39 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             raise Exception("need to compile network before saving")
 
+    def load_history(self, dir=None, filename=None):
+        """
+        Load the history from a file.
+
+        network.load_history()
+        """
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        if filename is None:
+            filename = "history.pickle"
+        full_filename = os.path.join(dir, filename)
+        if os.path.isfile(full_filename):
+            with open(os.path.join(dir, filename), "rb") as fp:
+                self.history = pickle.load(fp)
+                self.epoch_count = (len(self.history) - 1) if self.history else 0
+        else:
+            print("WARNING: no such history file '%s'" % full_filename)
+
+    def save_history(self, dir=None, filename=None):
+        """
+        Save the history to a file.
+
+        network.save_history()
+        """
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        if filename is None:
+            filename = "history.pickle"
+        if not os.path.isdir(dir):
+            os.makedirs(dir)
+        with open(os.path.join(dir, filename), "wb") as fp:
+            pickle.dump(self.history, fp)
+
     def load_weights(self, dir=None, filename=None):
         """
         Load the network weights from a file.
@@ -1638,6 +1671,7 @@ require(['base/js/namespace'], function(Jupyter) {
             if filename is None:
                 filename = "weights.h5"
             self.model.load_weights(os.path.join(dir, filename))
+            self.load_history(dir)
         else:
             raise Exception("need to compile network before loading weights")
 
@@ -1655,6 +1689,7 @@ require(['base/js/namespace'], function(Jupyter) {
             if not os.path.isdir(dir):
                 os.makedirs(dir)
             self.model.save_weights(os.path.join(dir, filename))
+            self.save_history(dir)
         else:
             raise Exception("need to compile network before saving weights")
 
