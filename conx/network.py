@@ -1828,6 +1828,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 position += size
             layer.set_weights(new_weights)
 
+
 class _InterruptHandler():
     """
     Class for handling interrupts so that state is not left

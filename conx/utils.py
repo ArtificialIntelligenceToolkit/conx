@@ -177,6 +177,29 @@ def uri_to_image(image_str, width=320, height=240):
     image = PIL.Image.open(io.BytesIO(image_binary)).resize((width, height))
     return image
 
+def get_device():
+    """
+    Returns 'cpu' or 'gpu' indicating which device
+    the system will use.
+    """
+    import keras.backend as K
+    if K._BACKEND == "theano":
+        from theano import function, tensor as T, shared, config
+        x = shared(np.array([1.0], config.floatX))
+        f = function([], T.exp(x))
+        if np.any([isinstance(x.op, T.Elemwise) and
+                   ('Gpu' not in type(x.op).__name__)
+                   for x in f.maker.fgraph.toposort()]):
+            return "cpu"
+        else:
+            return "gpu"
+    elif K._BACKEND == "tensorflow":
+        from tensorflow.python.client import device_lib
+        devices = [dev.name for dev in device_lib.list_local_devices()]
+        return "gpu" if any(["gpu" in dev for dev in devices]) else "cpu"
+    else:
+        return "unknown"
+
 '''
 
 def evaluate(model, test_inputs, test_targets, threshold=0.50, indices=None, show=False):
