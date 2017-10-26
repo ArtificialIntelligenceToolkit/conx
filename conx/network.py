@@ -65,7 +65,7 @@ class ReportCallback(Callback):
 
     def on_epoch_end(self, epoch, results=None):
         if epoch % self.report_rate == 0:
-            self.network.report_epoch(epoch + self.network.epoch_count + 1, results)
+            self.network.report_epoch(epoch + self.network.epoch_count, results)
 
 class StoppingCriteria(Callback):
     def __init__(self, item, op, value):
@@ -75,8 +75,17 @@ class StoppingCriteria(Callback):
         self.value = value
 
     def on_epoch_end(self, epoch, results=None):
-        if self.item not in results: return
-        if self.compare(results[self.item], self.op, self.value):
+        if self.item not in results:
+            ## ok, then let's sum/average anything ending in self.item
+            total = 0
+            count = 0
+            for item in results:
+                if item.endswith("_" + self.item):
+                    count += 1
+                    total += results[item]
+            if count > 0 and self.compare(total/count, self.op, self.value):
+                self.model.stop_training = True
+        elif self.compare(results[self.item], self.op, self.value):
             self.model.stop_training = True
 
     def compare(self, v1, op, v2):
@@ -204,6 +213,7 @@ class Network():
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
+        self.tolerance = 0.1
         self.name = name
         self.layers = []
         self.layer_dict = {}
@@ -345,7 +355,7 @@ class Network():
         for layer in self.layers:
             layer.summary()
 
-    def reset(self):
+    def reset(self, **overrides):
         """
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
@@ -354,21 +364,23 @@ class Network():
         self.history = []
         if self.model:
             # Compile the whole model again:
+            self.compile_options.update(overrides)
             self.compile(**self.compile_options)
 
-    def test(self, batch_size=32, tolerance=0.5, force=False,
+    def test(self, batch_size=32, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
              filter="all"):
         """
         Test a dataset.
         """
+        tolerance = tolerance if tolerance is not None else self.tolerance
         if len(self.dataset.inputs) == 0:
             raise Exception("nothing to test")
         inputs = self.dataset._inputs
         targets = self.dataset._targets
-        print("Testing entire dataset...")
+        print("Testing entire dataset with tolerance=%s..." % tolerance)
         outputs = self.model.predict(inputs, batch_size=batch_size)
-        ## FIXME: outputs not shaped
+        ## FYI: outputs not shaped
         correct = self.compute_correct(outputs, targets, tolerance)
         count = len(correct)
         if show_inputs:
@@ -403,10 +415,11 @@ class Network():
         print("      incorrect:", len([c for c in correct if not c]))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
-    def compute_correct(self, outputs, targets, tolerance):
+    def compute_correct(self, outputs, targets, tolerance=None):
         """
         Both are np.arrays. Return [True, ...].
         """
+        tolerance = tolerance if tolerance is not None else self.tolerance
         if self.num_target_layers > 1: ## multiple output banks
             correct = []
             for r in range(len(outputs[0])):
@@ -517,17 +530,20 @@ class Network():
         self.train_options.update(overrides)
         self.train(**self.train_options)
 
-    def train(self, epochs=1, accuracy=None, batch_size=32,
+    def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True,
               class_weight=None, sample_weight=None):
         """
         Train the network.
+
+        To stop before number of epochs, give either error=VALUE, or accuracy=VALUE.
         """
         ## IDEA: train_options could be a history of dicts
         ## to keep track of a schedule of learning over time
         self.train_options = {
             "epochs": epochs,
             "accuracy": accuracy,
+            "error": error,
             "batch_size": batch_size,
             "report_rate": report_rate,
             "verbose": verbose,
@@ -549,6 +565,14 @@ class Network():
             self.history = [epoch0_info]
         if verbose: print("Training...")
         interrupted = False
+        callbacks=[
+            History(),
+            ReportCallback(self, report_rate),
+        ]
+        if accuracy is not None:
+            callbacks.append(StoppingCriteria("acc", ">=", accuracy))
+        if error is not None:
+            callbacks.append(StoppingCriteria("loss", "<=", error))
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -556,11 +580,7 @@ class Network():
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         validation_data=(self.dataset._inputs, self.dataset._targets),
-                                        callbacks=[
-                                            StoppingCriteria("acc", ">=", accuracy),
-                                            History(),
-                                            ReportCallback(self, report_rate),
-                                        ],
+                                        callbacks=callbacks,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
@@ -571,11 +591,7 @@ class Network():
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         validation_split=self.dataset._split,
-                                        callbacks=[
-                                            StoppingCriteria("acc", ">=", accuracy),
-                                            History(),
-                                            ReportCallback(self, report_rate),
-                                        ],
+                                        callbacks=callbacks,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
@@ -900,7 +916,7 @@ class Network():
         metrics. Metrics is a single string or a list of strings.
 
         >>> net = Network("Plot Test", 1, 3, 1)
-        >>> net.compile(error="mse", optimizer="rmsprop") 
+        >>> net.compile(error="mse", optimizer="rmsprop")
         >>> net.dataset.add([0.0], [1.0])
         >>> net.dataset.add([1.0], [0.0])
         >>> net.train()  # doctest: +ELLIPSIS
@@ -968,6 +984,7 @@ class Network():
 
         See https://keras.io/ `Model.compile()` method for more details.
         """
+        import keras.backend as K
         ## Error checking:
         if len(self.layers) == 0:
             raise Exception("network has no layers")
@@ -977,6 +994,9 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
+        if "tolerance" in kwargs:
+            self.tolerance = kwargs["tolerance"]
+            del kwargs["tolerance"]
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
@@ -1011,8 +1031,13 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        kwargs['metrics'] = ['accuracy']
+
+        def acc(targets, outputs):
+            return K.mean(K.less_equal(K.abs(targets - outputs), K.constant(self.tolerance)), axis=-1)
+
+        kwargs['metrics'] = [acc]
         self.compile_options = copy.copy(kwargs)
+        self.compile_options["tolerance"] = self.tolerance
         self.model.compile(**kwargs)
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
