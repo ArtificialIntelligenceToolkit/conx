@@ -68,25 +68,33 @@ class ReportCallback(Callback):
             self.network.report_epoch(epoch + self.network.epoch_count, results)
 
 class StoppingCriteria(Callback):
-    def __init__(self, item, op, value):
+    def __init__(self, item, op, value, prefix):
         super().__init__()
         self.item = item
         self.op = op
         self.value = value
+        self.prefix = prefix ## "val_" or ""
 
     def on_epoch_end(self, epoch, results=None):
-        if self.item not in results:
+        key = self.prefix + self.item ## val_loss
+        if key not in results:
             ## ok, then let's sum/average anything ending in self.item
             total = 0
             count = 0
             for item in results:
-                if item.endswith("_" + self.item):
-                    count += 1
-                    total += results[item]
+                if self.prefix:
+                    if item.endswith("_" + self.item) and item.startswith(self.prefix):
+                        count += 1
+                        total += results[item]
+                else:
+                    if item.endswith("_" + self.item):
+                        count += 1
+                        total += results[item]
             if count > 0 and self.compare(total/count, self.op, self.value):
                 self.model.stop_training = True
-        elif self.compare(results[self.item], self.op, self.value):
-            self.model.stop_training = True
+        else:
+            if self.compare(results[key], self.op, self.value):
+                self.model.stop_training = True
 
     def compare(self, v1, op, v2):
         if v2 is None: return False
@@ -532,11 +540,14 @@ class Network():
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True,
-              class_weight=None, sample_weight=None):
+              class_weight=None, sample_weight=None, use_validation_to_stop=False):
         """
         Train the network.
 
         To stop before number of epochs, give either error=VALUE, or accuracy=VALUE.
+
+        Normally, it will check training info to stop, unless you
+        use_validation_to_stop = True.
         """
         ## IDEA: train_options could be a history of dicts
         ## to keep track of a schedule of learning over time
@@ -550,6 +561,7 @@ class Network():
             "shuffle": shuffle,
             "class_weight": class_weight,
             "sample_weight": sample_weight,
+            "use_validation_to_stop": use_validation_to_stop,
             }
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
@@ -570,9 +582,15 @@ class Network():
             ReportCallback(self, report_rate),
         ]
         if accuracy is not None:
-            callbacks.append(StoppingCriteria("acc", ">=", accuracy))
+            if use_validation_to_stop:
+                callbacks.append(StoppingCriteria("acc", ">=", accuracy, "val_"))
+            else:
+                callbacks.append(StoppingCriteria("acc", ">=", accuracy, ""))
         if error is not None:
-            callbacks.append(StoppingCriteria("loss", "<=", error))
+            if use_validation_to_stop:
+                callbacks.append(StoppingCriteria("loss", "<=", error, "val_"))
+            else:
+                callbacks.append(StoppingCriteria("loss", "<=", error, ""))
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -619,11 +637,11 @@ class Network():
         """
         s = "Epoch #%5d " % (epoch_count,)
         if 'loss' in results:
-            s += "| train loss %7.5f " % (results['loss'],)
+            s += "| train error %7.5f " % (results['loss'],)
         if 'acc' in results:
             s += "| train accuracy %7.5f " % (results['acc'],)
         if 'val_loss' in results:
-            s += "| validate loss %7.5f " % (results['val_loss'],)
+            s += "| validate error %7.5f " % (results['val_loss'],)
         if 'val_acc' in results:
             s += "| validate accuracy %7.5f " % (results['val_acc'],)
         for other in sorted(results):
