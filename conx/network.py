@@ -192,6 +192,15 @@ class Network():
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.debug = False
+        ## Pick a place in the random stream, and remember it:
+        ## (can override randomness with a particular seed):
+        if "seed" in config:
+            seed = config["seed"]
+            del config["seed"]
+        else:
+            seed = np.random.randint(int(2 ** 32 - 1))
+        self.seed = seed
+        np.random.seed(self.seed)
         self.config = {
             "font_size": 12, # for svg
             "font_family": "monospace", # for svg
@@ -371,6 +380,10 @@ class Network():
         self.epoch_count = 0
         self.history = []
         if self.model:
+            if "seed" in overrides:
+                self.seed = overrides["seed"]
+                np.random.seed(self.seed)
+                del overrides["seed"]
             # Compile the whole model again:
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
