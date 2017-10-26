@@ -537,8 +537,6 @@ class Network():
             }
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
-        if accuracy is None and epochs > 1 and report_rate > 1:
-            print("Warning: report_rate is ignored when in epoch mode")
         if epochs == 0: return
         if len(self.dataset.inputs) == 0:
             print("No training data available")
