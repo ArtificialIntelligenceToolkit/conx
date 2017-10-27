@@ -640,22 +640,53 @@ class Network():
         """
         Print out stats for the epoch.
         """
-        s = "Epoch #%5d " % (epoch_count,)
+        if epoch_count == 0:
+            h1 = "       "
+            h2 = "Epochs "
+            h3 = "------ "
+            if 'loss' in results:
+                h1 += "|  Training "
+                h2 += "|     Error "
+                h3 += "| --------- "
+            if 'acc' in results:
+                h1 += "|  Training "
+                h2 += "|  Accuracy "
+                h3 += "| --------- "
+            if 'val_loss' in results:
+                h1 += "|  Validate "
+                h2 += "|     Error "
+                h3 += "| --------- "
+            if 'val_acc' in results:
+                h1 += "|  Validate "
+                h2 += "|  Accuracy "
+                h3 += "| --------- "
+            for other in sorted(results):
+                if other not in ["loss", "acc", "val_loss", "val_acc"]:
+                    if not other.endswith("_loss"):
+                        w1, w2 = other.replace("_", " ").split(" ", 1)
+                        maxlen = max(len(w1), len(w2), 9)
+                        h1 += "| " + (("%%%ds " % maxlen) % w1)
+                        h2 += "| " + (("%%%ds " % maxlen) % w2)
+                        h3 += "| %s " % ("-" * (maxlen))
+            print(h1)
+            print(h2)
+            print(h3)
+        s = "#%5d " % (epoch_count,)
         if 'loss' in results:
-            s += "| train error %7.5f " % (results['loss'],)
+            s += "| %9.5f " % (results['loss'],)
         if 'acc' in results:
-            s += "| train accuracy %7.5f " % (results['acc'],)
+            s += "| %9.5f " % (results['acc'],)
         if 'val_loss' in results:
-            s += "| validate error %7.5f " % (results['val_loss'],)
+            s += "| %9.5f " % (results['val_loss'],)
         if 'val_acc' in results:
-            s += "| validate accuracy %7.5f " % (results['val_acc'],)
+            s += "| %9.5f " % (results['val_acc'],)
         for other in sorted(results):
             if other not in ["loss", "acc", "val_loss", "val_acc"]:
                 if not other.endswith("_loss"):
                     other_str = other
                     if other.endswith("_acc"):
                         other_str = other[:-4] + " accuracy"
-                    s += "| %s %7.5f " % (other_str.replace("_", " "), results[other])
+                    s += "| %9.5f " % results[other]
         print(s)
 
     def set_activation(self, layer_name, activation):
