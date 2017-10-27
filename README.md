@@ -40,7 +40,7 @@ Creates dynamic, rendered visualizations like this:
 
 ## Install
 
-`conx` requires Python3, and some other Python modules that are installed automatically with pip.
+`conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
 
 **Note**: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
 
