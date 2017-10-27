@@ -68,22 +68,25 @@ class ReportCallback(Callback):
             self.network.report_epoch(epoch + self.network.epoch_count, results)
 
 class StoppingCriteria(Callback):
-    def __init__(self, item, op, value, prefix):
+    def __init__(self, item, op, value, use_validation_to_stop):
         super().__init__()
         self.item = item
         self.op = op
         self.value = value
-        self.prefix = prefix ## "val_" or ""
+        self.use_validation_to_stop = use_validation_to_stop
 
     def on_epoch_end(self, epoch, results=None):
-        key = self.prefix + self.item ## val_loss
-        if key not in results:
-            ## ok, then let's sum/average anything ending in self.item
+        key = ("val_" + self.item) if self.use_validation_to_stop else self.item
+        if key in results: # we get what we need directly:
+            if self.compare(results[key], self.op, self.value):
+                self.model.stop_training = True
+        else:
+            ## ok, then let's sum/average anything that matches
             total = 0
             count = 0
             for item in results:
-                if self.prefix:
-                    if item.endswith("_" + self.item) and item.startswith(self.prefix):
+                if self.use_validation_to_stop:
+                    if item.startswith("val_") and item.endswith("_" + self.item):
                         count += 1
                         total += results[item]
                 else:
@@ -91,9 +94,6 @@ class StoppingCriteria(Callback):
                         count += 1
                         total += results[item]
             if count > 0 and self.compare(total/count, self.op, self.value):
-                self.model.stop_training = True
-        else:
-            if self.compare(results[key], self.op, self.value):
                 self.model.stop_training = True
 
     def compare(self, v1, op, v2):
@@ -562,8 +562,6 @@ class Network():
         Normally, it will check training info to stop, unless you
         use_validation_to_stop = True.
         """
-        ## IDEA: train_options could be a history of dicts
-        ## to keep track of a schedule of learning over time
         self.train_options = {
             "epochs": epochs,
             "accuracy": accuracy,
@@ -595,15 +593,9 @@ class Network():
             ReportCallback(self, report_rate),
         ]
         if accuracy is not None:
-            if use_validation_to_stop:
-                callbacks.append(StoppingCriteria("acc", ">=", accuracy, "val_"))
-            else:
-                callbacks.append(StoppingCriteria("acc", ">=", accuracy, ""))
+            callbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
         if error is not None:
-            if use_validation_to_stop:
-                callbacks.append(StoppingCriteria("loss", "<=", error, "val_"))
-            else:
-                callbacks.append(StoppingCriteria("loss", "<=", error, ""))
+            callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
