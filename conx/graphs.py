@@ -36,13 +36,13 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-"):
     """
     xs = np.arange(*frange)
     ys = [f(x) for x in xs]
-    fig = plt.figure()
     plt.plot(xs, ys, symbol)
-    bytes = io.BytesIO()
-    plt.savefig(bytes, format='svg')
-    svg = bytes.getvalue()
-    plt.close(fig)
-    return SVG(svg.decode())
+    plt.show()
+    #bytes = io.BytesIO()
+    #plt.savefig(bytes, format='svg')
+    #svg = bytes.getvalue()
+    #plt.close(fig)
+    #return SVG(svg.decode())
 
 def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
     """
@@ -53,7 +53,6 @@ def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
     if plt is None:
         raise Exception("matplotlib was not loaded")
     plt.rcParams['figure.figsize'] = (width, height)
-    fig = plt.figure()
     for (label, symbol, data) in lines:
         kwargs = {}
         args = [data]
@@ -68,11 +67,12 @@ def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
         plt.xlabel(xlabel)
     if ylabel:
         plt.ylabel(ylabel)
-    bytes = io.BytesIO()
-    plt.savefig(bytes, format='svg')
-    svg = bytes.getvalue()
-    plt.close(fig)
-    return SVG(svg.decode())
+    plt.show()
+    #bytes = io.BytesIO()
+    #plt.savefig(bytes, format='svg')
+    #svg = bytes.getvalue()
+    #plt.close(fig)
+    #return SVG(svg.decode())
 
 def plot_activations(net, output_layer="output", output_index=0,
                      input_layer="input",input_index1=0, input_index2=1,
@@ -87,7 +87,6 @@ def plot_activations(net, output_layer="output", output_index=0,
         slice = (act_range[0], act_range[1], resolution)
     min1, max1, step1 = slice
     min2, max2, step2 = slice
-    fig = plt.figure()
     resolution1 = int((max1 - min1) / step1)
     resolution2 = int((max2 - min2) / step2)
     mat = np.zeros((resolution1, resolution2))
@@ -114,13 +113,14 @@ def plot_activations(net, output_layer="output", output_index=0,
                                  (max2 - min2) * 0.25,
                                  (max2 - min2) * 0.50,
                                  (max2 - min2) * 0.75,])
+    plt.show()
     ##plt.ylim([min2,max2])
     ##plt.xlim([min1,max1])
     ## Turn off ticks
     ##figure.axes.get_xaxis().set_visible(False)
     ##figure.axes.get_yaxis().set_visible(False)
-    bytes = io.BytesIO()
-    plt.savefig(bytes, format='svg')
-    svg = bytes.getvalue()
-    plt.close(fig)
-    return SVG(svg.decode())
+    #bytes = io.BytesIO()
+    #plt.savefig(bytes, format='svg')
+    #svg = bytes.getvalue()
+    #plt.close(fig)
+    #return SVG(svg.decode())

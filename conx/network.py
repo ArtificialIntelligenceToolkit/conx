@@ -936,7 +936,6 @@ class Network():
                           colormap=None, default_input_value=0.0,
                           resolution=0.1):
         if colormap is None: colormap = get_colormap()
-        ## FIXME: work on multi-input banks
         from .graphs import plot_activations
         return plot_activations(self, output_layer, output_index,
                                 input_layer, input_index1, input_index2,
@@ -955,11 +954,9 @@ class Network():
         ...
         >>> net.plot()
         Available metrics: acc, loss
-
-        https://matplotlib.org/api/markers_api.html
-        https://matplotlib.org/api/colors_api.html
-
         """
+        ## https://matplotlib.org/api/markers_api.html
+        ## https://matplotlib.org/api/colors_api.html
         if isinstance(ymin, str):
             raise Exception("Network.plot() should be called with a metric, or list of metrics")
         if len(self.history) == 0:
