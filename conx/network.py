@@ -87,7 +87,7 @@ class StoppingCriteria(Callback):
                         count += 1
                         total += results[item]
                 else:
-                    if item.endswith("_" + self.item):
+                    if item.endswith("_" + self.item) and not item.startswith("val_"):
                         count += 1
                         total += results[item]
             if count > 0 and self.compare(total/count, self.op, self.value):
