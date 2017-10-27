@@ -960,6 +960,8 @@ class Network():
         https://matplotlib.org/api/colors_api.html
 
         """
+        if isinstance(ymin, str):
+            raise Exception("Network.plot() should be called with a metric, or list of metrics")
         if len(self.history) == 0:
             print("No history available")
             return
