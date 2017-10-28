@@ -1182,6 +1182,8 @@ class Network():
             return K.mean(K.less_equal(K.abs(targets - outputs), K.constant(self.tolerance)), axis=-1)
 
         kwargs['metrics'] = [acc]
+        ## FIXME: this should be an explicit list of
+        ## valid options and their values (like in train()):
         self.compile_options = copy.copy(kwargs)
         self.compile_options["tolerance"] = self.tolerance
         self.model.compile(**kwargs)
