@@ -985,12 +985,14 @@ class Network():
         if len(self.history) == 0:
             print("No history available")
             return
-        if metrics is None:
+        if metrics in [None, 'all']:
             options = set()
             for epoch in self.history:
                 options = options.union(set(epoch.keys()))
-            print("Available metrics:", ", ".join(sorted(options)))
-            return
+            if metrics is None:
+                print("Available metrics:", ", ".join(sorted(options)))
+                return
+            metrics = sorted(options)
         elif type(metrics) is str:
             metrics = [metrics]
         elif type(metrics) in [list, tuple]:
@@ -1022,8 +1024,9 @@ class Network():
             plt.ylim(ymax=ymax)
         if legend is not None:
             plt.legend(loc=legend)
-        if title is not None:
-            plt.title(title)
+        if title is None:
+            title = self.name
+        plt.title(title)
         plt.show()
         # bytes = io.BytesIO()
         # plt.savefig(bytes, format='svg')
