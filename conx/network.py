@@ -203,6 +203,7 @@ class Network():
                        'sparse_categorical_crossentropy', 'squared_hinge']
 
     def __init__(self, name: str, *sizes: int, **config: Any):
+        import keras.backend as K
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.debug = False
@@ -244,7 +245,7 @@ class Network():
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
-        self.tolerance = 0.1
+        self._tolerance = K.variable(0.1, dtype='float32')
         self.name = name
         self.layers = []
         self.layer_dict = {}
@@ -265,6 +266,15 @@ class Network():
         self.model = None
         self.prop_from_dict = {}
         self._svg_counter = 1
+
+    def _get_tolerance(self):
+        return self._tolerance.get_value()
+
+    def _set_tolerance(self, value):
+        return self._tolerance.set_value(value)
+
+    tolerance = property(_get_tolerance,
+                         _set_tolerance)
 
     def __getitem__(self, layer_name):
         if layer_name not in self.layer_dict:
@@ -583,7 +593,7 @@ class Network():
             raise Exception("attempting to find accuracy in results, but there aren't any")
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
-              report_rate=1, verbose=1, kverbose=0, shuffle=True,
+              report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
               plot=None):
         """
@@ -604,6 +614,7 @@ class Network():
             "shuffle": shuffle,
             "class_weight": class_weight,
             "sample_weight": sample_weight,
+            "tolerance": tolerance,
             "use_validation_to_stop": use_validation_to_stop,
             "plot": plot,
             }
@@ -663,6 +674,8 @@ class Network():
                 print("Validation results:")
                 self.report_epoch(self.epoch_count, val_results)
                 return
+        if tolerance is not None:
+            self._tolerance.set_value(tolerance)
         if len(self.history) == 0:
             self.history = [results]
         print("Training...")
@@ -1140,9 +1153,6 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
-        if "tolerance" in kwargs:
-            self.tolerance = kwargs["tolerance"]
-            del kwargs["tolerance"]
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
@@ -1179,13 +1189,12 @@ class Network():
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
 
         def acc(targets, outputs):
-            return K.mean(K.less_equal(K.abs(targets - outputs), K.constant(self.tolerance)), axis=-1)
+            return K.mean(K.less_equal(K.abs(targets - outputs), self._tolerance), axis=-1)
 
         kwargs['metrics'] = [acc]
         ## FIXME: this should be an explicit list of
         ## valid options and their values (like in train()):
         self.compile_options = copy.copy(kwargs)
-        self.compile_options["tolerance"] = self.tolerance
         self.model.compile(**kwargs)
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
