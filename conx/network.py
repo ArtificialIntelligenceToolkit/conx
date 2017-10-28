@@ -385,6 +385,9 @@ class Network():
                 np.random.seed(self.seed)
                 del overrides["seed"]
             # Compile the whole model again:
+            for key in overrides:
+                if key not in self.compile_options:
+                    raise Exception("Unknown compile option: %s" % key)
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
 
@@ -548,8 +551,22 @@ class Network():
         """
         Call network.train() again with same options as last call, unless overrides.
         """
+        for key in overrides:
+            if key not in self.train_options:
+                raise Exception("Unknown train option: %s" % key)
         self.train_options.update(overrides)
         self.train(**self.train_options)
+
+    def _compute_result_acc(self, results):
+        """
+        Compute accuracy from results
+        """
+        if "acc" in results: return results["acc"]
+        values = [results[key] for key in results if key.endswith("_acc")]
+        if len(values) > 0:
+            return sum(values)/len(values)
+        else:
+            raise Exception("attempting to find accuracy in results, but there aren't any")
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True,
@@ -580,13 +597,69 @@ class Network():
         if len(self.dataset.inputs) == 0:
             print("No training data available")
             return
+        ## Let's test first to see if we need to train:
+        values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
+        results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
+        results_acc = self._compute_result_acc(results)
+        if (not use_validation_to_stop and
+            ((accuracy is not None and results_acc >= accuracy) or
+             (error is not None and results["loss"] <= error))):
+            if accuracy is not None:
+                print("No training required: accuracy already to desired value")
+            else:
+                print("No training required: error already to desired value")
+            self.report_epoch(self.epoch_count, results, show_headings=True)
+            return
+        elif (use_validation_to_stop and self.dataset._split == 0.0):
+            print("Attempting to use validation to stop, but Network.dataset.split() is 0.0")
+            return
+        elif (use_validation_to_stop and (accuracy is None) and (error is None)):
+            print("Attempting to use validation to stop, but neither accuracy nor error was set")
+            return
+        elif (use_validation_to_stop and
+              self.dataset._split > 0.0 and
+              ((accuracy is not None) or
+               (error is not None))):
+            ## look at split, use validation subset:
+            if self.dataset._split == 1.0: ## special case; use entire set
+                val_values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
+            else: # split is greater than 0, less than 1
+                length = len(self.dataset.test_targets)
+                if self.num_target_layers == 1:
+                    targets = self.dataset._targets[-length:]
+                else:
+                    targets = [column[-length:] for column in self.dataset._targets]
+                if self.num_input_layers == 1:
+                    inputs = self.dataset._inputs[-length:]
+                else:
+                    inputs = [column[-length:] for column in self.dataset._inputs]
+                val_values = self.model.evaluate(inputs, targets, verbose=0)
+            val_results = {metric: value for metric,value in zip(self.model.metrics_names, val_values)}
+            val_results_acc = self._compute_result_acc(val_results)
+            if (((accuracy is not None) and val_results_acc >= accuracy) or
+                ((error is not None) and val_results["loss"] <= error)):
+                if accuracy is not None:
+                    print("No training required: validation accuracy already to desired value")
+                else:
+                    print("No training required: validation error already to desired value")
+                print("Training results:")
+                self.report_epoch(self.epoch_count, results, show_headings=True)
+                print("Validation results:")
+                self.report_epoch(self.epoch_count, val_results)
+                return
         if len(self.history) == 0:
-            values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
-            epoch0_info = {}
-            for metric, value in zip(self.model.metrics_names, values):
-                epoch0_info[metric] = value
-            self.history = [epoch0_info]
-        if verbose: print("Training...")
+            self.history = [results]
+        print("Training...")
+        if self.epoch_count != 0: # need to give headings again
+            if self.dataset._split > 0.0:
+                ## add val_ items to results
+                results["val_loss"] = None
+                for key in list(results.keys()):
+                    if key.endswith("_acc"):
+                        results["val_" + key] = None
+                self.report_epoch(self.epoch_count, results, show_headings=True, show_values=False)
+            else:
+                self.report_epoch(self.epoch_count, results, show_headings=True, show_values=False)
         interrupted = False
         callbacks=[
             History(),
@@ -636,11 +709,11 @@ class Network():
         if interrupted:
             raise KeyboardInterrupt
 
-    def report_epoch(self, epoch_count, results):
+    def report_epoch(self, epoch_count, results, show_headings=False, show_values=True):
         """
         Print out stats for the epoch.
         """
-        if epoch_count == 0:
+        if epoch_count == 0 or show_headings:
             h1 = "       "
             h2 = "Epochs "
             h3 = "------ "
@@ -671,6 +744,8 @@ class Network():
             print(h1)
             print(h2)
             print(h3)
+        if not show_values:
+            return
         s = "#%5d " % (epoch_count,)
         if 'loss' in results:
             s += "| %9.5f " % (results['loss'],)
