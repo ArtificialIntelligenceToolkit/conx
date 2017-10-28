@@ -64,8 +64,22 @@ class ReportCallback(Callback):
         self.report_rate = report_rate
 
     def on_epoch_end(self, epoch, results=None):
+        self.network.history.append(results)
         if epoch % self.report_rate == 0:
-            self.network.report_epoch(epoch + self.network.epoch_count, results)
+            self.network.report_epoch(self.network.epoch_count, results)
+        self.network.epoch_count += 1
+
+class PlotCallback(Callback):
+    def __init__(self, network, report_rate):
+        super().__init__()
+        self.network = network
+        self.report_rate = report_rate
+
+    def on_epoch_end(self, epoch, results=None):
+        from IPython.display import clear_output, display
+        if epoch % self.report_rate == 0:
+            clear_output(wait=True)
+            display(self.network.plot(list(results.keys()), svg=True))
 
 class StoppingCriteria(Callback):
     def __init__(self, item, op, value, use_validation_to_stop):
@@ -570,7 +584,8 @@ class Network():
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True,
-              class_weight=None, sample_weight=None, use_validation_to_stop=False):
+              class_weight=None, sample_weight=None, use_validation_to_stop=False,
+              plot=None):
         """
         Train the network.
 
@@ -590,6 +605,7 @@ class Network():
             "class_weight": class_weight,
             "sample_weight": sample_weight,
             "use_validation_to_stop": use_validation_to_stop,
+            "plot": plot,
             }
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
@@ -669,6 +685,8 @@ class Network():
             callbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
         if error is not None:
             callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
+        if plot:
+            callbacks.append(PlotCallback(self, report_rate))
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -692,13 +710,6 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
                                         verbose=kverbose)
-            self.epoch_count += len(result.epoch)
-            # add results to history
-            for i in range(len(result.epoch)):
-                epoch_info = {}
-                for metric in result.history:
-                    epoch_info[metric] = result.history[metric][i]
-                self.history.append(epoch_info)
             if handler.interrupted:
                 interrupted = True
         last_epoch = self.history[-1]
@@ -1039,7 +1050,8 @@ class Network():
                                 input_layer, input_index1, input_index2,
                                 colormap, default_input_value, resolution)
 
-    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right', title=None):
+    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
+             title=None, svg=False):
         """Plots the current network history for the specific epoch range and
         metrics. Metrics is a single string or a list of strings.
 
@@ -1102,12 +1114,15 @@ class Network():
         if title is None:
             title = self.name
         plt.title(title)
-        plt.show()
-        # bytes = io.BytesIO()
-        # plt.savefig(bytes, format='svg')
-        # svg = bytes.getvalue()
-        # plt.close(fig)
-        # return SVG(svg.decode())
+        if svg:
+            from IPython.display import SVG
+            bytes = io.BytesIO()
+            plt.savefig(bytes, format='svg')
+            img_bytes = bytes.getvalue()
+            plt.close(fig)
+            return SVG(img_bytes.decode())
+        else:
+            plt.show(fig)
 
     def compile(self, **kwargs):
         """
