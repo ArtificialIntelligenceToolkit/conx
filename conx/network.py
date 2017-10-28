@@ -245,7 +245,7 @@ class Network():
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
-        self._tolerance = K.variable(0.1, dtype='float32')
+        self._tolerance = K.variable(0.1, dtype='float32', name='tolerance')
         self.name = name
         self.layers = []
         self.layer_dict = {}
@@ -268,10 +268,12 @@ class Network():
         self._svg_counter = 1
 
     def _get_tolerance(self):
-        return self._tolerance.get_value()
+        import keras.backend as K
+        return K.get_value(self._tolerance)
 
     def _set_tolerance(self, value):
-        return self._tolerance.set_value(value)
+        import keras.backend as K
+        K.set_value(self._tolerance, value)
 
     tolerance = property(_get_tolerance,
                          _set_tolerance)
