@@ -635,6 +635,10 @@ class Network():
                 print("Attempting to use validation to stop, but neither accuracy nor error was set")
                 return
         self._need_to_show_headings = True
+        if tolerance is not None:
+            if accuracy is None:
+                raise Exception("tolerance given but unknown accuracy")
+            self._tolerance.set_value(tolerance)
         ## Going to need evaluation on training set in any event:
         if self.dataset._split == 1.0: ## special case; use entire set
             inputs = self.dataset._inputs
@@ -645,11 +649,11 @@ class Network():
             if self.num_target_layers == 1:
                 targets = self.dataset._targets[:length]
             else:
-                targets = [column[-length:] for column in self.dataset._targets]
+                targets = [column[:length] for column in self.dataset._targets]
             if self.num_input_layers == 1:
                 inputs = self.dataset._inputs[:length]
             else:
-                inputs = [column[-length:] for column in self.dataset._inputs]
+                inputs = [column[:length] for column in self.dataset._inputs]
         values = self.model.evaluate(inputs, targets, verbose=0)
         results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
         results_acc = self._compute_result_acc(results)
@@ -699,10 +703,6 @@ class Network():
                 self.report_epoch(self.epoch_count, results)
                 return
         ## Ok, now we know we need to train:
-        if tolerance is not None:
-            if accuracy is None:
-                raise Exception("tolerance given but unknown accuracy")
-            self._tolerance.set_value(tolerance)
         if len(self.history) == 0:
             self.history = [results]
         print("Training...")
