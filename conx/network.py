@@ -427,9 +427,45 @@ class Network():
         tolerance = tolerance if tolerance is not None else self.tolerance
         if len(self.dataset.inputs) == 0:
             raise Exception("nothing to test")
-        inputs = self.dataset._inputs
-        targets = self.dataset._targets
-        print("Testing entire dataset with tolerance=%s..." % tolerance)
+        if self.dataset._split == 1.0: ## special case; use entire set
+            inputs = self.dataset._inputs
+            targets = self.dataset._targets
+        else:
+            ## need to split; check format based on output banks:
+            length = len(self.dataset.train_targets)
+            if self.num_target_layers == 1:
+                targets = self.dataset._targets[:length]
+            else:
+                targets = [column[:length] for column in self.dataset._targets]
+            if self.num_input_layers == 1:
+                inputs = self.dataset._inputs[:length]
+            else:
+                inputs = [column[:length] for column in self.dataset._inputs]
+        self._test(inputs, targets, "train dataset", batch_size,
+                   tolerance, force, show_inputs, show_outputs, filter)
+        if self.dataset._split in [1.0, 0.0]: ## special case; use entire set
+            return
+        else: # split is greater than 0, less than 1
+            ## need to split; check format based on output banks:
+            length = len(self.dataset.test_targets)
+            if self.num_target_layers == 1:
+                targets = self.dataset._targets[-length:]
+            else:
+                targets = [column[-length:] for column in self.dataset._targets]
+            if self.num_input_layers == 1:
+                inputs = self.dataset._inputs[-length:]
+            else:
+                inputs = [column[-length:] for column in self.dataset._inputs]
+            val_values = self.model.evaluate(inputs, targets, verbose=0)
+        self._test(inputs, targets, "validation dataset", batch_size,
+                   tolerance, force, show_inputs, show_outputs, filter)
+
+    def _test(self, inputs, targets, dataset, batch_size=32,
+              tolerance=None, force=False,
+              show_inputs=True, show_outputs=True,
+              filter="all"):
+        print("=" * 56)
+        print("Testing %s with tolerance %.6s..." % (dataset, tolerance))
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FYI: outputs not shaped
         correct = self.compute_correct(outputs, targets, tolerance)
@@ -566,7 +602,7 @@ class Network():
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, visualize=False)
-        errors = (np.array(outputs) - np.array(targets)).tolist() # FIXME: multi outputs?
+        errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
         if self.visualize and get_ipython():
             if self.config["show_targets"]:
                 self.display_component([targets], "targets") # FIXME: use output layers' minmax
