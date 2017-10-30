@@ -418,7 +418,7 @@ class Network():
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
 
-    def test(self, batch_size=32, tolerance=None, force=False,
+    def test(self, batch_size=32, show=False, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
              filter="all"):
         """
@@ -441,7 +441,7 @@ class Network():
                 inputs = self.dataset._inputs[:length]
             else:
                 inputs = [column[:length] for column in self.dataset._inputs]
-        self._test(inputs, targets, "train dataset", batch_size,
+        self._test(inputs, targets, "train dataset", batch_size, show,
                    tolerance, force, show_inputs, show_outputs, filter)
         if self.dataset._split in [1.0, 0.0]: ## special case; use entire set
             return
@@ -457,10 +457,10 @@ class Network():
             else:
                 inputs = [column[-length:] for column in self.dataset._inputs]
             val_values = self.model.evaluate(inputs, targets, verbose=0)
-        self._test(inputs, targets, "validation dataset", batch_size,
+        self._test(inputs, targets, "validation dataset", batch_size, show,
                    tolerance, force, show_inputs, show_outputs, filter)
 
-    def _test(self, inputs, targets, dataset, batch_size=32,
+    def _test(self, inputs, targets, dataset, batch_size=32, show=False,
               tolerance=None, force=False,
               show_inputs=True, show_outputs=True,
               filter="all"):
@@ -470,33 +470,34 @@ class Network():
         ## FYI: outputs not shaped
         correct = self.compute_correct(outputs, targets, tolerance)
         count = len(correct)
-        if show_inputs:
-            in_formatted = self.pf_matrix(inputs, force)
-            count = len(in_formatted)
-        if show_outputs:
-            targ_formatted = self.pf_matrix(targets, force)
-            out_formatted = self.pf_matrix(outputs, force)
-            count = len(out_formatted)
-        header = "# | "
-        if show_inputs:
-            header += "inputs | "
-        if show_outputs:
-            header += "targets | outputs | "
-        header += "result"
-        print(header)
-        print("---------------------------------------")
-        for i in range(count):
-            show_it = ((filter == "all") or
-                       (filter == "correct" and correct[i]) or
-                       (filter == "incorrect" and not correct[i]))
-            if show_it:
-                line = "%d | " % i
-                if show_inputs:
-                    line += "%s | " % in_formatted[i]
-                if show_outputs:
-                    line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
-                line += "correct" if correct[i] else "X"
-                print(line)
+        if show:
+            if show_inputs:
+                in_formatted = self.pf_matrix(inputs, force)
+                count = len(in_formatted)
+            if show_outputs:
+                targ_formatted = self.pf_matrix(targets, force)
+                out_formatted = self.pf_matrix(outputs, force)
+                count = len(out_formatted)
+            header = "# | "
+            if show_inputs:
+                header += "inputs | "
+            if show_outputs:
+                header += "targets | outputs | "
+            header += "result"
+            print(header)
+            print("---------------------------------------")
+            for i in range(count):
+                show_it = ((filter == "all") or
+                           (filter == "correct" and correct[i]) or
+                           (filter == "incorrect" and not correct[i]))
+                if show_it:
+                    line = "%d | " % i
+                    if show_inputs:
+                        line += "%s | " % in_formatted[i]
+                    if show_outputs:
+                        line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
+                    line += "correct" if correct[i] else "X"
+                    print(line)
         print("Total count:", len(correct))
         print("      correct:", len([c for c in correct if c]))
         print("      incorrect:", len([c for c in correct if not c]))
