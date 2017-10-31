@@ -1240,11 +1240,7 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-
-        def acc(targets, outputs):
-            return K.mean(K.less_equal(K.abs(targets - outputs), self._tolerance), axis=-1)
-
-        kwargs['metrics'] = [acc]
+        kwargs['metrics'] = [self._acc]
         ## FIXME: this should be an explicit list of
         ## valid options and their values (like in train()):
         self.compile_options = copy.copy(kwargs)
@@ -1253,6 +1249,11 @@ class Network():
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
         self.dataset.set_bank_counts()
+
+    def _acc(self, targets, outputs):
+        # This is only used on non-multi-output-bank training:
+        import keras.backend as K
+        return K.mean(K.all(K.less_equal(K.abs(targets - outputs), self._tolerance), axis=-1), axis=-1)
 
     def _find_keras_layer(self, layer_name):
         """
