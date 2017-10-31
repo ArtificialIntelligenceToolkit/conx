@@ -1240,7 +1240,7 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        kwargs['metrics'] = [self._acc]
+        kwargs['metrics'] = [self.acc]
         ## FIXME: this should be an explicit list of
         ## valid options and their values (like in train()):
         self.compile_options = copy.copy(kwargs)
