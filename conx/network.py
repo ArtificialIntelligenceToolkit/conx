@@ -1250,7 +1250,7 @@ class Network():
             layer.keras_layer = self._find_keras_layer(layer.name)
         self.dataset.set_bank_counts()
 
-    def _acc(self, targets, outputs):
+    def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
         import keras.backend as K
         return K.mean(K.all(K.less_equal(K.abs(targets - outputs), self._tolerance), axis=-1), axis=-1)
