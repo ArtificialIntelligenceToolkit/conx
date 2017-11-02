@@ -941,25 +941,18 @@ class Network():
                 output_layer_names = [output_layer_names]
         outputs = []
         for output_layer_name in output_layer_names:
+            path = topological_sort(self, self[layer_name].outgoing_connections)
+            # Make a new Input to start here:
+            input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
+            # So that we can display activations here:
+            self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
+                                                                               outputs=k)
+            for layer in path: # FIXME: this should be a straight path between incoming and outgoing
+                k = layer.keras_layer(k)
+                self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
+                                                                                   outputs=k)
+            # Now we should be able to get the prop_from model:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
-            if prop_model is None:
-                path = topological_sort(self, self[layer_name].outgoing_connections)
-                # Make a new Input to start here:
-                k = input_k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
-                # So that we can display activations here:
-                self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
-                                                                                   outputs=input_k)
-                for layer in path:
-                    k = self.prop_from_dict.get((layer_name, layer.name), None)
-                    if k is None:
-                        k = input_k
-                        fs = layer.make_keras_functions()
-                        for f in fs:
-                            k = f(k)
-                    self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
-                                                                                       outputs=k)
-                # Now we should be able to get the prop_from model:
-                prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
             ## FIXME: outputs not shaped
