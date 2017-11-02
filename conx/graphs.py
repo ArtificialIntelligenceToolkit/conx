@@ -85,7 +85,6 @@ def plot_activations(net, output_layer="output", output_index=0,
     
     # FIXME: why is input_layer even an argument here, since
     # propagate_to always requires starting from "input"???
-    assert input_layer == 'input', "for now, input_layer must be 'input'"
 
     default_ranges = {'sigmoid': (0, 1),
                       'tanh': (-1, 1),
@@ -125,7 +124,7 @@ def plot_activations(net, output_layer="output", output_index=0,
     # for row in mat:
     #     print(''.join(['%.6f ' % x for x in row]))
     fig, ax = plt.subplots()
-    cax = ax.imshow(mat, origin='lower', cmap=colormap)
+    cax = ax.imshow(mat, origin='lower', cmap=colormap, vmin=act_min, vmax=act_max)
     ax.set_title("Activation of %s[%s]" % (output_layer, output_index))
     ax.set_xlabel("%s[%s]" % (input_layer, input_index1))
     ax.set_ylabel("%s[%s]" % (input_layer, input_index2))
