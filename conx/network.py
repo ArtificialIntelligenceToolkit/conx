@@ -287,7 +287,7 @@ class Network():
 
     def _repr_html_(self):
         if all([layer.model for layer in self.layers]):
-            return self.build_svg()
+            return self.build_svg(opts={"svg_height": "100%"}) ## will fill width
         else:
             return None
 
@@ -295,12 +295,14 @@ class Network():
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
 
-    def snapshot(self, inputs=None, class_id=None, ):
+    def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         from IPython.display import HTML
         if class_id is None:
             r = random.randint(1,1000000)
             class_id = "snapshot-%s-%s" % (self.name, r)
-        return HTML(self.build_svg(class_id=class_id, inputs=inputs))
+        if height is not None:
+            opts["svg_height"] = height
+        return HTML(self.build_svg(class_id=class_id, inputs=inputs, opts=opts))
 
     def add(self, layer: Layer):
         """
