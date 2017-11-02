@@ -71,7 +71,7 @@ class Dashboard(Tab):
         self.feature_scale.observe(self.refresh)
         ## Hack to center SVG as justify-content is broken:
         self.net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.net.build_svg(),), layout=Layout(
-            width=self._width, height=self._height, overflow_x='auto', overflow_y="auto",
+            width=self._width, overflow_x='auto', overflow_y="auto",
             justify_content="center"))
         tabs = [
             ("Network", self.make_net_page()),
@@ -343,7 +343,7 @@ class Dashboard(Tab):
                         self.control_buttons],
                        layout=Layout(width='95%'))
 
-        net_page = VBox([self.net_svg, control], layout=Layout(width='95%'))
+        net_page = VBox([control, self.net_svg], layout=Layout(width='95%'))
         net_page.on_displayed(lambda widget: self.update_slider_control({"name": "value"}))
         return net_page
 
@@ -411,5 +411,5 @@ class Dashboard(Tab):
 
     def make_help_page(self):
         help_page = HTML("""<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>""" % (self._height,),
-                         layout=Layout(width="95%", height=self._height))
+                         layout=Layout(width="95%"))
         return help_page
