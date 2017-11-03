@@ -1104,13 +1104,14 @@ class Network():
     def propagate_to_plot(self, output_layer, output_index,
                           input_layer, input_index1, input_index2,
                           colormap=None, default_input_value=0,
-                          resolution=None, act_range=None):
+                          resolution=None, act_range=None,
+                          showloop=False): # temporary
         if colormap is None: colormap = get_colormap()
         from .graphs import plot_activations
         return plot_activations(self, output_layer, output_index,
                                 input_layer, input_index1, input_index2,
-                                colormap, default_input_value, resolution, act_range)
-
+                                colormap, default_input_value, resolution, act_range,
+                                showloop) # temporary
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
              title=None, svg=False):
         """Plots the current network history for the specific epoch range and
