@@ -78,20 +78,17 @@ def plot(lines, width=8.0, height=4.0, xlabel="time", ylabel=""):
 def plot_activations(net, output_layer="output", output_index=0,
                      input_layer="input",input_index1=0, input_index2=1,
                      colormap=None, default_input_value=0, resolution=None,
-                     act_range=None):
+                     act_range=None,
+                     showloop=False): # temporary
     if colormap is None: colormap = get_colormap()
     if plt is None:
         raise Exception("matplotlib was not loaded")
     
-    # FIXME: why is input_layer even an argument here, since
-    # propagate_to always requires starting from "input"???
-
     default_ranges = {'sigmoid': (0, 1),
                       'tanh': (-1, 1),
                       'relu': (0, 2),
                       'linear': (-2, 2),
                       'softmax': (0, 1)}
-
     if act_range is not None:
         act_min, act_max = act_range
     elif net[input_layer].activation in default_ranges:
@@ -100,6 +97,10 @@ def plot_activations(net, output_layer="output", output_index=0,
     #     act_min, act_max = net[input_layer].minmax
     else:
         act_min, act_max = -1, 1
+    if net[output_layer].activation in default_ranges:
+        out_min, out_max = default_ranges[net[output_layer].activation]
+    else:
+        out_min, out_max = -1, 1
 
     if resolution is None:
         default_pixels = 50
@@ -111,7 +112,19 @@ def plot_activations(net, output_layer="output", output_index=0,
     xpixels = int(xspan/xstep)+1
     ypixels = int(yspan/ystep)+1
     mat = np.zeros((ypixels, xpixels))
+    if net[input_layer].kind() == 'input':
+        propagate = lambda v: net.propagate_to(output_layer, v, visualize=False)
+    elif net[output_layer].kind() == 'output':
+        propagate = lambda v: net.propagate_from(input_layer, v, output_layer, visualize=False)
+    else:
+        # FIXME: should we eventually allow this?
+        raise Exception("can't propagate from a hidden layer to a hidden layer")
+    if showloop: print("starting loop...", end='')
     for row in range(ypixels):
+        if showloop and row == 0:
+            print("row %d of %d..." % (row, ypixels), end="")
+        elif showloop:
+            print("%d " % (row,), end="")
         for col in range(xpixels):
             # (x,y) corresponds to lower left corner point of pixel
             x = xmin + xstep*col
@@ -119,24 +132,25 @@ def plot_activations(net, output_layer="output", output_index=0,
             vector = net[input_layer].make_dummy_vector(default_input_value)
             vector[input_index1] = x
             vector[input_index2] = y
-            mat[row,col] = net.propagate_to(output_layer, vector, visualize=False)[output_index]
+            mat[row,col] = propagate(vector)[output_index]
+    if showloop: print("loop done")
     # print("matrix is:")
     # for row in mat:
     #     print(''.join(['%.6f ' % x for x in row]))
     fig, ax = plt.subplots()
-    cax = ax.imshow(mat, origin='lower', cmap=colormap, vmin=act_min, vmax=act_max)
+    axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
     ax.set_title("Activation of %s[%s]" % (output_layer, output_index))
     ax.set_xlabel("%s[%s]" % (input_layer, input_index1))
     ax.set_ylabel("%s[%s]" % (input_layer, input_index2))
     ax.xaxis.tick_bottom()
-    ax.xaxis.set_ticks([i*(xpixels-1)/4 for i in range(5)])
-    ax.xaxis.set_ticklabels([xmin+i*xspan/4 for i in range(5)])
-    ax.yaxis.set_ticks([i*(ypixels-1)/4 for i in range(5)])
-    ax.yaxis.set_ticklabels([ymin+i*yspan/4 for i in range(5)])
+    ax.set_xticks([i*(xpixels-1)/4 for i in range(5)])
+    ax.set_xticklabels([xmin+i*xspan/4 for i in range(5)])
+    ax.set_yticks([i*(ypixels-1)/4 for i in range(5)])
+    ax.set_yticklabels([ymin+i*yspan/4 for i in range(5)])
     # added a colorbar. FIXME: ideally, maximum red should always map to
     # act_min and maximum blue should map to act_max, but i don't know how
     # to do this. matplotlib automatically rescales the colorbar as it likes.
-    cbar = fig.colorbar(cax)
+    cbar = fig.colorbar(axim)
     plt.show()
 
     ##plt.ylim([min2,max2])
