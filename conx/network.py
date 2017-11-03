@@ -993,13 +993,14 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             ## Update from start to rest of graph
             if self._comm.kernel:
-                for layer in topological_sort(self, [self[layer_name]]):
-                    model = self.prop_from_dict[(layer_name, layer.name)]
-                    vector = model.predict(inputs)[0]
-                    ## FYI: outputs not shaped
-                    image = layer.make_image(vector, config=self.config)
-                    data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                for output_layer_name in output_layer_names:
+                    for layer in find_path(self, layer_name, output_layer_name):
+                        model = self.prop_from_dict[(layer_name, layer.name)]
+                        vector = model.predict(inputs)[0]
+                        ## FYI: outputs not shaped
+                        image = layer.make_image(vector, config=self.config)
+                        data_uri = self._image_to_uri(image)
+                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if len(output_layer_names) == 1:
             return outputs[0]
         else:
