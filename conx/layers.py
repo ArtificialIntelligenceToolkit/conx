@@ -271,6 +271,22 @@ class _BaseLayer():
         v *= (lo + hi) / 2.0
         return v.tolist()
 
+    def get_act_minmax(self):
+        """
+        Get the activation (output) min/max for a layer.
+        """
+        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
+        if self.activation in ["tanh"]:
+            return (-1,+1)
+        elif self.activation in ["sigmoid", "softmax"]:
+            return (0,+1)
+        elif self.activation in ["relu"]:
+            return (0,+2)
+        elif self.activation in ["linear"]:
+            return (-2,+2)
+        else: # activation in ["linear"] or otherwise
+            return (-1,+1)
+
     def get_minmax(self, vector):
         """
         Get the min/max for an input vector to this

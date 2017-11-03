@@ -408,6 +408,7 @@ class Network():
         """
         self.epoch_count = 0
         self.history = []
+        self.prop_from_dict = {}
         if self.model:
             if "seed" in overrides:
                 self.seed = overrides["seed"]
@@ -874,6 +875,33 @@ class Network():
         else:
             raise Exception("can't change activation until after compile")
 
+    def get_weights_as_image(self, layer_name, colormap=None):
+        """
+        Get the weights from the model.
+        """
+        from matplotlib import cm
+        import PIL
+        weights = [layer.get_weights() for layer in self.model.layers
+                   if layer_name == layer.name][0]
+        weights = weights[0] # get the weight matrix, not the biases
+        vector = self[layer_name].scale_output_for_image(weights, (-5,5), truncate=True)
+        if len(vector.shape) == 1:
+            vector = vector.reshape((1, vector.shape[0]))
+        size = self.config["pixels_per_unit"]
+        new_width = vector.shape[0] * size # in, pixels
+        new_height = vector.shape[1] * size # in, pixels
+        if colormap is None:
+            colormap = get_colormap() if self[layer_name].colormap is None else self[layer_name].colormap
+        try:
+            cm_hot = cm.get_cmap(colormap)
+        except:
+            cm_hot = cm.get_cmap("RdGy")
+        vector = cm_hot(vector)
+        vector = np.uint8(vector * 255)
+        image = PIL.Image.fromarray(vector)
+        image = image.resize((new_height, new_width))
+        return image
+
     def get_weights(self, layer_name):
         """
         Get the weights from the model in an easy to read format.
@@ -941,21 +969,24 @@ class Network():
                 output_layer_names = [output_layer_names]
         outputs = []
         for output_layer_name in output_layer_names:
-            path = topological_sort(self, self[layer_name].outgoing_connections)
-            # Make a new Input to start here:
-            input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
-            # So that we can display activations here:
-            self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
-                                                                               outputs=k)
-            for layer in path: # FIXME: this should be a straight path between incoming and outgoing
-                k = layer.keras_layer(k)
-                self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
-                                                                                   outputs=k)
+            if (layer_name, output_layer_name) not in self.prop_from_dict:
+                path = topological_sort(self, self[layer_name].outgoing_connections)
+                # Make a new Input to start here:
+                input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
+                # So that we can display activations here:
+                if (layer_name, layer_name) not in self.prop_from_dict:
+                    self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
+                                                                                       outputs=k)
+                for layer in path: # FIXME: this should be a straight path between incoming and outgoing
+                    k = layer.keras_layer(k)
+                    if (layer_name, layer.name) not in self.prop_from_dict:
+                        self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
+                                                                                           outputs=k)
             # Now we should be able to get the prop_from model:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
-            ## FIXME: outputs not shaped
+            ## FYI: outputs not shaped
         if visualize and get_ipython():
             if not self._comm:
                 from ipykernel.comm import Comm
@@ -965,7 +996,7 @@ class Network():
                 for layer in topological_sort(self, [self[layer_name]]):
                     model = self.prop_from_dict[(layer_name, layer.name)]
                     vector = model.predict(inputs)[0]
-                    ## FIXME: outputs not shaped
+                    ## FYI: outputs not shaped
                     image = layer.make_image(vector, config=self.config)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
@@ -1104,14 +1135,13 @@ class Network():
     def propagate_to_plot(self, output_layer, output_index,
                           input_layer, input_index1, input_index2,
                           colormap=None, default_input_value=0,
-                          resolution=None, act_range=None,
-                          showloop=False): # temporary
+                          resolution=None, act_range=None):
         if colormap is None: colormap = get_colormap()
         from .graphs import plot_activations
         return plot_activations(self, output_layer, output_index,
                                 input_layer, input_index1, input_index2,
-                                colormap, default_input_value, resolution, act_range,
-                                showloop) # temporary
+                                colormap, default_input_value, resolution, act_range)
+
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
              title=None, svg=False):
         """Plots the current network history for the specific epoch range and
