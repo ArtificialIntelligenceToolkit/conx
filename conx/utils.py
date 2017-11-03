@@ -96,6 +96,33 @@ def binary(i, width):
     b = [int(c) for c in bs]
     return b
 
+def find_path(net, start_layer, end_layer):
+    """
+    Given a conx network, a start layer, and an ending
+    layer, find the path between them.
+    """
+    ## FIXME: doesn't work with merges.
+    queue = [start_layer]
+    get_to = {} # get to key from value
+    found = False
+    while queue:
+        current = queue.pop(0) # BFS
+        if current == end_layer:
+            found = True
+            break
+        else:
+            expand = [layer.name for layer in net[current].outgoing_connections]
+            for layer_name in expand:
+                if layer_name not in get_to:
+                    get_to[layer_name] = current
+                    queue.append(layer_name)
+    if found:
+        retval = []
+        while current != start_layer:
+            retval.append(net[current])
+            current = get_to[current]
+        return reversed(retval)
+
 def topological_sort(net, layers):
     """
     Given a conx network and list of layers, produce a topological

@@ -970,7 +970,7 @@ class Network():
         outputs = []
         for output_layer_name in output_layer_names:
             if (layer_name, output_layer_name) not in self.prop_from_dict:
-                path = topological_sort(self, self[layer_name].outgoing_connections)
+                path = find_path(self, layer_name, output_layer_name)
                 # Make a new Input to start here:
                 input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
                 # So that we can display activations here:
