@@ -167,9 +167,22 @@ def autoname(index, sizes):
 def valid_shape(x):
     """
     Is this a valid shape for Keras layers?
+
+    >>> valid_shape(1)
+    True
+    >>> valid_shape(None)
+    True
+    >>> valid_shape((1,))
+    True
+    >>> valid_shape((None, ))
+    True
     """
-    return isinstance(x, numbers.Integral) and x > 0 \
-        or isinstance(x, (tuple, list)) and len(x) > 1 and all([isinstance(n, numbers.Integral) and n > 0 for n in x])
+    return ((isinstance(x, numbers.Integral) and (x > 0)) or
+            (x is None) or
+            (isinstance(x, (tuple, list)) and
+             (len(x) > 0) and
+             all([((isinstance(n, numbers.Integral) and (n > 0)) or
+                   (n is None)) for n in x])))
 
 def valid_vshape(x):
     """

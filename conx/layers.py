@@ -360,13 +360,16 @@ class Layer(_BaseLayer):
         if not valid_shape(shape):
             raise Exception('bad shape: %s' % (shape,))
         # set layer topology (shape) and number of units (size)
-        if isinstance(shape, numbers.Integral):
+        if isinstance(shape, numbers.Integral) or shape is None:
             self.shape = (shape,)
             self.size = shape
         else:
             # multi-dimensional layer
             self.shape = shape
-            self.size = reduce(operator.mul, shape)
+            if all([isinstance(n, numbers.Integral) for n in shape]):
+                self.size = reduce(operator.mul, shape)
+            else:
+                self.size = None # can't compute size because some dim are None
 
         if 'activation' in params:
             act = params['activation']

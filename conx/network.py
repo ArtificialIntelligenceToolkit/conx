@@ -1231,6 +1231,11 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
+        if "no_acc" in kwargs: # debugging
+            del kwargs["no_acc"]
+            no_acc = True
+        else:
+            no_acc = False
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
@@ -1265,7 +1270,8 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        kwargs['metrics'] = [self.acc]
+        if not no_acc:
+            kwargs['metrics'] = [self.acc]
         ## FIXME: this should be an explicit list of
         ## valid options and their values (like in train()):
         self.compile_options = copy.copy(kwargs)
