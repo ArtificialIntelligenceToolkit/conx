@@ -1066,7 +1066,10 @@ class Network():
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
         shape = self[layer_name].shape
-        outputs = outputs[0].reshape(shape).tolist()
+        if shape and all([isinstance(v, numbers.Integral) for v in shape]):
+            outputs = outputs[0].reshape(shape).tolist()
+        else:
+            outputs[0].tolist()
         return outputs
 
     def _layer_has_features(self, layer_name):

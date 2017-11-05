@@ -137,6 +137,13 @@ class _BaseLayer():
         else:
             self.dropout = 0
 
+        if 'time_distributed' in params:
+            time_distributed = params['time_distributed']
+            del params["time_distributed"] # we handle time distributed wrappers
+            self.time_distributed = time_distributed
+        else:
+            self.time_distributed = False
+
         if 'activation' in params: # let's keep a copy of it
             self.activation = params["activation"]
             if not isinstance(self.activation, str):
@@ -197,7 +204,10 @@ class _BaseLayer():
         Make all Keras functions for this layer, including its own,
         dropout, etc.
         """
+        from keras.layers import TimeDistributed
         k = self.make_keras_function() # can override
+        if self.time_distributed:
+            k = TimeDistributed(k, name=self.name)
         if self.dropout > 0:
             return [k, keras.layers.Dropout(self.dropout)]
         else:
@@ -464,7 +474,10 @@ class EmbeddingLayer(Layer):
             ## other_layer must be an Input layer
             self.sequence_size = other_layer.size # get the input_length
             self.shape = (self.sequence_size, self.out_size)
-            self.size = self.sequence_size * self.out_size
+            if self.sequence_size:
+                self.size = self.sequence_size * self.out_size
+            else:
+                self.size = None
             self.vshape = (self.sequence_size, self.out_size)
             other_layer.size = (None,)  # poke in this otherwise invalid size
             other_layer.shape = (self.sequence_size,)  # poke in this shape
@@ -488,7 +501,7 @@ def process_class_docstring(docstring):
 ## Al of these will have _BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
-    if name in ["Embedding", "Input", "Dense"]: continue
+    if name in ["Embedding", "Input", "Dense", "TimeDistributed"]: continue
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         docstring = obj.__doc__
