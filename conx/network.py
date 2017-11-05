@@ -697,10 +697,14 @@ class Network():
                 inputs = self.dataset._inputs[:length]
             else:
                 inputs = [column[:length] for column in self.dataset._inputs]
-        values = self.model.evaluate(inputs, targets, verbose=0)
-        results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
+        if self.history:
+            results = self.history[-1]
+        else:
+            values = self.model.evaluate(inputs, targets, verbose=0)
+            if not isinstance(values, list): # if metrics is just a single value
+                values = [values]
+            results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
         results_acc = self._compute_result_acc(results)
-        ## Let's test first to see if we need to train:
         if use_validation_to_stop:
             if ((self.dataset._split > 0.0) and
                 ((accuracy is not None) or (error is not None))):
@@ -1143,7 +1147,7 @@ class Network():
         return plot_activations(self, from_layer, from_units, to_layer, to_unit,
                                 colormap, default_from_layer_value, resolution,
                                 act_range, show_values)
-        
+
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
              title=None, svg=False):
         """Plots the current network history for the specific epoch range and
@@ -1234,6 +1238,8 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
+        if "loss" in kwargs and kwargs["loss"] == 'sparse_categorical_crossentropy':
+            raise Exception("'sparse_categorical_crossentropy' is not a valid error metric in conx; use 'categorical_crossentropy' with proper targets")
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
