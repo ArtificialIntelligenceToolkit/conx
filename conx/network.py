@@ -386,6 +386,10 @@ class Network():
                 print("WARNING: connected multi-dimensional input layer '%s' to layer '%s'; consider adding a FlattenLayer between them" % (
                     from_layer.name, to_layer.name), file=sys.stderr)
             to_layer.incoming_connections.append(from_layer)
+            ## Post connection hooks:
+            to_layer.on_connect("to", from_layer)
+            from_layer.on_connect("from", to_layer)
+            ## Compute input/target layers:
             input_layers = [layer for layer in self.layers if layer.kind() == "input"]
             self.num_input_layers = len(input_layers)
             target_layers = [layer for layer in self.layers if layer.kind() == "output"]
@@ -401,7 +405,7 @@ class Network():
         for layer in self.layers:
             layer.summary()
 
-    def reset(self, **overrides):
+    def reset(self, clear=False, **overrides):
         """
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
@@ -415,9 +419,8 @@ class Network():
                 np.random.seed(self.seed)
                 del overrides["seed"]
             # Compile the whole model again:
-            for key in overrides:
-                if key not in self.compile_options:
-                    raise Exception("Unknown compile option: %s" % key)
+            if clear:
+                self.compile_options = {}
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
 
@@ -1231,11 +1234,6 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
-        if "no_acc" in kwargs: # debugging
-            del kwargs["no_acc"]
-            no_acc = True
-        else:
-            no_acc = False
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
@@ -1270,10 +1268,10 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        if not no_acc:
-            kwargs['metrics'] = [self.acc]
-        ## FIXME: this should be an explicit list of
-        ## valid options and their values (like in train()):
+        if "metrics" in kwargs and kwargs["metrics"] is not None:
+            pass ## ok allow override
+        else:
+            kwargs['metrics'] = [self.acc] ## the default
         self.compile_options = copy.copy(kwargs)
         self.model.compile(**kwargs)
         # set each conx layer to point to corresponding keras model layer

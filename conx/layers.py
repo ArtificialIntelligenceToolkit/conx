@@ -145,6 +145,12 @@ class _BaseLayer():
         self.incoming_connections = []
         self.outgoing_connections = []
 
+    def on_connect(self, relation, other_layer):
+        """
+        relation is "to"/"from" indicating which layer self is.
+        """
+        pass
+
     def __repr__(self):
         return "<%s name='%s'>" % (self.CLASS.__name__, self.name)
 
@@ -397,7 +403,6 @@ class Layer(_BaseLayer):
         """
         For all Keras-based functions. Returns the Keras class.
         """
-        ## This is only for Dense:
         return self.CLASS(self.size, **self.params)
 
 class ImageLayer(Layer):
@@ -435,6 +440,38 @@ class ImageLayer(Layer):
                           self.depth)
         return PIL.Image.fromarray(v)
 
+class EmbeddingLayer(Layer):
+    """
+    A class for embeddings. WIP.
+    """
+    def __init__(self, name, in_size, out_size, **params):
+        super().__init__(name, in_size, **params)
+        if self.vshape is None:
+            self.vshape = self.shape
+        self.in_size = in_size
+        self.out_size = out_size
+        self.sequence_size = None # get filled in on_connect
+
+    def make_keras_function(self):
+        from keras.layers import Embedding as KerasEmbedding
+        return KerasEmbedding(self.in_size, self.out_size, input_length=self.sequence_size, **self.params)
+
+    def on_connect(self, relation, other_layer):
+        """
+        relation is "to"/"from" indicating which layer self is.
+        """
+        if relation == "to":
+            ## other_layer must be an Input layer
+            self.sequence_size = other_layer.size # get the input_length
+            self.shape = (self.sequence_size, self.out_size)
+            self.size = self.sequence_size * self.out_size
+            self.vshape = (self.sequence_size, self.out_size)
+            other_layer.size = (None,)  # poke in this otherwise invalid size
+            other_layer.shape = (self.sequence_size,)  # poke in this shape
+            other_layer.params["dtype"] = "int32" # assume ints
+            other_layer.make_dummy_vector = lambda v=0.0: np.zeros(self.sequence_size) * v
+            other_layer.minmax = (0, self.in_size)
+
 def process_class_docstring(docstring):
     docstring = re.sub(r'\n    # (.*)\n',
                        r'\n    __\1__\n\n',
@@ -451,6 +488,7 @@ def process_class_docstring(docstring):
 ## Al of these will have _BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
+    if name in ["Embedding", "Input", "Dense"]: continue
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         docstring = obj.__doc__
@@ -465,6 +503,5 @@ for (name, obj) in inspect.getmembers(keras_module):
                                   {"CLASS": obj,
                                    "__doc__": docstring})
 
-## Overwrite, or make more specific versions manually:
-InputLayer = Layer # overwrites Keras InputLayer
 DenseLayer = Layer # for consistency
+InputLayer = Layer # for consistency
