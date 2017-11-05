@@ -17,6 +17,7 @@ Welcome to conx's documentation!
    XOR
    Autoencoder
    MNIST
+   Predicting and Generating Texts
    LSTM
    CIFAR10_CNN
    MovingFromKeras
