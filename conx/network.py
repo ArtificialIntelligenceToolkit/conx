@@ -938,9 +938,13 @@ class Network():
         ## Shape the outputs:
         if self.num_target_layers == 1:
             shape = self[self.output_bank_order[0]].shape
-            outputs = outputs[0].reshape(shape).tolist()
+            try:
+                outputs = outputs[0].reshape(shape).tolist()
+            except:
+                outputs = outputs[0].tolist()  # can't reshape; maybe a dynamically changing output
         else:
             shapes = [self[layer_name].shape for layer_name in self.output_bank_order]
+            ## FIXME: may not be able to reshape; dynamically changing output
             outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
         if visualize and get_ipython():
             if not self._comm:
@@ -1067,7 +1071,10 @@ class Network():
         ## Shape the outputs:
         shape = self[layer_name].shape
         if shape and all([isinstance(v, numbers.Integral) for v in shape]):
-            outputs = outputs[0].reshape(shape).tolist()
+            try:
+                outputs = outputs[0].reshape(shape).tolist()
+            except:
+                outputs = outputs[0].tolist()
         else:
             outputs[0].tolist()
         return outputs
