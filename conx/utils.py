@@ -51,6 +51,37 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
+def choice(seq, p=None):
+    """
+    Get a random choice from sequence, optinally given a probability
+    distribution.
+
+    >>> choice(1)
+    0
+
+    >>> choice([42])
+    42
+
+    >>> choice("abcde", p=[0, 1, 0, 0, 0])
+    'b'
+    """
+    ## Allow seq to be a number:
+    if isinstance(seq, numbers.Real):
+        seq = range(int(seq))
+    if p is not None:
+        # Make sure that it sums to 1.0
+        # or else np.random.choice will crash
+        total = sum(p)
+        p = [item/total for item in p]
+    pick = np.random.choice(len(seq), 1, p=p)[0]
+    return seq[pick]
+
+def argmax(seq):
+    """
+    Find the index of the maximum value in seq.
+    """
+    return np.argmax(seq)
+
 def image2array(image):
     """
     Convert a PIL.Image into a numpy array.
