@@ -583,8 +583,6 @@ class Network():
             >>> net.dataset._num_target_banks
             2
         """
-        if len(self.dataset.inputs) == 0:
-            raise Exception("need to set dataset")
         if isinstance(inputs, dict):
             inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
