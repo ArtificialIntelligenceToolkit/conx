@@ -1141,6 +1141,121 @@ class Network():
                                 colormap, default_from_layer_value, resolution,
                                 act_range, show_values)
         
+    def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
+                           cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3)):
+        """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
+        or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
+        value of the weight matrix is used. wrange overrides provided wmin/wmax values. ticks
+        is the number of colorbar ticks displayed.  cbar=False turns off the colorbar.  units
+        can be a single unit index number or a list/tuple/range of indices.
+        """
+        if self[layer_name] is None:
+            raise Exception("unknown layer: %s" % (layer_name,))
+        if units == 'all':
+            units = list(range(self[layer_name].size))
+        elif isinstance(units, numbers.Integral):
+            units = [units]
+        elif not isinstance(units, (list, tuple, range)) or len(units) == 0:
+            raise Exception("units: expected an int or sequence of ints, but got %s" % (units,))
+        for unit in units:
+            if not 0 <= unit < self[layer_name].size:
+                raise Exception("no such unit: %s" % (unit,))
+        W, b = self[layer_name].keras_layer.get_weights()
+        W = W.transpose()
+        to_size, from_size = W.shape
+        if vshape is None:
+            rows, cols = 1, from_size
+        elif not isinstance(vshape, (list, tuple)) or len(vshape) != 2 \
+           or not isinstance(vshape[0], numbers.Integral) \
+           or not isinstance(vshape[1], numbers.Integral):
+            raise Exception("vshape: expected a pair of ints but got %s" % (vshape,))
+        else:
+            rows, cols = vshape
+        if rows*cols != from_size:
+            raise Exception("vshape %s is incompatible with the number of incoming weights to each %s unit (%d)"
+                            % (vshape, layer_name, from_size))
+        aspect_ratio = max(rows,cols)/min(rows,cols)
+        #print("aspect_ratio is", aspect_ratio)
+        if aspect_ratio > 50:   # threshold may need further refinement
+            print("WARNING: using a visual display shape of (%d, %d), which may be hard to see."
+                  % (rows, cols))
+            print("You can use vshape=(rows, cols) to specify a different display shape.")
+        if not isinstance(wmin, (numbers.Number, type(None))):
+            raise Exception("wmin: expected a number or None but got %s" % (wmin,))
+        if not isinstance(wmax, (numbers.Number, type(None))):
+            raise Exception("wmax: expected a number or None but got %s" % (wmax,))
+        if wrange is None:
+            if wmin is None:
+                wmin = np.min(W)
+                wmin_label = '0' if wmin == 0 else '%+.2f' % (wmin,)
+            else:
+                wmin_label = r'$\leq$ 0' if wmin == 0 else r'$\leq$ %+.2f' % (wmin,)
+            if wmax is None:
+                wmax = np.max(W)
+                wmax_label = '0' if wmax == 0 else '%+.2f' % (wmax,)
+            else:
+                wmax_label = r'$\geq$ 0' if wmax == 0 else r'$\geq$ %+.2f' % (wmax,)
+        elif not isinstance(wrange, (list, tuple)) or len(wrange) != 2 \
+             or not isinstance(wrange[0], (numbers.Number, type(None))) \
+             or not isinstance(wrange[1], (numbers.Number, type(None))):
+            raise Exception("wrange: expected a pair of numbers but got %s" % (wrange,))
+        else: # wrange overrides provided wmin/wmax values
+            wmin, wmax = wrange
+            return self.plot_layer_weights(layer_name, units, None, wmin, wmax, cmap, vshape,
+                                           cbar, ticks, figsize)
+        if wmin >= wmax:
+            raise Exception("specified weight range is empty")
+        if not isinstance(ticks, numbers.Integral) or ticks < 2:
+            raise Exception("invalid number of colorbar ticks: %s" % (ticks,))
+        # clip weights to the range [wmin, wmax] and normalize to [0, 1]:
+        scaled_W = (np.clip(W, wmin, wmax) - wmin) / (wmax - wmin)
+        # FIXME: need a better way to set the figure size
+        fig, axes = plt.subplots(1, len(units), figsize=figsize)#, tight_layout=True)
+        if len(units) == 1:
+            axes = [axes]
+        for unit, ax in zip(units, axes):
+            ax.axis('off')
+            ax.set_title('weights to %s[%d]' % (layer_name, unit))
+            im = scaled_W[unit,:].reshape((rows, cols))
+            axim = ax.imshow(im, cmap=cmap, vmin=0, vmax=1)
+        if cbar:
+            tick_locations = np.linspace(0, 1, ticks)
+            tick_values = tick_locations * (wmax - wmin) + wmin
+            colorbar = fig.colorbar(axim, ticks=tick_locations)
+            cbar_labels = ['0' if t == 0 else '%+.2f' % (t,) for t in tick_values]
+            cbar_labels[0] = wmin_label
+            cbar_labels[-1] = wmax_label
+            colorbar.ax.set_yticklabels(cbar_labels)
+        plt.show(block=False)
+
+    def show_unit_weights(self, layer_name, unit, vshape=None, ascii=False):
+        if self[layer_name] is None:
+            raise Exception("unknown layer: %s" % (layer_name,))
+        W, b = self[layer_name].keras_layer.get_weights()
+        W = W.transpose()
+        to_size, from_size = W.shape
+        if vshape is None:
+            rows, cols = 1, from_size
+        elif not isinstance(vshape, (list, tuple)) or len(vshape) != 2 \
+           or not isinstance(vshape[0], numbers.Integral) \
+           or not isinstance(vshape[1], numbers.Integral):
+            raise Exception("vshape: expected a pair of ints but got %s" % (vshape,))
+        else:
+            rows, cols = vshape
+        if rows*cols != from_size:
+            raise Exception("vshape %s is incompatible with the number of incoming weights to each %s unit (%d)"
+                            % (vshape, layer_name, from_size))
+        weights = W[unit].reshape((rows,cols))
+        for r in range(rows):
+            for c in range(cols):
+                w = weights[r][c]
+                if ascii:
+                    ch = ' ' if w <= 0 else '.' if w < 0.50 else 'o' if w < 0.75 else '@'
+                    print(ch, end=" ")
+                else:
+                    print('%5.2f' % (w,), end=" ")
+            print()
+
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
              title=None, svg=False):
         """Plots the current network history for the specific epoch range and
@@ -1178,7 +1293,7 @@ class Network():
         else:
             print("expected a list or a string")
             return
-        plt.ion()
+        #plt.ion()
         fig = plt.figure()
         ax = fig.add_subplot(111)
         x_values = range(self.epoch_count+1)
@@ -1213,7 +1328,7 @@ class Network():
             plt.close(fig)
             return SVG(img_bytes.decode())
         else:
-            plt.show(fig)
+            plt.show(block=False)
 
     def compile(self, **kwargs):
         """
