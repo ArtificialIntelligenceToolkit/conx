@@ -395,8 +395,6 @@ class _DataVector():
                 self.item, length)
 
 class Dataset():
-    DATASETS = ['mnist', 'cifar10', 'cifar100']
-
     """
     Contains the dataset, and metadata about it.
 
@@ -407,6 +405,14 @@ class Dataset():
         """
         Dataset constructor requires a network.
         """
+        self.DATASETS = {
+            'mnist': self._get_mnist,
+            'cifar10': self._get_cifar10,
+            'cifar100': self._get_cifar100,
+            'cmu_faces_full_size': self._get_cmu_faces_full_size,
+            'cmu_faces_half_size': self._get_cmu_faces_half_size,
+            'cmu_faces_quarter_size': self._get_cmu_faces_quarter_size,
+        }
         self._num_input_banks = 0
         self._num_target_banks = 0
         self.clear()
@@ -678,20 +684,60 @@ class Dataset():
         inputs /= 255
         self.load_direct(inputs, targets, labels)
 
-    def get(self, dataset_name=None):
+    def _get_cmu_faces_full_size(self, path="cmu_faces_full_size.npz"):
+        inputs, labels = self._load_dataset_npz(
+            path,
+            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_full_size.npz")
+        self._process_face_data(inputs, labels)
+
+    def _get_cmu_faces_quarter_size(self, path="cmu_faces_quarter_size.npz"):
+        inputs, labels = self._load_dataset_npz(
+            path,
+            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_quarter_size.npz")
+        self._process_face_data(inputs, labels)
+
+    def _get_cmu_faces_half_size(self, path="cmu_faces_half_size.npz"):
+        inputs, labels = self._load_dataset_npz(
+            path,
+            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_half_size.npz")
+        self._process_face_data(inputs, labels)
+
+    def _process_face_data(self, inputs, labels):
+        targets = self._create_pose_targets(labels)
+        # shuffle dataset
+        shuffle = np.random.permutation(len(inputs))
+        inputs, targets = inputs[shuffle], targets[shuffle]
+        self.load_direct(inputs, targets)
+
+    def _load_dataset_npz(self, path, url):
+        """loads a normed face dataset file and returns a numpy array of shape
+        (num, vector_size) with dtype float32, and an array of label strings
+        """
+        from keras.utils import get_file
+        path = get_file(path, origin=url)
+        f = np.load(path)
+        images, labels = f['data'], f['labels']
+        num_images, height, width = images.shape
+        inputs = images.reshape((num_images, height*width))
+        return inputs, labels
+
+    def _create_pose_targets(self, labels):
+        """converts a list of label strings to one-hot pose target vectors"""
+        pose_names = ['left', 'forward', 'up', 'right']
+        make_target_vector = lambda x: [int(x == name) for name in pose_names]
+        poses = [s.split('_')[1] for s in labels]
+        return np.array([make_target_vector(p) for p in poses]).astype('uint8')
+        
+    def get(self, dataset_name=None, *args, **kwargs):
         """
         Get a known dataset by name.
         """
-        if dataset_name == "mnist":
-            self._get_mnist()
-        elif dataset_name == "cifar10":
-            self._get_cifar10()
-        elif dataset_name == "cifar100":
-            self._get_cifar100()
+        if dataset_name in self.DATASETS:
+            self.DATASETS[dataset_name](*args, **kwargs)
         else:
             raise Exception(
                 ("unknown dataset name '%s': should be one of %s" %
-                 (dataset_name, Dataset.DATASETS)))
+                 (dataset_name, list(self.DATASETS.keys()))))
 
     def copy(self, dataset):
         """
