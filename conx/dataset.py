@@ -176,6 +176,12 @@ def get_shape(form):
     else:
         return [get_shape(x) for x in form]
 
+def shape(item):
+    """
+    Shortcut for get_shape(get_form(item)).
+    """
+    return tuple(get_shape(get_form(item))[1])
+
 class _DataVector():
     """
     Class to make internal Keras numpy arrays look like

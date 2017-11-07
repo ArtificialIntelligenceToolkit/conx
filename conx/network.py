@@ -386,6 +386,10 @@ class Network():
                 print("WARNING: connected multi-dimensional input layer '%s' to layer '%s'; consider adding a FlattenLayer between them" % (
                     from_layer.name, to_layer.name), file=sys.stderr)
             to_layer.incoming_connections.append(from_layer)
+            ## Post connection hooks:
+            to_layer.on_connect("to", from_layer)
+            from_layer.on_connect("from", to_layer)
+            ## Compute input/target layers:
             input_layers = [layer for layer in self.layers if layer.kind() == "input"]
             self.num_input_layers = len(input_layers)
             target_layers = [layer for layer in self.layers if layer.kind() == "output"]
@@ -401,7 +405,7 @@ class Network():
         for layer in self.layers:
             layer.summary()
 
-    def reset(self, **overrides):
+    def reset(self, clear=False, **overrides):
         """
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
@@ -415,9 +419,8 @@ class Network():
                 np.random.seed(self.seed)
                 del overrides["seed"]
             # Compile the whole model again:
-            for key in overrides:
-                if key not in self.compile_options:
-                    raise Exception("Unknown compile option: %s" % key)
+            if clear:
+                self.compile_options = {}
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
 
@@ -580,8 +583,6 @@ class Network():
             >>> net.dataset._num_target_banks
             2
         """
-        if len(self.dataset.inputs) == 0:
-            raise Exception("need to set dataset")
         if isinstance(inputs, dict):
             inputs = [inputs[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -694,10 +695,14 @@ class Network():
                 inputs = self.dataset._inputs[:length]
             else:
                 inputs = [column[:length] for column in self.dataset._inputs]
-        values = self.model.evaluate(inputs, targets, verbose=0)
-        results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
+        if self.history:
+            results = self.history[-1]
+        else:
+            values = self.model.evaluate(inputs, targets, verbose=0)
+            if not isinstance(values, list): # if metrics is just a single value
+                values = [values]
+            results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
         results_acc = self._compute_result_acc(results)
-        ## Let's test first to see if we need to train:
         if use_validation_to_stop:
             if ((self.dataset._split > 0.0) and
                 ((accuracy is not None) or (error is not None))):
@@ -931,9 +936,13 @@ class Network():
         ## Shape the outputs:
         if self.num_target_layers == 1:
             shape = self[self.output_bank_order[0]].shape
-            outputs = outputs[0].reshape(shape).tolist()
+            try:
+                outputs = outputs[0].reshape(shape).tolist()
+            except:
+                outputs = outputs[0].tolist()  # can't reshape; maybe a dynamically changing output
         else:
             shapes = [self[layer_name].shape for layer_name in self.output_bank_order]
+            ## FIXME: may not be able to reshape; dynamically changing output
             outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
         if visualize and get_ipython():
             if not self._comm:
@@ -1059,7 +1068,13 @@ class Network():
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
         shape = self[layer_name].shape
-        outputs = outputs[0].reshape(shape).tolist()
+        if shape and all([isinstance(v, numbers.Integral) for v in shape]):
+            try:
+                outputs = outputs[0].reshape(shape).tolist()
+            except:
+                outputs = outputs[0].tolist()
+        else:
+            outputs[0].tolist()
         return outputs
 
     def _layer_has_features(self, layer_name):
@@ -1346,6 +1361,8 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
+        if "loss" in kwargs and kwargs["loss"] == 'sparse_categorical_crossentropy':
+            raise Exception("'sparse_categorical_crossentropy' is not a valid error metric in conx; use 'categorical_crossentropy' with proper targets")
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
             if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
@@ -1380,9 +1397,10 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        kwargs['metrics'] = [self.acc]
-        ## FIXME: this should be an explicit list of
-        ## valid options and their values (like in train()):
+        if "metrics" in kwargs and kwargs["metrics"] is not None:
+            pass ## ok allow override
+        else:
+            kwargs['metrics'] = [self.acc] ## the default
         self.compile_options = copy.copy(kwargs)
         self.model.compile(**kwargs)
         # set each conx layer to point to corresponding keras model layer

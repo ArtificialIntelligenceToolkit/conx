@@ -101,3 +101,11 @@ To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.
 ## Examples
 
 See the [notebooks folder](https://github.com/Calysto/conx/tree/master/notebooks) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
+
+## Differences with Keras
+
+1. Conx does not allow targets to be a single value. Keras will
+automatically turn single values into a onehot encoded vectors. In
+conx, you should just convert such "labels" into their encodings
+before training.
+
