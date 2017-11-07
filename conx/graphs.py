@@ -126,10 +126,10 @@ def plot_activations(net, from_layer, from_units, to_layer, to_unit,
     ax.set_yticks([i*(ypixels-1)/4 for i in range(5)])
     ax.set_yticklabels([ymin+i*yspan/4 for i in range(5)])
     cbar = fig.colorbar(axim)
-    plt.show()
+    plt.show(block=False)
     # optionally print out a table of activation values
     if show_values:
-        s = ''
+        s = '\n'
         for y in np.linspace(act_max, act_min, 20):
             for x in np.linspace(act_min, act_max, 20):
                 vector = [default_from_layer_value] * net[from_layer].size
@@ -139,10 +139,10 @@ def plot_activations(net, from_layer, from_units, to_layer, to_unit,
                 s += '%4.2f ' % out
             s += '\n'
         separator = 100 * '-'
+        s += separator
         print("%s\nActivation of %s[%d] as a function of %s[%d] and %s[%d]" %
               (separator, to_layer, to_unit, from_layer, ix, from_layer, iy))
         print("rows: %s[%d] decreasing from %.2f to %.2f" % (from_layer, iy, act_max, act_min))
         print("cols: %s[%d] increasing from %.2f to %.2f" % (from_layer, ix, act_min, act_max))
         print(s)
-        print(separator)
 
