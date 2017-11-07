@@ -287,7 +287,7 @@ class Network():
 
     def _repr_html_(self):
         if all([layer.model for layer in self.layers]):
-            return self.build_svg(opts={"svg_height": "100%"}) ## will fill width
+            return self.build_svg(opts={"svg_height": "780px"}) ## will fill width
         else:
             return None
 

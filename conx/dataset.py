@@ -32,6 +32,8 @@ import keras
 from keras.utils import to_categorical
 
 from .utils import valid_shape, onehot, binary
+import conx.datasets
+import inspect
 
 def atype(dtype):
     """
@@ -323,12 +325,16 @@ class _DataVector():
         (1, 2, 5)
         """
         if self.item == "targets":
-            if self.dataset._num_target_banks == 1:
+            if self.dataset._num_target_banks == 0:
+                raise Exception("need to connect network first")
+            elif self.dataset._num_target_banks == 1:
                 self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
             else:
                 self.dataset._targets = [[c.flatten() for c in row] for row in self.dataset_targets]
         elif self.item == "inputs":
-            if self.dataset._num_target_banks == 1:
+            if self.dataset._num_input_banks == 0:
+                raise Exception("need to connect network first")
+            elif self.dataset._num_input_banks == 1:
                 self.dataset._inputs = np.array([row.flatten() for row in self.dataset._inputs])
             else:
                 self.dataset._inputs = [[c.flatten() for c in row] for row in self.dataset_inputs]
@@ -405,14 +411,8 @@ class Dataset():
         """
         Dataset constructor requires a network.
         """
-        self.DATASETS = {
-            'mnist': self._get_mnist,
-            'cifar10': self._get_cifar10,
-            'cifar100': self._get_cifar100,
-            'cmu_faces_full_size': self._get_cmu_faces_full_size,
-            'cmu_faces_half_size': self._get_cmu_faces_half_size,
-            'cmu_faces_quarter_size': self._get_cmu_faces_quarter_size,
-        }
+        self.DATASETS = {name: function for (name, function) in
+                         inspect.getmembers(conx.datasets, inspect.isfunction)}
         self._num_input_banks = 0
         self._num_target_banks = 0
         self.clear()
@@ -674,66 +674,12 @@ class Dataset():
             self._targets.extend(targets)
         self._cache_values()
 
-    def _get_cifar10(self):
-        from keras.datasets import cifar10
-        (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-        inputs = np.concatenate((x_train, x_test))
-        labels = np.concatenate((y_train, y_test))
-        targets = to_categorical(labels, 10)
-        inputs = inputs.astype('float32')
-        inputs /= 255
-        self.load_direct(inputs, targets, labels)
-
-    def _get_cmu_faces_full_size(self, path="cmu_faces_full_size.npz"):
-        inputs, labels = self._load_dataset_npz(
-            path,
-            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_full_size.npz")
-        self._process_face_data(inputs, labels)
-
-    def _get_cmu_faces_quarter_size(self, path="cmu_faces_quarter_size.npz"):
-        inputs, labels = self._load_dataset_npz(
-            path,
-            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_quarter_size.npz")
-        self._process_face_data(inputs, labels)
-
-    def _get_cmu_faces_half_size(self, path="cmu_faces_half_size.npz"):
-        inputs, labels = self._load_dataset_npz(
-            path,
-            "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_half_size.npz")
-        self._process_face_data(inputs, labels)
-
-    def _process_face_data(self, inputs, labels):
-        targets = self._create_pose_targets(labels)
-        # shuffle dataset
-        shuffle = np.random.permutation(len(inputs))
-        inputs, targets = inputs[shuffle], targets[shuffle]
-        self.load_direct(inputs, targets)
-
-    def _load_dataset_npz(self, path, url):
-        """loads a normed face dataset file and returns a numpy array of shape
-        (num, vector_size) with dtype float32, and an array of label strings
-        """
-        from keras.utils import get_file
-        path = get_file(path, origin=url)
-        f = np.load(path)
-        images, labels = f['data'], f['labels']
-        num_images, height, width = images.shape
-        inputs = images.reshape((num_images, height*width))
-        return inputs, labels
-
-    def _create_pose_targets(self, labels):
-        """converts a list of label strings to one-hot pose target vectors"""
-        pose_names = ['left', 'forward', 'up', 'right']
-        make_target_vector = lambda x: [int(x == name) for name in pose_names]
-        poses = [s.split('_')[1] for s in labels]
-        return np.array([make_target_vector(p) for p in poses]).astype('uint8')
-        
     def get(self, dataset_name=None, *args, **kwargs):
         """
         Get a known dataset by name.
         """
         if dataset_name in self.DATASETS:
-            self.DATASETS[dataset_name](*args, **kwargs)
+            self.DATASETS[dataset_name](self, *args, **kwargs)
         else:
             raise Exception(
                 ("unknown dataset name '%s': should be one of %s" %
@@ -747,45 +693,6 @@ class Dataset():
         self.load_direct(inputs=dataset._inputs,
                          targets=dataset._targets,
                          labels=dataset._labels)
-
-    def _get_cifar100(self):
-        from keras.datasets import cifar100
-        (x_train, y_train), (x_test, y_test) = cifar100.load_data()
-        inputs = np.concatenate((x_train, x_test))
-        labels = np.concatenate((y_train, y_test))
-        targets = to_categorical(labels, 100)
-        inputs = inputs.astype('float32')
-        inputs /= 255
-        self.load_direct(inputs, targets, labels)
-
-    def _get_mnist(self):
-        """
-        Load the Keras MNIST dataset and format it as images.
-        """
-        from keras.datasets import mnist
-        import keras.backend as K
-        # input image dimensions
-        img_rows, img_cols = 28, 28
-        # the data, shuffled and split between train and test sets
-        (x_train, y_train), (x_test, y_test) = mnist.load_data()
-        ## We need to convert the data to images, but which format?
-        ## We ask this Keras instance what it wants, and convert:
-        if K.image_data_format() == 'channels_first':
-            x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
-            x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
-            input_shape = (1, img_rows, img_cols)
-        else:
-            x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-            x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
-            input_shape = (img_rows, img_cols, 1)
-        x_train = x_train.astype('float32')
-        x_test = x_test.astype('float32')
-        x_train /= 255
-        x_test /= 255
-        inputs = np.concatenate((x_train,x_test))
-        labels = np.concatenate((y_train,y_test))
-        targets = to_categorical(labels)
-        self.load_direct(inputs, targets, labels)
 
     def slice(self, start=None, stop=None):
         """
@@ -1084,7 +991,9 @@ class Dataset():
         Get an input from the internal dataset and
         format it in the human API.
         """
-        if self._num_input_banks == 1:
+        if self._num_input_banks == 0:
+            raise Exception("need to connect network first")
+        elif self._num_input_banks == 1:
             return self._inputs[i].tolist()
         else:
             inputs = []
@@ -1097,7 +1006,9 @@ class Dataset():
         Get a target from the internal dataset and
         format it in the human API.
         """
-        if self._num_target_banks == 1:
+        if self._num_target_banks == 0:
+            raise Exception("need to connect network first")
+        elif self._num_target_banks == 1:
             return self._targets[i].tolist()
         else:
             targets = []
@@ -1110,7 +1021,9 @@ class Dataset():
         Get a training input from the internal dataset and
         format it in the human API.
         """
-        if self._num_input_banks == 1:
+        if self._num_input_banks == 0:
+            raise Exception("need to connect network first")
+        elif self._num_input_banks == 1:
             return self._inputs[i].tolist()
         else:
             inputs = []
@@ -1123,7 +1036,9 @@ class Dataset():
         Get a training target from the internal dataset and
         format it in the human API.
         """
-        if self._num_target_banks == 1:
+        if self._num_target_banks == 0:
+            raise Exception("need to connect network first")
+        elif self._num_target_banks == 1:
             return self._targets[i].tolist()
         else:
             targets = []

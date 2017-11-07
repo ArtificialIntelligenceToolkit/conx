@@ -18,6 +18,7 @@ Welcome to conx's documentation!
    Autoencoder
    MNIST
    Predicting and Generating Texts
+   Face recognition
    LSTM
    CIFAR10_CNN
    MovingFromKeras
