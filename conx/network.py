@@ -77,7 +77,7 @@ class PlotCallback(Callback):
 
     def on_epoch_end(self, epoch, results=None):
         from IPython.display import clear_output, display
-        if epoch % self.report_rate == 0:
+        if epoch == -1 or epoch % self.report_rate == 0:
             clear_output(wait=True)
             #display(self.network.plot(list(results.keys()), svg=True))
             display(self.network.plot_loss_acc(svg=True))
@@ -762,7 +762,8 @@ class Network():
         if error is not None:
             callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
         if plot:
-            callbacks.append(PlotCallback(self, report_rate))
+            pc = PlotCallback(self, report_rate)
+            callbacks.append(pc)
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -786,6 +787,8 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
                                         verbose=kverbose)
+            if plot and self.epoch_count % report_rate != 0:
+                pc.on_epoch_end(-1)
             if handler.interrupted:
                 interrupted = True
         last_epoch = self.history[-1]
