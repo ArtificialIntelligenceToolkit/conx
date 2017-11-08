@@ -77,9 +77,10 @@ class PlotCallback(Callback):
 
     def on_epoch_end(self, epoch, results=None):
         from IPython.display import clear_output, display
-        if epoch % self.report_rate == 0:
+        if epoch == -1 or epoch % self.report_rate == 0:
             clear_output(wait=True)
-            display(self.network.plot(list(results.keys()), svg=True))
+            #display(self.network.plot(list(results.keys()), svg=True))
+            display(self.network.plot_loss_acc(svg=True))
 
 class StoppingCriteria(Callback):
     def __init__(self, item, op, value, use_validation_to_stop):
@@ -761,7 +762,8 @@ class Network():
         if error is not None:
             callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
         if plot:
-            callbacks.append(PlotCallback(self, report_rate))
+            pc = PlotCallback(self, report_rate)
+            callbacks.append(pc)
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -785,6 +787,8 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
                                         verbose=kverbose)
+            if plot and self.epoch_count % report_rate != 0:
+                pc.on_epoch_end(-1)
             if handler.interrupted:
                 interrupted = True
         last_epoch = self.history[-1]
@@ -1271,10 +1275,18 @@ class Network():
                     print('%5.2f' % (w,), end=" ")
             print()
 
-    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='upper right',
+    def get_metrics(self):
+        """returns a list of the metrics available in the Network's history"""
+        metrics = set()
+        for epoch in self.history:
+            metrics = metrics.union(set(epoch.keys()))
+        return sorted(metrics)
+
+    def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
              title=None, svg=False):
         """Plots the current network history for the specific epoch range and
-        metrics. Metrics is a single string or a list of strings.
+        metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
+        if metrics is None, loss and accuracy are plotted on separate graphs.
 
         >>> net = Network("Plot Test", 1, 3, 1)
         >>> net.compile(error="mse", optimizer="rmsprop")
@@ -1283,7 +1295,7 @@ class Network():
         >>> net.train()  # doctest: +ELLIPSIS
         Training...
         ...
-        >>> net.plot()
+        >>> net.plot('?')
         Available metrics: acc, loss
         """
         ## https://matplotlib.org/api/markers_api.html
@@ -1293,37 +1305,34 @@ class Network():
         if len(self.history) == 0:
             print("No history available")
             return
-        if metrics in [None, 'all']:
-            options = set()
-            for epoch in self.history:
-                options = options.union(set(epoch.keys()))
-            if metrics is None:
-                print("Available metrics:", ", ".join(sorted(options)))
-                return
-            metrics = sorted(options)
-        elif type(metrics) is str:
+        if metrics is None:
+            return self.plot_loss_acc(svg=svg)
+        elif metrics is '?':
+            print("Available metrics:", ", ".join(self.get_metrics()))
+            return
+        elif metrics == 'all':
+            metrics = self.get_metrics()
+        elif isinstance(metrics, str):
             metrics = [metrics]
-        elif type(metrics) in [list, tuple]:
+        elif isinstance(metrics, (list, tuple)):
             pass
         else:
-            print("expected a list or a string")
+            print("metrics: expected a list or a string but got %s" % (metrics,))
             return
-        #plt.ion()
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
+        fig, ax = plt.subplots(1)
         x_values = range(self.epoch_count+1)
         x_values = x_values[start:end]
-        ax.set_xlabel('epoch')
-        found_something = False
+        ax.set_xlabel('Epoch')
+        data_found = False
         for metric in metrics:
             y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
             y_values = y_values[start:end]
             if y_values.count(None) == len(y_values):
-                print("WARNING: No %s data available for the specified epochs" % metric)
+                print("WARNING: No %s data available for the specified epochs" % (metric,))
             else:
                 ax.plot(x_values, y_values, label=metric)
-                found_something = True
-        if not found_something:
+                data_found = True
+        if not data_found:
             plt.close(fig)
             return
         if ymin is not None:
@@ -1335,6 +1344,44 @@ class Network():
         if title is None:
             title = self.name
         plt.title(title)
+        if svg:
+            from IPython.display import SVG
+            bytes = io.BytesIO()
+            plt.savefig(bytes, format='svg')
+            img_bytes = bytes.getvalue()
+            plt.close(fig)
+            return SVG(img_bytes.decode())
+        else:
+            plt.show(block=False)
+
+    def plot_loss_acc(self, svg=False):
+        """plots loss and accuracy on separate graphs, ignoring any other metrics"""
+        metrics = self.get_metrics()
+        if 'acc' in metrics or 'val_acc' in metrics:
+            fig, (loss_ax, acc_ax) = plt.subplots(1, 2, figsize=(10,4))
+        else:
+            fig, loss_ax = plt.subplots(1)
+            acc_ax = None
+        x_values = range(self.epoch_count+1)
+        for metric in metrics:
+            y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
+            if metric == 'loss':
+                loss_ax.plot(x_values, y_values, label='Training set')
+            elif metric == 'val_loss':
+                loss_ax.plot(x_values, y_values, label='Validation set')
+            elif metric == 'acc' and acc_ax is not None:
+                acc_ax.plot(x_values, y_values, label='Training set')
+            elif metric == 'val_acc' and acc_ax is not None:
+                acc_ax.plot(x_values, y_values, label='Validation set')
+        loss_ax.set_ylim(bottom=0)
+        loss_ax.set_title("%s: Loss" % (self.name,))
+        loss_ax.set_xlabel('Epoch')
+        loss_ax.legend(loc='best')
+        if acc_ax is not None:
+            acc_ax.set_ylim([-0.1, 1.1])
+            acc_ax.set_title("%s: Accuracy" % (self.name,))
+            acc_ax.set_xlabel('Epoch')
+            acc_ax.legend(loc='best')
         if svg:
             from IPython.display import SVG
             bytes = io.BytesIO()
