@@ -667,9 +667,16 @@ class Network():
             train_targets = self.dataset._targets[:i]
             test_inputs = self.dataset._inputs[i:]
             test_targets = self.dataset._targets[i:]
-        loss, acc = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
-        val_loss, val_acc = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
-        return {'loss':loss, 'acc':acc, 'val_loss':val_loss, 'val_acc':val_acc}
+        results = {}
+        if len(train_inputs) > 0:
+            eval_results = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
+            for i in range(len(self.model.metrics_names)):
+                results[self.model.metrics_names[i]] = eval_results[i]
+        if len(test_inputs) > 0:
+            eval_results = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
+            for i in range(len(self.model.metrics_names)):
+                results[self.model.metrics_names[i]] = eval_results[i]
+        return results
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
