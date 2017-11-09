@@ -58,29 +58,42 @@ except:
 #------------------------------------------------------------------------
 
 class ReportCallback(Callback):
-    def __init__(self, network, report_rate):
+    def __init__(self, network, report_rate, plot):
+        # plot is 'notebook', 'console', or None
         super().__init__()
         self.network = network
         self.report_rate = report_rate
+        self.plot = plot
 
     def on_epoch_end(self, epoch, results=None):
+        #print("in ReportCallback with epoch = %d" % epoch)
         self.network.history.append(results)
-        if epoch % self.report_rate == 0:
-            self.network.report_epoch(self.network.epoch_count, results)
         self.network.epoch_count += 1
+        #print("epoch_count is now", self.network.epoch_count)
+        #print("history is now", self.network.history)
+        if self.plot != 'notebook' and (epoch+1) % self.report_rate == 0:
+            self.network.report_epoch(self.network.epoch_count, results)
 
 class PlotCallback(Callback):
-    def __init__(self, network, report_rate):
+    def __init__(self, network, report_rate, plot):
+        # plot is 'notebook' or 'console'
         super().__init__()
         self.network = network
         self.report_rate = report_rate
+        self.plot = plot
+        self.figure = None
 
     def on_epoch_end(self, epoch, results=None):
-        from IPython.display import clear_output, display
-        if epoch == -1 or epoch % self.report_rate == 0:
-            clear_output(wait=True)
-            #display(self.network.plot(list(results.keys()), svg=True))
-            display(self.network.plot_loss_acc(svg=True))
+        #print("in PlotCallback with epoch = %d" % epoch)
+        if epoch == -1:
+            # training loop finished, so make a final update to plot
+            # in case the number of loop cycles wasn't a multiple of
+            # report_rate
+            self.network.plot_loss_acc(self, epoch)
+            if self.plot == 'notebook':
+                plt.close(self.figure[0])
+        elif (epoch+1) % self.report_rate == 0:
+            self.network.plot_loss_acc(self, epoch)
 
 class StoppingCriteria(Callback):
     def __init__(self, item, op, value, use_validation_to_stop):
@@ -637,6 +650,27 @@ class Network():
         else:
             raise Exception("attempting to find accuracy in results, but there aren't any")
 
+    def evaluate(self, batch_size=32):
+        if len(self.dataset.inputs) == 0:
+            raise Exception("no dataset loaded")
+        if self.dataset._split == 1.0:
+            # use entire dataset for both training and validation
+            train_inputs = self.dataset._inputs
+            train_targets = self.dataset._targets
+            test_inputs = self.dataset._inputs
+            test_targets = self.dataset._targets
+        else:
+            # split dataset into training and validation sets
+            size = len(self.dataset.inputs)
+            i = size - int(size * self.dataset._split)
+            train_inputs = self.dataset._inputs[:i]
+            train_targets = self.dataset._targets[:i]
+            test_inputs = self.dataset._inputs[i:]
+            test_targets = self.dataset._targets[i:]
+        loss, acc = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
+        val_loss, val_acc = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
+        return {'loss':loss, 'acc':acc, 'val_loss':val_loss, 'val_acc':val_acc}
+
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
@@ -663,6 +697,10 @@ class Network():
             "use_validation_to_stop": use_validation_to_stop,
             "plot": plot,
             }
+        if plot not in (None, 'console', 'notebook'):
+            raise Exception("plot must be one of: 'notebook', 'console', None")
+        if not isinstance(report_rate, numbers.Integral) or report_rate < 1:
+            raise Exception("bad report rate: %s" % (report_rate,))
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
         if epochs == 0: return
@@ -670,8 +708,8 @@ class Network():
             print("No training data available")
             return
         if use_validation_to_stop:
-            if (self.dataset._split == 0.0):
-                print("Attempting to use validation to stop, but Network.dataset.split() is 0.0")
+            if (self.dataset._split == 0):
+                print("Attempting to use validation to stop, but Network.dataset.split() is 0")
                 return
             elif ((accuracy is None) and (error is None)):
                 print("Attempting to use validation to stop, but neither accuracy nor error was set")
@@ -696,7 +734,7 @@ class Network():
                 inputs = self.dataset._inputs[:length]
             else:
                 inputs = [column[:length] for column in self.dataset._inputs]
-        if self.history:
+        if len(self.history) > 0:
             results = self.history[-1]
         else:
             values = self.model.evaluate(inputs, targets, verbose=0)
@@ -705,7 +743,7 @@ class Network():
             results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
         results_acc = self._compute_result_acc(results)
         if use_validation_to_stop:
-            if ((self.dataset._split > 0.0) and
+            if ((self.dataset._split > 0) and
                 ((accuracy is not None) or (error is not None))):
                 ## look at split, use validation subset:
                 if self.dataset._split == 1.0: ## special case; use entire set
@@ -750,19 +788,21 @@ class Network():
                 return
         ## Ok, now we know we need to train:
         if len(self.history) == 0:
-            self.history = [results]
+            self.history = [self.evaluate()] #[results]
         print("Training...")
+        if plot != 'notebook':
+            self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
         callbacks=[
             History(),
-            ReportCallback(self, report_rate),
+            ReportCallback(self, report_rate, plot),
         ]
         if accuracy is not None:
             callbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
         if error is not None:
             callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
-        if plot:
-            pc = PlotCallback(self, report_rate)
+        if plot is not None:
+            pc = PlotCallback(self, report_rate, plot)
             callbacks.append(pc)
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
@@ -787,12 +827,12 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
                                         verbose=kverbose)
-            if plot and self.epoch_count % report_rate != 0:
+            if plot is not None:
                 pc.on_epoch_end(-1)
             if handler.interrupted:
                 interrupted = True
         last_epoch = self.history[-1]
-        assert len(self.history) == self.epoch_count+1
+        assert len(self.history) == self.epoch_count+1  # +1 is for epoch 0
         if verbose:
             print("=" * 72)
             self.report_epoch(self.epoch_count, last_epoch)
@@ -1306,7 +1346,7 @@ class Network():
             print("No history available")
             return
         if metrics is None:
-            return self.plot_loss_acc(svg=svg)
+            return self.plot('loss') # FIXME: change this to plot loss and acc on separate graphs
         elif metrics is '?':
             print("Available metrics:", ", ".join(self.get_metrics()))
             return
@@ -1354,14 +1394,24 @@ class Network():
         else:
             plt.show(block=False)
 
-    def plot_loss_acc(self, svg=False):
+    def plot_loss_acc(self, callback, epoch):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
+        #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
-        if 'acc' in metrics or 'val_acc' in metrics:
-            fig, (loss_ax, acc_ax) = plt.subplots(1, 2, figsize=(10,4))
+        if callback.figure is not None:
+            # figure and axes objects have already been created
+            fig, loss_ax, acc_ax = callback.figure
+            loss_ax.clear()
+            if acc_ax is not None:
+                acc_ax.clear()
         else:
-            fig, loss_ax = plt.subplots(1)
-            acc_ax = None
+            # first time called, so create figure and axes objects
+            if 'acc' in metrics or 'val_acc' in metrics:
+                fig, (loss_ax, acc_ax) = plt.subplots(1, 2, figsize=(10,4))
+            else:
+                fig, loss_ax = plt.subplots(1)
+                acc_ax = None
+            callback.figure = fig, loss_ax, acc_ax
         x_values = range(self.epoch_count+1)
         for metric in metrics:
             y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
@@ -1382,15 +1432,17 @@ class Network():
             acc_ax.set_title("%s: Accuracy" % (self.name,))
             acc_ax.set_xlabel('Epoch')
             acc_ax.legend(loc='best')
-        if svg:
-            from IPython.display import SVG
+        if callback.plot == 'notebook':
+            from IPython.display import SVG, clear_output, display
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')
             img_bytes = bytes.getvalue()
-            plt.close(fig)
-            return SVG(img_bytes.decode())
+            clear_output(wait=True)
+            display(SVG(img_bytes.decode()))
+            #return SVG(img_bytes.decode())
         else:
-            plt.show(block=False)
+            plt.pause(0.01)
+            #plt.show(block=False)
 
     def compile(self, **kwargs):
         """

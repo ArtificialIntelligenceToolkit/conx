@@ -936,11 +936,14 @@ class Dataset():
 
     def split(self, split=0.50):
         """Splits the inputs/targets into training and validation sets. The
-        split parameter specifies what portion of the dataset to use
-        for validation. It can be a fraction in the range [0,1), or an
-        integer number of patterns, or 'all'. For example, a split of
-        0.25 reserves the last 1/4 of the dataset for validation.
-
+        split keyword parameter specifies what portion of the dataset
+        to use for validation. It can be a fraction in the range
+        [0,1), or an integer number of patterns from 0 to the dataset
+        size, or 'all'. For example, a split of 0.25 reserves the last
+        1/4 of the dataset for validation.  A split of 1.0 (specified
+        as 'all' or an int equal to the dataset size) is a special
+        case in which the entire dataset is used for both training and
+        validation.
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
