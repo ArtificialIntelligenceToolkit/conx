@@ -1125,7 +1125,7 @@ class Network():
             except:
                 outputs = outputs[0].tolist()
         else:
-            outputs[0].tolist()
+            outputs = outputs[0].tolist()
         return outputs
 
     def _layer_has_features(self, layer_name):
