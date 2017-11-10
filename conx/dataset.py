@@ -181,6 +181,13 @@ def get_shape(form):
 def shape(item):
     """
     Shortcut for get_shape(get_form(item)).
+
+    >>> shape([1])
+    (1,)
+    >>> shape([1, 2])
+    (2,)
+    >>> shape([[1, 2, 3], [4, 5, 6]])
+    (2, 3)
     """
     return tuple(get_shape(get_form(item))[1])
 
@@ -260,6 +267,10 @@ class _DataVector():
         (3,)
         >>> net.dataset.targets.get_shape(0)
         (3,)
+        >>> net.dataset.inputs.shape
+        [(5,), (6,)]
+        >>> net.dataset.targets.shape
+        (3,)
         """
         if self.item in ["targets", "test_targets", "train_targets"]:
             if bank_index is None:
@@ -302,6 +313,11 @@ class _DataVector():
         >>> net.dataset.inputs.reshape(0, (2, 5))
         >>> net.dataset._inputs.shape
         (1, 2, 5)
+        >>> net.dataset.targets.shape
+        (28, 28, 1)
+        >>> net.dataset.targets.shape = (28 * 28,)
+        >>> net.dataset.targets.shape
+        (784,)
         """
         if new_shape is None:
             new_shape = bank_index
@@ -434,16 +450,21 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, network):
+    def __init__(self, network=None, input_banks=None, target_banks=None):
         """
-        Dataset constructor requires a network.
+        Dataset constructor requires a network or (input_banks and target_banks).
         """
         self.DATASETS = {name: function for (name, function) in
                          inspect.getmembers(conx.datasets, inspect.isfunction)}
-        self._num_input_banks = 0
-        self._num_target_banks = 0
         self.clear()
         self.network = network
+        if network is not None:
+            self.set_bank_counts()
+        elif input_banks is None or target_banks is None:
+            raise Exception("Dataset requires a network or (input_banks and target_banks)")
+        else:
+            self._num_input_banks = input_banks
+            self._num_target_banks = target_banks
 
     def set_bank_counts(self):
         """
@@ -784,35 +805,6 @@ class Dataset():
         # Final checks:
         if len(self.inputs) != len(self.targets):
             raise Exception("WARNING: inputs/targets lengths do not match")
-
-    ## FIXME: add these for users' convenience:
-    #def matrix_to_channels_last(self, matrix): ## vecteor
-    # x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-    #def matrix_to_channels_first(self, matrix):
-    # x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
-
-    ## FIXME: Define when we have a specific file to test on:
-    # def load_npz_dataset(self, filename, verbose=True):
-    #     """loads a dataset from an .npz file and returns data, labels"""
-    #     if filename[-4:] != '.npz':
-    #         raise Exception("filename must end in .npz")
-    #     if verbose:
-    #         print('Loading %s dataset...' % filename)
-    #     try:
-    #         f = np.load(filename)
-    #         self._inputs = f['data']
-    #         self._labels = f['labels']
-    #         self._targets = []
-    #         if self._get_inputs_length() != len(self._labels):
-    #             raise Exception("Dataset contains different numbers of inputs and labels")
-    #         if self._get_inputs_length() == 0:
-    #             raise Exception("Dataset is empty")
-    #         self._cache_dataset_values()
-    #         self._split_dataset(self._num_inputs, verbose=False)
-    #         if verbose:
-    #             self.summary()
-    #     except:
-    #         raise Exception("couldn't load .npz dataset %s" % filename)
 
     def set_targets_from_inputs(self, f=None):
         """
