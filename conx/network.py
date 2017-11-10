@@ -686,7 +686,7 @@ class Network():
         results = {k:v for k, v in zip(self.model.metrics_names, train_metrics)}
         if len(test_inputs) > 0:
             test_metrics = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
-            results.update({"val_" % k:v for k, v in zip(self.model.metrics_names, test_metrics)})
+            results.update({"val_%s" % k:v for k, v in zip(self.model.metrics_names, test_metrics)})
         return results
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,

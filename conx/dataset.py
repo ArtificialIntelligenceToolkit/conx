@@ -980,6 +980,24 @@ class Dataset():
         else:
             raise Exception("invalid split: %s" % split)
 
+    def _get_test_set_size(self):
+        return int(self._split * len(self._inputs))
+
+    def _get_train_set_size(self):
+        if self._split == 1:
+            return len(self._inputs)
+        else:
+            return len(self._inputs) - self._get_test_set_size()
+
+    def _split_data(self):
+        train_size = self._get_train_set_size()
+        test_size = self._get_test_set_size()
+        train_inputs = self._inputs[:train_size]
+        train_targets = self._targets[:train_size]
+        test_inputs = self._inputs[-test_size:]
+        test_targets = self._targets[-test_size:]
+        return (train_inputs, train_targets), (test_inputs, test_targets)
+
     def chop(self, retain=0.5):
         """Chop off the inputs/targets and reset split, test data. Retains
         only the specified portion of the original dataset patterns,
