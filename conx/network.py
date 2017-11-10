@@ -58,12 +58,13 @@ except:
 #------------------------------------------------------------------------
 
 class ReportCallback(Callback):
-    def __init__(self, network, report_rate, plot):
-        # plot is 'notebook', 'console', or None
+    def __init__(self, network, report_rate, mpl_backend):
+        # mpl_backend is matplotlib backend
         super().__init__()
         self.network = network
         self.report_rate = report_rate
-        self.plot = plot
+        self.mpl_backend = mpl_backend
+        self.in_console = self.network.in_console(mpl_backend)
 
     def on_epoch_end(self, epoch, results=None):
         #print("in ReportCallback with epoch = %d" % epoch)
@@ -71,16 +72,18 @@ class ReportCallback(Callback):
         self.network.epoch_count += 1
         #print("epoch_count is now", self.network.epoch_count)
         #print("history is now", self.network.history)
-        if self.plot != 'notebook' and (epoch+1) % self.report_rate == 0:
+        if self.in_console and (epoch+1) % self.report_rate == 0:
             self.network.report_epoch(self.network.epoch_count, results)
 
 class PlotCallback(Callback):
-    def __init__(self, network, report_rate, plot):
-        # plot is 'notebook' or 'console'
+    def __init__(self, network, report_rate, mpl_backend):
+        # mpl_backend te matplotlib backend string code
+        #
         super().__init__()
         self.network = network
         self.report_rate = report_rate
-        self.plot = plot
+        self.mpl_backend = mpl_backend
+        self.in_console = self.network.in_console(mpl_backend)
         self.figure = None
 
     def on_epoch_end(self, epoch, results=None):
@@ -90,7 +93,7 @@ class PlotCallback(Callback):
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
             self.network.plot_loss_acc(self, epoch)
-            if self.plot == 'notebook':
+            if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
             self.network.plot_loss_acc(self, epoch)
@@ -317,6 +320,30 @@ class Network():
         if height is not None:
             opts["svg_height"] = height
         return HTML(self.build_svg(class_id=class_id, inputs=inputs, opts=opts))
+
+    def in_console(self, mpl_backend):
+        """
+        Return True if running connected to a console; False if connected
+        to notebook, or other non-console system.
+
+        Possible values:
+            'TkAgg' - console with Tk
+            'Qt5Agg' - console with Qt
+            'MacOSX' - mac console
+            'module://ipykernel.pylab.backend_inline` - default for notebook
+                          and non-console, and when using %matplotlib inline
+            'NbAgg` - notebook, using %matplotlib notebook
+
+        Here, None means not plotting, or just use text.
+
+        NOTE: if you are running ipython without a DISPLAY with the QT
+        background, you may wish to:
+            export QT_QPA_PLATFORM='offscreen'
+        """
+        return mpl_backend not in [
+            'module://ipykernel.pylab.backend_inline',
+            'NbAgg',
+        ]
 
     def add(self, layer: Layer):
         """
@@ -681,7 +708,7 @@ class Network():
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
-              plot=None):
+              plot=False):
         """
         Train the network.
 
@@ -704,8 +731,11 @@ class Network():
             "use_validation_to_stop": use_validation_to_stop,
             "plot": plot,
             }
-        if plot not in (None, 'console', 'notebook'):
-            raise Exception("plot must be one of: 'notebook', 'console', None")
+        if plot:
+            import matplotlib
+            mpl_backend = matplotlib.get_backend()
+        else:
+            mpl_backend = None
         if not isinstance(report_rate, numbers.Integral) or report_rate < 1:
             raise Exception("bad report rate: %s" % (report_rate,))
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
@@ -797,19 +827,19 @@ class Network():
         if len(self.history) == 0:
             self.history = [self.evaluate()] #[results]
         print("Training...")
-        if plot != 'notebook':
+        if self.in_console(mpl_backend):
             self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
         callbacks=[
             History(),
-            ReportCallback(self, report_rate, plot),
+            ReportCallback(self, report_rate, mpl_backend),
         ]
         if accuracy is not None:
             callbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
         if error is not None:
             callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
-        if plot is not None:
-            pc = PlotCallback(self, report_rate, plot)
+        if plot:
+            pc = PlotCallback(self, report_rate, mpl_backend)
             callbacks.append(pc)
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
@@ -834,7 +864,7 @@ class Network():
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
                                         verbose=kverbose)
-            if plot is not None:
+            if plot:
                 pc.on_epoch_end(-1)
             if handler.interrupted:
                 interrupted = True
@@ -1206,7 +1236,7 @@ class Network():
         return plot_activations(self, from_layer, from_units, to_layer, to_unit,
                                 colormap, default_from_layer_value, resolution,
                                 act_range, show_values)
-        
+
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
                            cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3)):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
@@ -1439,7 +1469,7 @@ class Network():
             acc_ax.set_title("%s: Accuracy" % (self.name,))
             acc_ax.set_xlabel('Epoch')
             acc_ax.legend(loc='best')
-        if callback.plot == 'notebook':
+        if not callback.in_console:
             from IPython.display import SVG, clear_output, display
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')
