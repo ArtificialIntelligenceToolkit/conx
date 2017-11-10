@@ -232,14 +232,39 @@ class _DataVector():
         raise Exception("setting value in a dataset is not permitted;" +
                         " you'll have to recreate the dataset and re-load")
 
-    def shape(self, bank_index=None):
+    def get_shape(self, bank_index=None):
         """
         Get the shape of the tensor at bank_index.
+
+        >>> from conx import Network, Layer
+        >>> net = Network("Get Shape")
+        >>> net.add(Layer("input1", 5))
+        >>> net.add(Layer("input2", 6))
+        >>> net.add(Layer("output", 3))
+        >>> net.connect("input1", "output")
+        >>> net.connect("input2", "output")
+        >>> net.compile(optimizer="adam", error="mse")
+        >>> net.dataset.load([
+        ...   (
+        ...     [[1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0]],
+        ...     [0.5, 0.5, 0.5]
+        ...   ),
+        ... ])
+        >>> net.dataset.inputs.get_shape()
+        [(5,), (6,)]
+        >>> net.dataset.inputs.get_shape(0)
+        (5,)
+        >>> net.dataset.inputs.get_shape(1)
+        (6,)
+        >>> net.dataset.targets.get_shape()
+        (3,)
+        >>> net.dataset.targets.get_shape(0)
+        (3,)
         """
         if self.item in ["targets", "test_targets", "train_targets"]:
             if bank_index is None:
                 if self.dataset._num_target_banks > 1:
-                    return [self.shape(i) for i in range(self.dataset._num_target_banks)]
+                    return [self.get_shape(i) for i in range(self.dataset._num_target_banks)]
                 else:
                     bank_index = 0
             if bank_index >= self.dataset._num_target_banks:
@@ -251,7 +276,7 @@ class _DataVector():
         elif self.item in ["inputs", "test_inputs", "train_inputs"]:
             if bank_index is None:
                 if self.dataset._num_input_banks > 1:
-                    return [self.shape(i) for i in range(self.dataset._num_input_banks)]
+                    return [self.get_shape(i) for i in range(self.dataset._num_input_banks)]
                 else:
                     bank_index = 0
             if bank_index >= self.dataset._num_input_banks:
@@ -399,6 +424,8 @@ class _DataVector():
         else:
             return "<Dataset '%s', length: %s, shape: None>" % (
                 self.item, length)
+
+    shape = property(get_shape, reshape)
 
 class Dataset():
     """
@@ -596,7 +623,7 @@ class Dataset():
             if targets is not None:
                 if pairs is not None:
                     raise Exception("Use pairs or inputs/targets but not both")
-                pairs = zip(inputs, targets)
+                pairs = list(zip(inputs, targets))
             else:
                 raise Exception("you cannot set inputs without targets")
         elif targets is not None:
@@ -622,8 +649,9 @@ class Dataset():
                 if form != get_form(targets[i]):
                     raise Exception("Malformed target at number %d" % (i + 1))
         # Test the inputs, see if outputs match:
+        #### Get one to test output:
         if self._num_input_banks > 1:
-            inputs = [np.array(bank, "float32") for bank in inputs[0]]
+            inputs = [np.array([bank], "float32") for bank in inputs[0]]
         else:
             inputs = np.array([inputs[0]], "float32")
         ## Predict:
@@ -631,14 +659,14 @@ class Dataset():
         prediction = self.network.model.predict(inputs, batch_size=1)
         ## raise Exception("Invalid input form; got %s" % (inputs,))
         if self._num_target_banks > 1:
-            targets = [np.array(bank, "float32") for bank in targets[0]]
+            targets = [np.array([bank], "float32") for bank in targets[0]]
             for i in range(len(targets[0])):
-                shape = tuple(get_shape(get_form(targets[i]))[1])
-                if prediction[0][i].shape != shape:
+                shape = targets[i][0].shape
+                if prediction[i][0].shape != shape:
                     raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (i, shape, prediction[0][i].shape))
         else:
             targets = np.array(targets[0], "float32")
-            shape = tuple(get_shape(get_form(targets))[1])
+            shape = targets.shape
             if prediction[0].shape != shape:
                 raise Exception("Invalid target shape; got %s, expecting %s" % (shape, prediction[0].shape))
         self.compile(pairs)
