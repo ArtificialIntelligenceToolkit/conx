@@ -72,6 +72,7 @@ class ReportCallback(Callback):
         self.network.epoch_count += 1
         #print("epoch_count is now", self.network.epoch_count)
         #print("history is now", self.network.history)
+        #print("ReportCallback got:", epoch, results)
         if self.in_console and (epoch+1) % self.report_rate == 0:
             self.network.report_epoch(self.network.epoch_count, results)
 
@@ -680,29 +681,12 @@ class Network():
     def evaluate(self, batch_size=32):
         if len(self.dataset.inputs) == 0:
             raise Exception("no dataset loaded")
-        if self.dataset._split == 1.0:
-            # use entire dataset for both training and validation
-            train_inputs = self.dataset._inputs
-            train_targets = self.dataset._targets
-            test_inputs = self.dataset._inputs
-            test_targets = self.dataset._targets
-        else:
-            # split dataset into training and validation sets
-            size = len(self.dataset.inputs)
-            i = size - int(size * self.dataset._split)
-            train_inputs = self.dataset._inputs[:i]
-            train_targets = self.dataset._targets[:i]
-            test_inputs = self.dataset._inputs[i:]
-            test_targets = self.dataset._targets[i:]
-        results = {}
-        if len(train_inputs) > 0:
-            eval_results = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
-            for i in range(len(self.model.metrics_names)):
-                results[self.model.metrics_names[i]] = eval_results[i]
+        (train_inputs, train_targets), (test_inputs, test_targets) = self.dataset._split_data()
+        train_metrics = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
+        results = {k:v for k, v in zip(self.model.metrics_names, train_metrics)}
         if len(test_inputs) > 0:
-            eval_results = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
-            for i in range(len(self.model.metrics_names)):
-                results[self.model.metrics_names[i]] = eval_results[i]
+            test_metrics = self.model.evaluate(test_inputs, test_targets, batch_size=batch_size, verbose=0)
+            results.update({"val_" % k:v for k, v in zip(self.model.metrics_names, test_metrics)})
         return results
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
@@ -774,7 +758,7 @@ class Network():
         if len(self.history) > 0:
             results = self.history[-1]
         else:
-            values = self.model.evaluate(inputs, targets, verbose=0)
+            values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
             if not isinstance(values, list): # if metrics is just a single value
                 values = [values]
             results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
@@ -784,7 +768,7 @@ class Network():
                 ((accuracy is not None) or (error is not None))):
                 ## look at split, use validation subset:
                 if self.dataset._split == 1.0: ## special case; use entire set
-                    val_values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, verbose=0)
+                    val_values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, batch_size=batch_size, verbose=0)
                 else: # split is greater than 0, less than 1
                     ## need to split; check format based on output banks:
                     length = len(self.dataset.test_targets)
@@ -796,7 +780,7 @@ class Network():
                         inputs = self.dataset._inputs[-length:]
                     else:
                         inputs = [column[-length:] for column in self.dataset._inputs]
-                    val_values = self.model.evaluate(inputs, targets, verbose=0)
+                    val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
                 val_results = {metric: value for metric,value in zip(self.model.metrics_names, val_values)}
                 val_results_acc = self._compute_result_acc(val_results, use_validation=True)
                 need_to_train = True
@@ -825,7 +809,7 @@ class Network():
                 return
         ## Ok, now we know we need to train:
         if len(self.history) == 0:
-            self.history = [self.evaluate()] #[results]
+            self.history = [self.evaluate(batch_size=batch_size)] #[results]
         print("Training...")
         if self.in_console(mpl_backend):
             self.report_epoch(self.epoch_count, self.history[-1])
@@ -847,7 +831,8 @@ class Network():
                                         self.dataset._targets,
                                         batch_size=batch_size,
                                         epochs=epochs,
-                                        validation_data=(self.dataset._inputs, self.dataset._targets),
+                                        validation_data=(self.dataset._inputs,
+                                                         self.dataset._targets),
                                         callbacks=callbacks,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
