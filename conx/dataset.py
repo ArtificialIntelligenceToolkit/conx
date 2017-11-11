@@ -964,8 +964,13 @@ class Dataset():
         Get an input from the internal dataset and
         format it in the human API.
         """
-        if not 0 <= i < self._get_size():
-            raise Exception("input index %d is out of bounds" % (i,))
+        size = self._get_size()
+        if isinstance(i, slice):
+            if not (i.start <= size and i.stop < size):
+                raise Exception("input slice %s is out of bounds" % (i,))
+        else:
+            if not 0 <= i < size:
+                raise Exception("input index %d is out of bounds" % (i,))
         data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
         if self._num_input_banks() == 1:
             return data[0]
@@ -977,8 +982,13 @@ class Dataset():
         Get a target from the internal dataset and
         format it in the human API.
         """
-        if not 0 <= i < self._get_size():
-            raise Exception("target index %d is out of bounds" % (i,))
+        size = self._get_size()
+        if isinstance(i, slice):
+            if not (i.start <= size and i.stop < size):
+                raise Exception("target slice %s is out of bounds" % (i,))
+        else:
+            if not 0 <= i < size:
+                raise Exception("target index %d is out of bounds" % (i,))
         data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
