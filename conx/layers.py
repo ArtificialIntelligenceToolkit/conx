@@ -192,12 +192,28 @@ class _BaseLayer():
         """
         return keras.layers.Input(self.shape, *self.args, **self.params)
 
+    def make_input_layer_k_text(self):
+        """
+        Make an input layer for this type of layer. This allows Layers to have
+        special kinds of input layers. Would need to be overrided in subclass.
+        """
+        ## FIXME: WIP, don't include args, params if empty
+        return "keras.layers.Input(%s, *%s, **%s)" % (self.shape, self.args, self.params)
+
     def make_keras_function(self):
         """
         This makes the Keras function for the functional interface.
         """
         ## This is for all Keras layers:
         return self.CLASS(*self.args, **self.params)
+
+    def make_keras_function_text(self):
+        """
+        This makes the Keras function for the functional interface.
+        """
+        ## This is for all Keras layers:
+        ## FIXME: WIP, don't include args, params if empty
+        return "keras.layers.%s(*%s, **%s)" % (self.CLASS.__name__, self.args, self.params)
 
     def make_keras_functions(self):
         """
@@ -212,6 +228,19 @@ class _BaseLayer():
             return [k, keras.layers.Dropout(self.dropout)]
         else:
             return [k]
+
+    def make_keras_functions_text(self):
+        """
+        Make all Keras functions for this layer, including its own,
+        dropout, etc.
+        """
+        program = self.make_keras_function_text()
+        if self.time_distributed:
+            program = "keras.layers.TimeDistributed(%s, name='%s')" % (program, self.name)
+        if self.dropout > 0:
+            return "[%s, keras.layers.Dropout(self.dropout)]" % program
+        else:
+            return "[%s]" % program
 
     # class: _BaseLayer
     def make_image(self, vector, colormap=None, config={}):
@@ -414,6 +443,12 @@ class Layer(_BaseLayer):
         For all Keras-based functions. Returns the Keras class.
         """
         return self.CLASS(self.size, **self.params)
+
+    def make_keras_function_text(self):
+        """
+        For all Keras-based functions. Returns the Keras class.
+        """
+        return "keras.layers.%s(%s, **%s)" % (self.CLASS.__name__, self.size, self.params)
 
 class ImageLayer(Layer):
     """
