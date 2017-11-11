@@ -771,10 +771,10 @@ class Network():
             if ((self.dataset._split > 0) and
                 ((accuracy is not None) or (error is not None))):
                 ## look at split, use validation subset:
-                print("Evaluating initial validation metrics...")
-                if self.dataset._split == 1.0: ## special case; use entire set
-                    val_values = self.model.evaluate(self.dataset._inputs, self.dataset._targets, batch_size=batch_size, verbose=0)
+                if self.dataset._split == 1.0: ## special case; use entire set; already done!
+                    val_results = {"val_%s" % key: results[key] for key in results}
                 else: # split is greater than 0, less than 1
+                    print("Evaluating initial validation metrics...")
                     ## need to split; check format based on output banks:
                     length = len(self.dataset.test_targets)
                     if self.num_target_layers == 1:
@@ -786,7 +786,7 @@ class Network():
                     else:
                         inputs = [column[-length:] for column in self.dataset._inputs]
                     val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
-                val_results = {metric: value for metric,value in zip(self.model.metrics_names, val_values)}
+                    val_results = {metric: value for metric,value in zip(self.model.metrics_names, val_values)}
                 val_results_acc = self._compute_result_acc(val_results, use_validation=True)
                 need_to_train = True
                 if ((accuracy is not None) and (val_results_acc >= accuracy)):
