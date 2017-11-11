@@ -403,18 +403,19 @@ class _DataVector():
         >>> len(net.dataset.train_targets)
         20
         """
+        size, num_train, num_test = self.dataset._get_split_sizes()
         if self.item == "targets":
-            return self.dataset._get_targets_length()
+            return size
         elif self.item == "inputs":
-            return self.dataset._get_inputs_length()
+            return size
         elif self.item == "train_targets":
-            return int((1 - self.dataset._split) * len(self.dataset.targets))
+            return num_train
         elif self.item == "train_inputs":
-            return int((1 - self.dataset._split) * len(self.dataset.inputs))
+            return num_train
         elif self.item == "test_targets":
-            return int(self.dataset._split * len(self.dataset.targets))
+            return num_test
         elif self.item == "test_inputs":
-            return int(self.dataset._split * len(self.dataset.inputs))
+            return num_test
         else:
             raise Exception("unknown vector type: %s" % (item,))
 
@@ -432,7 +433,7 @@ class _DataVector():
 
     def __repr__(self):
         length = len(self)
-        if length:
+        if length > 0:
             ## type and shape:
             shape = get_shape(get_form(self[0]))
             return "<Dataset '%s', length: %s, shape: %s>" % (
@@ -759,7 +760,7 @@ class Dataset():
         else:
             if stop is None: # (None, None)
                 start = 0
-                stop = len(self._inputs)
+                stop = len(self._inputs) # <---FIXME: will this work if multiple banks?
             else: # (None, #)
                 start = 0
         if self._num_input_banks > 1:
@@ -893,29 +894,22 @@ class Dataset():
         """
         Print out a summary of the dataset.
         """
+        size, num_train, num_test = self._get_split_sizes()
         print('Input Summary:')
-        if self._split == 1:
-            num_validation = len(self.inputs)
-            num_training = len(self.inputs)
-        else:
-            num_validation = int(self._split * len(self.inputs))
-            num_training = len(self.inputs) - num_validation
-        print('   count  : %d (%d for training, %s for testing)' %
-              (len(self.inputs), num_training, num_validation))
-        if len(self.inputs) != 0:
-            if self._num_target_banks > 1:
-                print('   shape  : %s' % ([x[0].shape for x in self._inputs],))
-            else:
+        print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
+        if size != 0:
+            if self._num_input_banks == 1:
                 print('   shape  : %s' % (self._inputs[0].shape,))
+            else:
+                print('   shape  : %s' % ([self._inputs[b][0].shape for b in range(self.num_input_banks)],))
             print('   range  : %s' % (self._inputs_range,))
         print('Target Summary:')
-        print('   count  : %d (%d for training, %s for testing)' %
-              (len(self.targets), num_training, num_validation))
-        if len(self.targets) != 0:
-            if self._num_target_banks > 1:
-                print('   shape  : %s' % ([x[0].shape for x in self._targets],))
-            else:
+        print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
+        if size != 0:
+            if self._num_target_banks == 1:
                 print('   shape  : %s' % (self._targets[0].shape,))
+            else:
+                print('   shape  : %s' % ([self._targets[b][0].shape for b in range(self.num_target_banks)],))
             print('   range  : %s' % (self._targets_range,))
 
     def rescale_inputs(self, old_range, new_range, new_dtype):
@@ -940,19 +934,22 @@ class Dataset():
 
     def shuffle(self):
         """
-        Shuffle the inputs/targets. WIP.
+        Shuffle the inputs/targets.
         """
-        ## FIXME: allow working on multi-inputs/-targets
-        if self._num_target_banks > 1:
-            raise Exception("shuffle does not yet work on multi-input/-target patterns")
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
-        indices = np.random.permutation(len(self.inputs))
-        self._inputs = self._inputs[indices]
+        permutation = np.random.permutation(len(self.inputs))
+        if self._num_input_banks == 1:
+            self._inputs = self._inputs[permutation]
+        else:
+            self._inputs = [self._inputs[b][permutation] for b in range(self._num_input_banks)]
+        if self._num_target_banks == 1:
+            self._targets = self._targets[permutation]
+        else:
+            self._targets = [self._targets[b][permutation] for b in range(self._num_target_banks)]
+        # FIXME: need to generalize this for _labels too:
         if len(self._labels) != 0:
-            self._labels = self._labels[indices]
-        if len(self.targets) != 0:
-            self._targets = self._targets[indices]
+            self._labels = self._labels[permutation]
 
     def split(self, split=0.50):
         """Splits the inputs/targets into training and validation sets. The
@@ -980,22 +977,49 @@ class Dataset():
         else:
             raise Exception("invalid split: %s" % split)
 
-    def _get_test_set_size(self):
-        return int(self._split * len(self._inputs))
-
-    def _get_train_set_size(self):
-        if self._split == 1:
-            return len(self._inputs)
+    def _get_size(self):
+        """returns the total number of patterns/targets in the dataset"""
+        if self._num_input_banks == 0:
+            raise Exception("need to connect network first")
+        elif self._num_input_banks == 1:
+            # self._inputs is a single array for the single input bank
+            # <bank1_input_array>
+            return self._inputs.shape[0]
         else:
-            return len(self._inputs) - self._get_test_set_size()
+            # self._inputs is a list of arrays (one for each input bank)
+            # with all the arrays of the same length
+            # [<bank1_input_array>, <bank2_input_array>, ...]
+            return self._inputs[0].shape[0]
+
+    def _get_split_sizes(self):
+        # need a more elegant name for this method
+        """returns a tuple (dataset_size, train_set_size, test_set_size),
+        based on the current split value
+        """
+        dataset_size = self._get_size()
+        if self._split == 1:
+            train_set_size, test_set_size = dataset_size, dataset_size
+        else:
+            test_set_size = int(self._split * dataset_size)
+            train_set_size = dataset_size - test_set_size
+        return (dataset_size, train_set_size, test_set_size)
 
     def _split_data(self):
-        train_size = self._get_train_set_size()
-        test_size = self._get_test_set_size()
-        train_inputs = self._inputs[:train_size]
-        train_targets = self._targets[:train_size]
-        test_inputs = self._inputs[-test_size:]
-        test_targets = self._targets[-test_size:]
+        size, num_train, num_test = self._get_split_sizes()
+        if self._num_input_banks == 1:
+            # self._inputs and self._targets are single numpy arrays
+            train_inputs = self._inputs[:num_train]
+            train_targets = self._targets[:num_train]
+            test_inputs = self._inputs[size - num_test:]
+            test_targets = self._targets[size - num_test:]
+        else:
+            # self._inputs and self._targets are lists of numpy arrays
+            train_inputs, train_targets, test_inputs, test_targets = [], [], [], []
+            for inputs, targets in zip(self._inputs, self._targets):
+                train_inputs.append(inputs[:num_train])
+                train_targets.append(targets[:num_train])
+                test_inputs.append(inputs[size - num_test:])
+                test_targets.append(targets[size - num_test:])
         return (train_inputs, train_targets), (test_inputs, test_targets)
 
     def chop(self, retain=0.5):
@@ -1011,172 +1035,97 @@ class Dataset():
                 raise Exception("out of range: %d" % retain)
         elif isinstance(retain, numbers.Real):
             if not 0.0 <= retain <= 1.0:
-                raise Exception("not in the range [0,1]: %s" % retain)
+                raise Exception("not in the interval [0,1]: %s" % retain)
             retain = int(len(self.inputs) * retain)
         else:
-            raise Exception("invalid input: %s" % retain)
-        if self._num_input_banks > 1:
-            self._inputs = [col[:retain] for col in self._inputs]
-        else:
+            raise Exception("invalid value: %s" % retain)
+        if self._num_input_banks == 1:
             self._inputs = self._inputs[:retain]
+        else:
+            self._inputs = [self._inputs[b][:retain] for b in range(self._num_input_banks)]
+        if self._num_target_banks == 1:
+            self._targets = self._targets[:retain]
+        else:
+            self._targets = [self._targets[b][:retain] for b in range(self._num_target_banks)]
+        # FIXME: need to generalize this for _labels too:
         if len(self._labels) != 0:
             self._labels = self._labels[:retain]
-        if len(self.targets) != 0:
-            if self._num_target_banks > 1:
-                self._targets = [col[:retain] for col in self._targets]
-            else:
-                self._targets = self._targets[:retain]
 
     def _get_input(self, i):
         """
         Get an input from the internal dataset and
         format it in the human API.
         """
-        if self._num_input_banks == 0:
-            raise Exception("need to connect network first")
+        if not 0 <= i < self._get_size():
+            raise Exception("input index %d is out of bounds" % (i,))
         elif self._num_input_banks == 1:
             return self._inputs[i].tolist()
         else:
-            inputs = []
-            for c in range(self._num_input_banks):
-                inputs.append(self._inputs[c][i].tolist())
-            return inputs
+            return [self._inputs[b][i].tolist() for b in range(self._num_input_banks)]
 
     def _get_target(self, i):
         """
         Get a target from the internal dataset and
         format it in the human API.
         """
-        if self._num_target_banks == 0:
-            raise Exception("need to connect network first")
+        if not 0 <= i < self._get_size():
+            raise Exception("target index %d is out of bounds" % (i,))
         elif self._num_target_banks == 1:
             return self._targets[i].tolist()
         else:
-            targets = []
-            for c in range(self._num_target_banks):
-                targets.append(self._targets[c][i].tolist())
-            return targets
+            return [self._targets[b][i].tolist() for b in range(self._num_target_banks)]
 
     def _get_train_input(self, i):
         """
         Get a training input from the internal dataset and
         format it in the human API.
         """
-        if self._num_input_banks == 0:
-            raise Exception("need to connect network first")
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_train:
+            raise Exception("training input index %d is out of bounds" % (i,))
         elif self._num_input_banks == 1:
             return self._inputs[i].tolist()
         else:
-            inputs = []
-            for c in range(self._num_input_banks):
-                inputs.append(self._inputs[c][i].tolist())
-            return inputs
+            return [self._inputs[b][i].tolist() for b in range(self._num_input_banks)]
 
     def _get_train_target(self, i):
         """
         Get a training target from the internal dataset and
         format it in the human API.
         """
-        if self._num_target_banks == 0:
-            raise Exception("need to connect network first")
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_train:
+            raise Exception("training target index %d is out of bounds" % (i,))
         elif self._num_target_banks == 1:
             return self._targets[i].tolist()
         else:
-            targets = []
-            for c in range(self._num_target_banks):
-                targets.append(self._targets[c][i].tolist())
-            return targets
+            return [self._targets[b][i].tolist() for b in range(self._num_target_banks)]
 
     def _get_test_input(self, i):
         """
         Get a test input from the internal dataset and
         format it in the human API.
         """
-        pos = int((1 - self._split) * len(self.targets))
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_test:
+            raise Exception("test input index %d is out of bounds" % (i,))
+        j = size - num_test + i
         if self._num_input_banks == 1:
-            return self._inputs[pos + i].tolist()
+            return self._inputs[j].tolist()
         else:
-            inputs = []
-            for c in range(self._num_input_banks):
-                inputs.append(self._inputs[c][pos + i].tolist())
-            return inputs
+            return [self._inputs[b][j].tolist() for b in range(self._num_input_banks)]
 
     def _get_test_target(self, i):
         """
         Get a test target from the internal dataset and
         format it in the human API.
         """
-        pos = int((1 - self._split) * len(self.targets))
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_test:
+            raise Exception("test target index %d is out of bounds" % (i,))
+        j = size - num_test + i
         if self._num_target_banks == 1:
-            return self._targets[pos + i].tolist()
+            return self._targets[j].tolist()
         else:
-            targets = []
-            for c in range(self._num_target_banks):
-                targets.append(self._targets[c][pos + i].tolist())
-            return targets
+            return [self._targets[b][j].tolist() for b in range(self._num_target_banks)]
 
-    def _get_inputs_length(self):
-        """
-        Get the number of input patterns.
-        """
-        if len(self._inputs) == 0:
-            return 0
-        if self._num_input_banks > 1:
-            return self._inputs[0].shape[0]
-        else:
-            return self._inputs.shape[0]
-
-    def _get_targets_length(self):
-        """
-        Get the number of target patterns.
-        """
-        if len(self._targets) == 0:
-            return 0
-        if self._num_target_banks > 1:
-            return self._targets[0].shape[0]
-        else:
-            return self._targets.shape[0]
-
-    def _get_test_inputs_length(self):
-        """
-        Get the number of test input patterns.
-        """
-        if len(self._inputs) == 0:
-            return 0
-        if self._num_input_banks > 1:
-            return self._inputs[0].shape[0]
-        else:
-            return self._inputs.shape[0]
-
-    def _get_test_targets_length(self):
-        """
-        Get the number of test target patterns.
-        """
-        if len(self._targets) == 0:
-            return 0
-        if self._num_target_banks > 1:
-            return self._targets[0].shape[0]
-        else:
-            return self._targets.shape[0]
-
-    def _get_train_inputs_length(self):
-        """
-        Get the number of training input patterns.
-        """
-        if len(self._inputs) == 0:
-            return 0
-        if self._num_input_banks > 1:
-            return self._inputs[0].shape[0]
-        else:
-            return self._inputs.shape[0]
-
-    def _get_train_targets_length(self):
-        """
-        Get the number of training target patterns.
-        """
-        if len(self._targets) == 0:
-            return 0
-        if self._num_target_banks > 1:
-            return self._targets[0].shape[0]
-        else:
-            return self._targets.shape[0]
