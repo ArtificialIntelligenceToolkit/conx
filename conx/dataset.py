@@ -1051,7 +1051,7 @@ class Dataset():
         2. if not, we check previous inputs
         3. else we fall back on defaults
         """
-        if self.network:
+        if self.network and self.network.num_input_layers != 0 :
             return self.network.num_input_layers
         else:
             return len(self._default_inputs)
@@ -1063,7 +1063,7 @@ class Dataset():
         1. we ask network, if one
         2. else we fall back on defaults
         """
-        if self.network:
+        if self.network and self.network.num_target_layers:
             return self.network.num_target_layers
         else:
             return len(self._default_targets)

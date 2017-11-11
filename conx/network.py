@@ -257,6 +257,8 @@ class Network():
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
+        self.num_input_layers = 0
+        self.num_target_layers = 0
         self.input_bank_order = []
         self.output_bank_order = []
         self.config.update(config)
