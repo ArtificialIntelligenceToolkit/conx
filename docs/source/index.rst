@@ -21,7 +21,7 @@ Welcome to conx's documentation!
    Face recognition
    LSTM
    CIFAR10_CNN
-   MovingFromKeras
+   WorkingWithKeras
    Camera
    Plotting
    Robot Simulation
