@@ -28,7 +28,5 @@ def mnist(dataset):
     inputs = np.concatenate((x_train,x_test))
     labels = np.concatenate((y_train,y_test))
     targets = to_categorical(labels)
-    dataset.load_direct(inputs, targets, labels)
-    dataset._num_input_banks = 1
-    dataset._num_target_banks = 1
+    dataset.load_direct([inputs], [targets], labels)
 

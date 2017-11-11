@@ -434,8 +434,10 @@ class Network():
             ## Compute input/target layers:
             input_layers = [layer for layer in self.layers if layer.kind() == "input"]
             self.num_input_layers = len(input_layers)
+            self.input_bank_order = [layer.name for layer in input_layers]
             target_layers = [layer for layer in self.layers if layer.kind() == "output"]
             self.num_target_layers = len(target_layers)
+            self.output_bank_order = [layer.name for layer in target_layers]
 
     def summary(self):
         """
@@ -565,7 +567,7 @@ class Network():
                 correct.append(all(row))
             return correct
         else:
-            correct = [all(x) for x in map(lambda v: v <= tolerance, np.abs(outputs - targets))]
+            correct = [x.all() for x in map(lambda v: v <= tolerance, np.abs(outputs - targets))]
         return correct
 
     def train_one(self, inputs, targets, batch_size=32):
@@ -620,9 +622,9 @@ class Network():
             2
             >>> len(err)
             2
-            >>> net.dataset._num_input_banks
+            >>> net.dataset._num_input_banks()
             2
-            >>> net.dataset._num_target_banks
+            >>> net.dataset._num_target_banks()
             2
         """
         if isinstance(inputs, dict):
@@ -1490,10 +1492,6 @@ class Network():
                      (isinstance(optimizer, object) and issubclass(optimizer.__class__, keras.optimizers.Optimizer)))):
                 raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
                                 (optimizer, Network.OPTIMIZERS,))
-        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-        self.input_bank_order = [layer.name for layer in input_layers]
-        output_layers = [layer for layer in self.layers if layer.kind() == "output"]
-        self.output_bank_order = [layer.name for layer in output_layers]
         ## FIXME: redo checks to separate dataset:
         # if len(input_layers) == 1 and len(self.input_layer_order) == 0:
         #     pass # ok!
@@ -1527,7 +1525,6 @@ class Network():
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
-        self.dataset.set_bank_counts()
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:

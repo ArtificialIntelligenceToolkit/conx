@@ -20,9 +20,7 @@ def cmu_faces_half_size(dataset, path="cmu_faces_half_size.npz"):
 
 def process_face_data(dataset, inputs, labels):
     targets = create_pose_targets(labels)
-    dataset.load_direct(inputs, targets)
-    dataset._num_input_banks = 1
-    dataset._num_target_banks = 1
+    dataset.load_direct([inputs], [targets])
 
 def load_dataset_npz(path, url):
     """loads a normed face dataset file and returns a numpy array of shape

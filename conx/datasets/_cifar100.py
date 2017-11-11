@@ -9,6 +9,4 @@ def cifar100(dataset):
     targets = to_categorical(labels, 100)
     inputs = inputs.astype('float32')
     inputs /= 255
-    dataset.load_direct(inputs, targets, labels)
-    dataset._num_input_banks = 1
-    dataset._num_target_banks = 1
+    dataset.load_direct([inputs], [targets], labels)

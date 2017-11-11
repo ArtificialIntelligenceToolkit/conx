@@ -264,38 +264,32 @@ class _DataVector():
         >>> net.dataset.inputs.get_shape(1)
         (6,)
         >>> net.dataset.targets.get_shape()
-        (3,)
+        [(3,)]
         >>> net.dataset.targets.get_shape(0)
         (3,)
         >>> net.dataset.inputs.shape
         [(5,), (6,)]
         >>> net.dataset.targets.shape
-        (3,)
+        [(3,)]
         """
         if self.item in ["targets", "test_targets", "train_targets"]:
             if bank_index is None:
-                if self.dataset._num_target_banks > 1:
-                    return [self.get_shape(i) for i in range(self.dataset._num_target_banks)]
-                else:
-                    bank_index = 0
-            if bank_index >= self.dataset._num_target_banks:
+                return [self.get_shape(i) for i in range(self.dataset._num_target_banks())]
+            if bank_index >= self.dataset._num_target_banks():
                 raise Exception("targets bank_index is out of range")
-            if self.dataset._num_target_banks == 1:
-                return self.dataset._targets.shape[1:]
-            else:
+            if len(self.dataset.targets) > 0:
                 return self.dataset._targets[bank_index].shape[1:]
+            else:
+                return self.dataset._default_targets[bank_index]
         elif self.item in ["inputs", "test_inputs", "train_inputs"]:
             if bank_index is None:
-                if self.dataset._num_input_banks > 1:
-                    return [self.get_shape(i) for i in range(self.dataset._num_input_banks)]
-                else:
-                    bank_index = 0
-            if bank_index >= self.dataset._num_input_banks:
+                return [self.get_shape(i) for i in range(self.dataset._num_input_banks())]
+            if bank_index >= self.dataset._num_input_banks():
                 raise Exception("inputs bank_index is out of range")
-            if self.dataset._num_input_banks == 1:
-                return self.dataset._inputs.shape[1:]
-            else:
+            if len(self.dataset.inputs) > 0:
                 return self.dataset._inputs[bank_index].shape[1:]
+            else:
+                return self.dataset._default_targets[bank_index]
         else:
             raise Exception("unknown vector: %s" % (item,))
 
@@ -307,17 +301,19 @@ class _DataVector():
         >>> net = Network("Test 1", 10, 2, 3, 28 * 28)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.dataset.add([0] * 10, [0] * 28 * 28)
-        >>> net.dataset.targets.reshape(0, (28, 28, 1))
-        >>> net.dataset._targets.shape
-        (1, 28, 28, 1)
+        >>> net.dataset.inputs.shape
+        [(10,)]
         >>> net.dataset.inputs.reshape(0, (2, 5))
-        >>> net.dataset._inputs.shape
-        (1, 2, 5)
+        >>> net.dataset.inputs.shape
+        [(2, 5)]
         >>> net.dataset.targets.shape
-        (28, 28, 1)
+        [(784,)]
+        >>> net.dataset.targets.reshape(0, (28, 28, 1))
+        >>> net.dataset.targets.shape
+        [(28, 28, 1)]
         >>> net.dataset.targets.shape = (28 * 28,)
         >>> net.dataset.targets.shape
-        (784,)
+        [(784,)]
         """
         if new_shape is None:
             new_shape = bank_index
@@ -327,23 +323,15 @@ class _DataVector():
         else:
             new_shape = tuple(new_shape)
         if self.item == "targets":
-            if bank_index >= self.dataset._num_target_banks:
+            if bank_index >= self.dataset._num_target_banks():
                 raise Exception("targets bank_index is out of range")
-            if self.dataset._num_target_banks == 1:
-                shape = self.dataset._targets.shape
-                self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
-            else:
-                shape = self.dataset._targets[0].shape
-                self.dataset_targets[0] = self.dataset._targets[0].reshape((shape[0],) + new_shape)
+            shape = self.dataset._targets[bank_index].shape
+            self.dataset._targets[bank_index] = self.dataset._targets[bank_index].reshape((shape[0],) + new_shape)
         elif self.item == "inputs":
-            if bank_index >= self.dataset._num_target_banks:
+            if bank_index >= self.dataset._num_target_banks():
                 raise Exception("inputs bank_index is out of range")
-            if self.dataset._num_target_banks == 1:
-                shape = self.dataset._inputs.shape
-                self.dataset._inputs = self.dataset._inputs.reshape((shape[0],) + new_shape)
-            else:
-                shape = self.dataset._inputs[0].shape
-                self.dataset._inputs[0] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
+            shape = self.dataset._inputs[bank_index].shape
+            self.dataset._inputs[bank_index] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
         elif self.item in ["test_targets", "train_targets"]:
             raise Exception("unable to reshape vector '%s';  call dataset.targets.reshape(), and re-split" % (item,))
         elif self.item in ["test_inputs", "train_inputs"]:
@@ -352,33 +340,33 @@ class _DataVector():
             raise Exception("unknown vector: %s" % (item,))
         self.dataset._cache_values()
 
-    def flatten(self):
+    def flatten(self, bank_index=None):
         """
         >>> from conx import Network
         >>> net = Network("Test 2", 10, 2, 3, 28 * 28)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.dataset.add([0] * 10, [0] * 28 * 28)
-        >>> net.dataset.targets.reshape(0, (28, 28, 1))
-        >>> net.dataset._targets.shape
-        (1, 28, 28, 1)
+        >>> net.dataset.targets.shape
+        [(784,)]
+        >>> net.dataset.targets.reshape(0, (28, 28))
+        >>> net.dataset.targets.shape
+        [(28, 28)]
+        >>> net.dataset.inputs.shape
+        [(10,)]
         >>> net.dataset.inputs.reshape(0, (2, 5))
-        >>> net.dataset._inputs.shape
-        (1, 2, 5)
+        >>> net.dataset.inputs.shape
+        [(2, 5)]
         """
         if self.item == "targets":
-            if self.dataset._num_target_banks == 0:
-                raise Exception("need to connect network first")
-            elif self.dataset._num_target_banks == 1:
-                self.dataset._targets = self.dataset._targets.reshape((shape[0],) + new_shape)
+            if bank_index is None: # flatten all
+                self.dataset._targets = [[c.flatten() for c in row] for row in self.dataset._targets]
             else:
-                self.dataset._targets = [[c.flatten() for c in row] for row in self.dataset_targets]
+                self.dataset._targets[bank_index] = self.dataset._targets[bank_index].flatten()
         elif self.item == "inputs":
-            if self.dataset._num_input_banks == 0:
-                raise Exception("need to connect network first")
-            elif self.dataset._num_input_banks == 1:
-                self.dataset._inputs = np.array([row.flatten() for row in self.dataset._inputs])
+            if bank_index is None:
+                self.dataset._inputs = [[c.flatten() for c in row] for row in self.dataset._inputs]
             else:
-                self.dataset._inputs = [[c.flatten() for c in row] for row in self.dataset_inputs]
+                self.dataset._inputs[bank_index] = self.dataset._inputs[bank_index].flatten()
         elif self.item in ["test_targets", "train_targets"]:
             raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (item,))
         elif self.item in ["test_inputs", "train_inputs"]:
@@ -451,28 +439,22 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, network=None, input_banks=None, target_banks=None):
+    def __init__(self, network=None,
+                 default_inputs=None,
+                 default_targets=None):
         """
-        Dataset constructor requires a network or (input_banks and target_banks).
+        Dataset constructor requires a network or (default_inputs and default_targets).
+
+        defaults are given as a list of tuple shapes, one shape per bank.
         """
         self.DATASETS = {name: function for (name, function) in
                          inspect.getmembers(conx.datasets, inspect.isfunction)}
         self.clear()
         self.network = network
-        if network is not None:
-            self.set_bank_counts()
-        elif input_banks is None or target_banks is None:
-            raise Exception("Dataset requires a network or (input_banks and target_banks)")
-        else:
-            self._num_input_banks = input_banks
-            self._num_target_banks = target_banks
-
-    def set_bank_counts(self):
-        """
-        Called when network is compiled.
-        """
-        self._num_input_banks = len(self.network.input_bank_order)
-        self._num_target_banks = len(self.network.output_bank_order)
+        if default_inputs is not None:
+            self._default_inputs = default_inputs
+        if default_targets is not None:
+            self._default_targets = default_targets
 
     def __getattr__(self, item):
         """
@@ -487,6 +469,12 @@ class Dataset():
             return _DataVector(self, item)
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
+
+    def __len__(self):
+        """
+        Return the size of the dataset (number of inputs/targets).
+        """
+        return self._get_size()
 
     def random(self, length, frange=(-1, 1)):
         """
@@ -503,31 +491,26 @@ class Dataset():
         100
         """
         diff = abs(frange[1] - frange[0])
-        inputs = []
         ## inputs:
-        if self._num_input_banks == 1:
-            for i in range(length):
-                shape = self.network[self.network.input_bank_order[0]].keras_layer.input_shape[1:]
-                inputs.append(np.random.rand(*shape) * diff + frange[0])
-        else:
-            for i in range(length):
-                row = []
+        inputs = []
+        for i in range(length):
+            if self.network:
                 for layer_name in self.network.input_bank_order:
-                    shape = self.network[layer_name].keras_layer.input_shape[1:]
-                    row.append(np.random.rand(*shape) * diff + frange[0])
-                inputs.append(row)
+                    shape = self.network[layer_name].shape
+                    inputs.append(np.random.rand(*shape) * diff + frange[0])
+            else:
+                for shape in self._default_inputs:
+                    inputs.append(np.random.rand(*shape) * diff + frange[0])
+        ## targets:
         targets = []
-        if self._num_target_banks == 1:
-            for i in range(length):
-                shape = self.network[self.network.output_bank_order[0]].keras_layer.output_shape[1:]
-                targets.append(np.random.rand(*shape) * diff + frange[0])
-        else:
-            for i in range(length):
-                row = []
+        for i in range(length):
+            if self.network:
                 for layer_name in self.network.output_bank_order:
-                    shape = self.network[layer_name].keras_layer.output_shape[1:]
-                    row.append(np.random.rand(*shape) * diff + frange[0])
-                targets.append(row)
+                    shape = self.network[layer_name].shape
+                    targets.append(np.random.rand(*shape) * diff + frange[0])
+            else:
+                for shape in self._default_targets:
+                    targets.append(np.random.rand(*shape) * diff + frange[0])
         self.load(list(zip(inputs, targets)))
 
     def clear(self):
@@ -538,9 +521,9 @@ class Dataset():
         self._targets = []
         self._labels = []
         self._targets_range = (0,0)
-        self._target_shapes = []
-        self._input_shapes = []
         self._split = 0
+        self._default_inputs = [(None,)]
+        self._default_targets = [(None,)]
 
     def add(self, inputs, targets):
         """
@@ -608,18 +591,13 @@ class Dataset():
         """
         Set the inputs/targets in the specific internal format:
 
-        [input-vector, input-vector, ...] if single input layer
+        [[input-layer-1-vectors, ...], [input-layer-2-vectors, ...], ...]
 
-        [[input-layer-1-vectors ...], [input-layer-2-vectors ...], ...] if input target layers
-
-        [target-vector, target-vector, ...] if single output layer
-
-        [[target-layer-1-vectors], [target-layer-2-vectors], ...] if multi target layers
+        [[target-layer-1-vectors, ...], [target-layer-2-vectors, ...], ...]
 
         """
-        ## need to set: _num_input_banks, _input_shapes, _inputs
-        ## need to set: _num_target_banks, _target_shapes, _targets
-        ## inputs is a list [multiple] or np.array() [single]
+        ## inputs/targets are each [np.array(), ...], one np.array()
+        ## per bank
         if inputs is not None:
             self._inputs = inputs
         if targets is not None:
@@ -639,8 +617,6 @@ class Dataset():
 
         See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
         """
-        if self.network.model is None:
-            raise Exception("compile network before setting dataset")
         if inputs is not None:
             if targets is not None:
                 if pairs is not None:
@@ -658,10 +634,15 @@ class Dataset():
         for pair in pairs:
             if len(pair) != 2:
                 raise Exception("need a pair of inputs/targets for each pattern")
-        inputs = [pair[0] for pair in pairs]
-        targets = [pair[1] for pair in pairs]
+        inputs = [pair[0] for pair in pairs] ## all inputs, human format
+        if self._num_input_banks() == 1:
+            inputs = [[input] for input in inputs] ## standard format
+        targets = [pair[1] for pair in pairs] ## all targets, human format
+        if self._num_target_banks() == 1:
+            targets = [[target] for target in targets] ## standard format
+        ### standard format from here down:
         if len(inputs) > 1:
-            form = get_form(inputs[0])
+            form = get_form(inputs[0]) # get the first form
             for i in range(1, len(inputs)):
                 if form != get_form(inputs[i]):
                     raise Exception("Malformed input at number %d" % (i + 1))
@@ -671,57 +652,53 @@ class Dataset():
                 if form != get_form(targets[i]):
                     raise Exception("Malformed target at number %d" % (i + 1))
         # Test the inputs, see if outputs match:
-        #### Get one to test output:
-        if self._num_input_banks > 1:
+        if self.network.model:
+            #### Get one to test output: list of np.array() per banks
             inputs = [np.array([bank], "float32") for bank in inputs[0]]
-        else:
-            inputs = np.array([inputs[0]], "float32")
-        ## Predict:
-        ## try:
-        prediction = self.network.model.predict(inputs, batch_size=1)
-        ## raise Exception("Invalid input form; got %s" % (inputs,))
-        if self._num_target_banks > 1:
-            targets = [np.array([bank], "float32") for bank in targets[0]]
-            for i in range(len(targets[0])):
-                shape = targets[i][0].shape
-                if prediction[i][0].shape != shape:
-                    raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (i, shape, prediction[0][i].shape))
-        else:
-            targets = np.array(targets[0], "float32")
-            shape = targets.shape
-            if prediction[0].shape != shape:
-                raise Exception("Invalid target shape; got %s, expecting %s" % (shape, prediction[0].shape))
+            ## Predict:
+            try:
+                prediction = self.network.model.predict(inputs, batch_size=1)
+            except:
+                raise Exception("Invalid input form: %s did not propagate through network" % (inputs,))
+            ## NOTE: output of targets varies by number of target banks!!!
+            if self._num_target_banks() > 1:
+                targets = [np.array([bank], "float32") for bank in targets[0]]
+                for i in range(len(targets[0])):
+                    shape = targets[0][i].shape
+                    if prediction[0][i].shape != shape:
+                        raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (i, shape, prediction[0][i].shape))
+            else:
+                targets = [np.array(bank, "float32") for bank in targets[0]]
+                shape = targets[0].shape
+                if prediction[0].shape != shape:
+                    raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (0, shape, prediction[0].shape))
         self.compile(pairs)
 
     def compile(self, pairs):
-        if self._num_input_banks > 1:
+        if self._num_input_banks() > 1: ## for incoming format
             inputs = []
             for i in range(len(pairs[0][0])):
                 inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
         else:
-            inputs = np.array([x for (x, y) in pairs], "float32")
-        if self._num_target_banks > 1:
+            inputs = [np.array([x for (x, y) in pairs], "float32")]
+        if self._num_target_banks() > 1: ## for incoming format
             targets = []
             for i in range(len(pairs[0][1])):
                 targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
         else:
-            targets = np.array([y for (x, y) in pairs], "float32")
+            targets = [np.array([y for (x, y) in pairs], "float32")]
         ## inputs:
-        if self._num_input_banks == 1: ## np.array
-            if len(self._inputs) == 0:
-                self._inputs = inputs
-            else:
-                self._inputs = np.append(self._inputs, inputs, 0)
-        else: ## list
-            self._inputs.extend(inputs)
+        if len(self._inputs) == 0:
+            self._inputs = inputs
+        else:
+            for i in range(len(self._inputs)):
+                self._inputs[i] = np.append(self._inputs[i], inputs[i], 0)
         ## targets:
-        if self._num_target_banks == 1: ## np.array
-            if len(self._targets) == 0:
-                self._targets = targets
-            else:
-                self._targets = np.append(self._targets, targets, 0)
-        else: ## list
-            self._targets.extend(targets)
+        if len(self._targets) == 0:
+            self._targets = targets
+        else:
+            for i in range(len(self._targets)):
+                self._targets[i] = np.append(self._targets[i], targets[i], 0)
         self._cache_values()
 
     def get(self, dataset_name=None, *args, **kwargs):
@@ -763,51 +740,34 @@ class Dataset():
                 stop = len(self._inputs) # <---FIXME: will this work if multiple banks?
             else: # (None, #)
                 start = 0
-        if self._num_input_banks > 1:
-            inputs = [np.array(row[start:stop]) for row in self._inputs]
-        else:
-            inputs = self._inputs[start:stop] # ok
-        self._inputs = inputs
-        if self._num_target_banks > 1:
-            targets = [np.array(row[start:stop]) for row in self._targets]
-        else:
-            targets = self._targets[start:stop]
-        self._targets = targets
+        self._inputs = [np.array(row[start:stop]) for row in self._inputs]
+
+        self._targets = [np.array(row[start:stop]) for row in self._targets]
         if len(self._labels) > 0:
             self._labels = self._labels[start:stop]
         self._cache_values()
 
     def _cache_values(self):
         if len(self.inputs) > 0:
-            if self._num_input_banks > 1:
-                self._inputs_range = (min([x.min() for x in self._inputs]),
-                                      max([x.max() for x in self._inputs]))
-            else:
-                self._inputs_range = (self._inputs.min(), self._inputs.max())
+            self._inputs_range = (min([x.min() for x in self._inputs]),
+                                  max([x.max() for x in self._inputs]))
         else:
             self._inputs_range = (0,0)
         if len(self.targets) > 0:
-            if self._num_target_banks > 1:
-                self._targets_range = (min([x.min() for x in self._targets]),
-                                       max([x.max() for x in self._targets]))
-            else:
-                self._targets_range = (self._targets.min(), self._targets.max())
+            self._targets_range = (min([x.min() for x in self._targets]),
+                                   max([x.max() for x in self._targets]))
         else:
             self._targets_range = (0,0)
         ## Set shape cache:
-        if self._num_input_banks > 1:
-            self._input_shapes = [x[0].shape for x in self._inputs]
-        else:
-            self._input_shapes = [self._inputs[0].shape]
-        if self._num_target_banks > 1:
-            self._target_shapes = [x[0].shape for x in self._targets]
-        else:
-            self._target_shapes = [self._targets[0].shape]
+        if len(self._inputs) > 0:
+            self._default_inputs = [x[0].shape for x in self._inputs]
+        if len(self._targets) > 0:
+            self._default_targets = [x[0].shape for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
             raise Exception("WARNING: inputs/targets lengths do not match")
 
-    def set_targets_from_inputs(self, f=None):
+    def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """
         Copy the inputs to targets. Optionally, apply a function f to
         input copy.
@@ -828,20 +788,18 @@ class Dataset():
             ## First, apply the function to human form:
             ts = []
             for i in range(len(self.inputs)):
-                ts.append(f(self.inputs[i]))
-            ## Next, we convert as normal:
-            if self._num_target_banks > 1:
-                targets = []
-                for i in range(len(ts)):
-                    targets.append(np.array(ts[i], "float32"))
-            else:
-                targets = np.array(ts, "float32")
-            self._targets = targets
+                if self._num_input_banks() == 1:
+                    if input_bank != 0:
+                        raise Exception("invalid input_bank: %d" % input_bank)
+                    ts.append(f(self.inputs[i]))
+                else:
+                    ts.append(f(self.inputs[i][0]))
+            self._targets[target_bank] = np.array(ts)
         else: ## no function: just copy the inputs directly
             self._targets = copy.copy(self._inputs)
         self._cache_values()
 
-    def set_inputs_from_targets(self, f=None):
+    def set_inputs_from_targets(self, f=None, input_bank=0, target_bank=0):
         """
         Copy the targets to inputs. Optionally, apply a function f to
         target copy.
@@ -862,31 +820,27 @@ class Dataset():
             ## First, apply the function to human form:
             ins = []
             for i in range(len(self.targets)):
-                ins.append(f(self.targets[i]))
-            ## Next, we convert as normal:
-            if self._num_target_banks > 1:
-                inputs = []
-                for i in range(len(ins)):
-                    inputs.append(np.array(ins[i], "float32"))
-            else:
-                inputs = np.array(ins, "float32")
-            self._inputs = inputs
+                if self._num_target_banks() == 1:
+                    if target_bank != 0:
+                        raise Exception("invalid target_bank: %d" % target_bank)
+                    ins.append(f(self.targets[i]))
+                else:
+                    ins.append(f(self.targets[i][target_bank]))
+            self._inputs[input_bank] = np.array(ins)
         else: ## no function: just copy the targets directly
             self._inputs = copy.copy(self._targets)
         self._cache_values()
 
-    def set_targets_from_labels(self, num_classes):
+    def set_targets_from_labels(self, num_classes, bank_index=0):
         """
         Given net.labels are integers, set the net.targets to onehot() categories.
         """
         ## FIXME: allow working on multi-targets
-        if self._num_target_banks > 1:
-            raise Exception("set_targets_from_labels does not yet work on multi-target patterns")
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
-        self._targets = to_categorical(self._labels, num_classes).astype("uint8")
+        self._targets[bank_index] = to_categorical(self._labels, num_classes).astype("uint8")
         self._cache_values()
         print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
@@ -898,39 +852,28 @@ class Dataset():
         print('Input Summary:')
         print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
         if size != 0:
-            if self._num_input_banks == 1:
-                print('   shape  : %s' % (self._inputs[0].shape,))
-            else:
-                print('   shape  : %s' % ([self._inputs[b][0].shape for b in range(self.num_input_banks)],))
+            print('   shape  : %s' % self.inputs.shape)
             print('   range  : %s' % (self._inputs_range,))
         print('Target Summary:')
         print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
         if size != 0:
-            if self._num_target_banks == 1:
-                print('   shape  : %s' % (self._targets[0].shape,))
-            else:
-                print('   shape  : %s' % ([self._targets[b][0].shape for b in range(self.num_target_banks)],))
+            print('   shape  : %s' % self.targets.shape)
             print('   range  : %s' % (self._targets_range,))
 
-    def rescale_inputs(self, old_range, new_range, new_dtype):
+    def rescale_inputs(self, bank_index, old_range, new_range, new_dtype):
         """
-        Rescale the inputs. WIP.
+        Rescale the inputs.
         """
-        ## FIXME: allow working on multi-inputs
-        if self._num_input_banks > 1:
-            raise Exception("rescale_inputs does not yet work on multi-input patterns")
         old_min, old_max = old_range
         new_min, new_max = new_range
-        if self._inputs.min() < old_min or self._inputs.max() > old_max:
+        if self._inputs[bank_index].min() < old_min or self._inputs[bank_index].max() > old_max:
             raise Exception('range %s is incompatible with inputs' % (old_range,))
         if old_min > old_max:
             raise Exception('range %s is out of order' % (old_range,))
         if new_min > new_max:
             raise Exception('range %s is out of order' % (new_range,))
-        self._inputs = rescale_numpy_array(self._inputs, old_range, new_range, new_dtype)
-        self._inputs_range = (self._inputs.min(), self._inputs.max())
-        print('Inputs rescaled to %s values in the range %s - %s' %
-              (self._inputs.dtype, new_min, new_max))
+        self._inputs[bank_index] = rescale_numpy_array(self._inputs[bank_index], old_range, new_range, new_dtype)
+        self._cache_values()
 
     def shuffle(self):
         """
@@ -939,15 +882,8 @@ class Dataset():
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         permutation = np.random.permutation(len(self.inputs))
-        if self._num_input_banks == 1:
-            self._inputs = self._inputs[permutation]
-        else:
-            self._inputs = [self._inputs[b][permutation] for b in range(self._num_input_banks)]
-        if self._num_target_banks == 1:
-            self._targets = self._targets[permutation]
-        else:
-            self._targets = [self._targets[b][permutation] for b in range(self._num_target_banks)]
-        # FIXME: need to generalize this for _labels too:
+        self._inputs = [self._inputs[b][permutation] for b in range(self._num_input_banks())]
+        self._targets = [self._targets[b][permutation] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
             self._labels = self._labels[permutation]
 
@@ -977,20 +913,6 @@ class Dataset():
         else:
             raise Exception("invalid split: %s" % split)
 
-    def _get_size(self):
-        """returns the total number of patterns/targets in the dataset"""
-        if self._num_input_banks == 0:
-            raise Exception("need to connect network first")
-        elif self._num_input_banks == 1:
-            # self._inputs is a single array for the single input bank
-            # <bank1_input_array>
-            return self._inputs.shape[0]
-        else:
-            # self._inputs is a list of arrays (one for each input bank)
-            # with all the arrays of the same length
-            # [<bank1_input_array>, <bank2_input_array>, ...]
-            return self._inputs[0].shape[0]
-
     def _get_split_sizes(self):
         # need a more elegant name for this method
         """returns a tuple (dataset_size, train_set_size, test_set_size),
@@ -1006,20 +928,13 @@ class Dataset():
 
     def _split_data(self):
         size, num_train, num_test = self._get_split_sizes()
-        if self._num_input_banks == 1:
-            # self._inputs and self._targets are single numpy arrays
-            train_inputs = self._inputs[:num_train]
-            train_targets = self._targets[:num_train]
-            test_inputs = self._inputs[size - num_test:]
-            test_targets = self._targets[size - num_test:]
-        else:
-            # self._inputs and self._targets are lists of numpy arrays
-            train_inputs, train_targets, test_inputs, test_targets = [], [], [], []
-            for inputs, targets in zip(self._inputs, self._targets):
-                train_inputs.append(inputs[:num_train])
-                train_targets.append(targets[:num_train])
-                test_inputs.append(inputs[size - num_test:])
-                test_targets.append(targets[size - num_test:])
+        # self._inputs and self._targets are lists of numpy arrays
+        train_inputs, train_targets, test_inputs, test_targets = [], [], [], []
+        for inputs, targets in zip(self._inputs, self._targets):
+            train_inputs.append(inputs[:num_train])
+            train_targets.append(targets[:num_train])
+            test_inputs.append(inputs[size - num_test:])
+            test_targets.append(targets[size - num_test:])
         return (train_inputs, train_targets), (test_inputs, test_targets)
 
     def chop(self, retain=0.5):
@@ -1039,15 +954,8 @@ class Dataset():
             retain = int(len(self.inputs) * retain)
         else:
             raise Exception("invalid value: %s" % retain)
-        if self._num_input_banks == 1:
-            self._inputs = self._inputs[:retain]
-        else:
-            self._inputs = [self._inputs[b][:retain] for b in range(self._num_input_banks)]
-        if self._num_target_banks == 1:
-            self._targets = self._targets[:retain]
-        else:
-            self._targets = [self._targets[b][:retain] for b in range(self._num_target_banks)]
-        # FIXME: need to generalize this for _labels too:
+        self._inputs = [self._inputs[b][:retain] for b in range(self._num_input_banks())]
+        self._targets = [self._targets[b][:retain] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
             self._labels = self._labels[:retain]
 
@@ -1058,10 +966,11 @@ class Dataset():
         """
         if not 0 <= i < self._get_size():
             raise Exception("input index %d is out of bounds" % (i,))
-        elif self._num_input_banks == 1:
-            return self._inputs[i].tolist()
+        data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
+        if self._num_input_banks() == 1:
+            return data[0]
         else:
-            return [self._inputs[b][i].tolist() for b in range(self._num_input_banks)]
+            return data
 
     def _get_target(self, i):
         """
@@ -1070,10 +979,11 @@ class Dataset():
         """
         if not 0 <= i < self._get_size():
             raise Exception("target index %d is out of bounds" % (i,))
-        elif self._num_target_banks == 1:
-            return self._targets[i].tolist()
+        data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
         else:
-            return [self._targets[b][i].tolist() for b in range(self._num_target_banks)]
+            return data
 
     def _get_train_input(self, i):
         """
@@ -1083,10 +993,11 @@ class Dataset():
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_train:
             raise Exception("training input index %d is out of bounds" % (i,))
-        elif self._num_input_banks == 1:
-            return self._inputs[i].tolist()
+        data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
+        if self._num_input_banks() == 1:
+            return data[0]
         else:
-            return [self._inputs[b][i].tolist() for b in range(self._num_input_banks)]
+            return data
 
     def _get_train_target(self, i):
         """
@@ -1096,10 +1007,11 @@ class Dataset():
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_train:
             raise Exception("training target index %d is out of bounds" % (i,))
-        elif self._num_target_banks == 1:
-            return self._targets[i].tolist()
+        data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
         else:
-            return [self._targets[b][i].tolist() for b in range(self._num_target_banks)]
+            return data
 
     def _get_test_input(self, i):
         """
@@ -1110,10 +1022,11 @@ class Dataset():
         if not 0 <= i < num_test:
             raise Exception("test input index %d is out of bounds" % (i,))
         j = size - num_test + i
-        if self._num_input_banks == 1:
-            return self._inputs[j].tolist()
+        data = [self._inputs[b][j].tolist() for b in range(self._num_input_banks())]
+        if self._num_input_banks() == 1:
+            return data[0]
         else:
-            return [self._inputs[b][j].tolist() for b in range(self._num_input_banks)]
+            return data
 
     def _get_test_target(self, i):
         """
@@ -1124,8 +1037,46 @@ class Dataset():
         if not 0 <= i < num_test:
             raise Exception("test target index %d is out of bounds" % (i,))
         j = size - num_test + i
-        if self._num_target_banks == 1:
-            return self._targets[j].tolist()
+        data = [self._targets[b][j].tolist() for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
         else:
-            return [self._targets[b][j].tolist() for b in range(self._num_target_banks)]
+            return data
 
+    def _num_input_banks(self):
+        """
+        How many input banks?
+
+        1. we ask network, if one
+        2. if not, we check previous inputs
+        3. else we fall back on defaults
+        """
+        if self.network:
+            return self.network.num_input_layers
+        else:
+            return len(self._default_inputs)
+
+    def _num_target_banks(self):
+        """
+        How many target banks?
+
+        1. we ask network, if one
+        2. else we fall back on defaults
+        """
+        if self.network:
+            return self.network.num_target_layers
+        else:
+            return len(self._default_targets)
+
+    def _get_size(self):
+        """
+        Returns the total number of patterns/targets in the dataset
+
+        >>> ds = Dataset()
+        >>> ds._get_size()
+        0
+        """
+        if len(self._inputs) > 0:
+            return self._inputs[0].shape[0]
+        else:
+            return 0
