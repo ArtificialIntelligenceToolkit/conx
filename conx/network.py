@@ -306,10 +306,7 @@ class Network():
             return self.layer_dict[layer_name]
 
     def _repr_html_(self):
-        if all([layer.model for layer in self.layers]):
-            return self.build_svg(opts={"svg_height": "780px"}) ## will fill width
-        else:
-            return None
+        return self.build_svg(opts={"svg_height": "780px"}) ## will fill width
 
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
@@ -768,28 +765,30 @@ class Network():
                 values = [values]
             results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
         results_acc = self._compute_result_acc(results)
-        val_results = {}
+        ## look at split, use validation subset:
+        if self.dataset._split == 0.0: ## None
+            val_results = {}
+        elif self.dataset._split == 1.0: ## special case; use entire set; already done!
+            val_results = {"val_%s" % key: results[key] for key in results}
+        else: # split is greater than 0, less than 1
+            print("Evaluating initial validation metrics...")
+            ## need to split; check format based on output banks:
+            length = len(self.dataset.test_targets)
+            if self.num_target_layers == 1:
+                targets = self.dataset._targets[-length:]
+            else:
+                targets = [column[-length:] for column in self.dataset._targets]
+            if self.num_input_layers == 1:
+                inputs = self.dataset._inputs[-length:]
+            else:
+                inputs = [column[-length:] for column in self.dataset._inputs]
+            val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
+            val_results = {"val_%s" % metric: value for metric,value in zip(self.model.metrics_names, val_values)}
+        if val_results:
+            val_results_acc = self._compute_result_acc(val_results)
         if use_validation_to_stop:
             if ((self.dataset._split > 0) and
                 ((accuracy is not None) or (error is not None))):
-                ## look at split, use validation subset:
-                if self.dataset._split == 1.0: ## special case; use entire set; already done!
-                    val_results = {"val_%s" % key: results[key] for key in results}
-                else: # split is greater than 0, less than 1
-                    print("Evaluating initial validation metrics...")
-                    ## need to split; check format based on output banks:
-                    length = len(self.dataset.test_targets)
-                    if self.num_target_layers == 1:
-                        targets = self.dataset._targets[-length:]
-                    else:
-                        targets = [column[-length:] for column in self.dataset._targets]
-                    if self.num_input_layers == 1:
-                        inputs = self.dataset._inputs[-length:]
-                    else:
-                        inputs = [column[-length:] for column in self.dataset._inputs]
-                    val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
-                    val_results = {metric: value for metric,value in zip(self.model.metrics_names, val_values)}
-                val_results_acc = self._compute_result_acc(val_results, use_validation=True)
                 need_to_train = True
                 if ((accuracy is not None) and (val_results_acc >= accuracy)):
                     print("No training required: validation accuracy already to desired value")
@@ -815,8 +814,9 @@ class Network():
                 self.report_epoch(self.epoch_count, results)
                 return
         ## Ok, now we know we need to train:
+        results.update(val_results)
+        import pdb; pdb.set_trace()
         if len(self.history) == 0:
-            results.update(val_results)
             self.history = [results]
         print("Training...")
         if self.in_console(mpl_backend):
@@ -1026,9 +1026,10 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             if self._comm.kernel:
                 for layer in self.layers:
-                    image = self.propagate_to_image(layer.name, input, batch_size, visualize=False)
-                    data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                    if layer.model:
+                        image = self.propagate_to_image(layer.name, input, batch_size, visualize=False)
+                        data_uri = self._image_to_uri(image)
+                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         return outputs
 
     def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32, visualize=None):
@@ -1691,7 +1692,10 @@ class Network():
                     else:
                         in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
                         v = in_layer.make_dummy_vector()
-                image = self.propagate_to_image(layer_name, v, visualize=False)
+                if self[layer_name].model:
+                    image = self.propagate_to_image(layer_name, v, visualize=False)
+                else:
+                    image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
                 max_dim = max(width, height)
@@ -2018,8 +2022,8 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         if any([(layer.kind() == "unconnected") for layer in self.layers]):
             raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
-        if self.model is None:
-            raise Exception("can't build display before Network.compile(...) as been run")
+        #if self.model is None:
+        #    raise Exception("can't build display before Network.compile(...) as been run")
         self.visualize = False # so we don't try to update previously drawn images
         # defaults:
         config = copy.copy(self.config)

@@ -311,7 +311,10 @@ class _BaseLayer():
         This is in the easy to use human format (list of lists ...)
         """
         ## FIXME: for pictures give a vector
-        v = np.ones(self.shape) * default_value
+        if self.shape is None:
+            v = np.ones(100) * default_value
+        else:
+            v = np.ones(self.shape) * default_value
         lo, hi = self.get_minmax(v)
         v *= (lo + hi) / 2.0
         return v.tolist()
