@@ -815,7 +815,6 @@ class Network():
                 return
         ## Ok, now we know we need to train:
         results.update(val_results)
-        import pdb; pdb.set_trace()
         if len(self.history) == 0:
             self.history = [results]
         print("Training...")
