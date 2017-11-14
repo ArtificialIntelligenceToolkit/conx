@@ -23,6 +23,7 @@ import base64
 import io
 import numpy as np
 from keras.utils import to_categorical
+import keras
 import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------
@@ -271,37 +272,45 @@ def get_device():
     else:
         return "unknown"
 
-'''
-
-def evaluate(model, test_inputs, test_targets, threshold=0.50, indices=None, show=False):
-    assert len(test_targets) == len(test_inputs), "number of inputs and targets must be the same"
-    if type(indices) not in (list, tuple) or len(indices) == 0:
-        indices = range(len(test_inputs))
-    # outputs = [np.argmax(t) for t in model.predict(test_inputs[indices]).round()]
-    # targets = list(test_labels[indices])
-    wrong = 0
-    for i in indices:
-        target_vector = test_targets[i]
-        target_class = np.argmax(target_vector)
-        output_vector = model.predict(test_inputs[i:i+1])[0]
-        output_class = np.argmax(output_vector)  # index of highest probability in output_vector
-        probability = output_vector[output_class]
-        if probability < threshold or output_class != target_class:
-            if probability < threshold:
-                output_class = '???'
-            print('image #%d (%s) misclassified as %s' % (i, target_class, output_class))
-            wrong += 1
-            if show:
-                plt.imshow(test_images[i], cmap='binary', interpolation='nearest')
-                plt.draw()
-                answer = raw_input('RETURN to continue, q to quit...')
-                if answer in ('q', 'Q'):
-                    return
-    total = len(indices)
-    correct = total - wrong
-    correct_percent = 100.0*correct/total
-    wrong_percent = 100.0*wrong/total
-    print('%d test images: %d correct (%.1f%%), %d wrong (%.1f%%)' %
-          (total, correct, correct_percent, wrong, wrong_percent))
-
-'''
+def import_keras_model(model, network_name):
+    """
+    """
+    from .network import Network
+    import inspect
+    import conx
+    network = Network(network_name)
+    network.model = model
+    conx_layers = {name: layer for (name,layer)
+                   in inspect.getmembers(conx.layers, inspect.isclass)}
+    # First, make all of the conx layers:
+    for layer in model.layers:
+        clayer_class = conx_layers[layer.__class__.__name__ + "Layer"]
+        if clayer_class.__name__ == "InputLayerLayer":
+            clayer = conx.layers.InputLayer(layer.name, None)
+            #clayer.make_input_layer_k = lambda layer=layer: layer
+            clayer.shape = None
+            clayer.params["batch_shape"] = layer.get_config()["batch_input_shape"]
+            #clayer.params = layer.get_config()
+            clayer.k = clayer.make_input_layer_k()
+            clayer.keras_layer = clayer.k
+        else:
+            clayer = clayer_class(**layer.get_config())
+            clayer.k = layer
+            clayer.keras_layer = layer
+        network.add(clayer)
+    # Next, connect them up:
+    for layer_from in model.layers:
+        for node in layer.outbound_nodes:
+            network.connect(layer_from, node.outbound_layer.name)
+            print("connecting:", layer_from, node.outbound_layer.name)
+    # Connect them all up, and set input banks:
+    network.connect()
+    for clayer in network.layers:
+        clayer.input_names = network.input_bank_order
+    # Finally, make the internal models:
+    for clayer in network.layers:
+        ## FIXME: the appropriate inputs:
+        if clayer.kind() != "input":
+            clayer.model = keras.models.Model(inputs=model.layers[0].input,
+                                              outputs=clayer.keras_layer.output)
+    return network

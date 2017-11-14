@@ -1025,7 +1025,7 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             if self._comm.kernel:
                 for layer in self.layers:
-                    if layer.model:
+                    if layer.visible and layer.model:
                         image = self.propagate_to_image(layer.name, input, batch_size, visualize=False)
                         data_uri = self._image_to_uri(image)
                         self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
@@ -1137,11 +1137,12 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             # Update path from input to output
             if self._comm.kernel:
-                for layer in self.layers: # FIXME??: update all layers for now
-                    out = self.propagate_to(layer.name, inputs, visualize=False)
-                    image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
-                    data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                for layer in self.layers:
+                    if layer.visible and layer.model is not None:
+                        out = self.propagate_to(layer.name, inputs, visualize=False)
+                        image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
+                        data_uri = self._image_to_uri(image)
+                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
         shape = self[layer_name].shape
         if shape and all([isinstance(v, numbers.Integral) for v in shape]):
@@ -1154,7 +1155,7 @@ class Network():
         return outputs
 
     def _layer_has_features(self, layer_name):
-        output_shape = self[layer_name].keras_layer.output_shape
+        output_shape = self[layer_name].get_output_shape()
         return (isinstance(output_shape, tuple) and len(output_shape) == 4)
 
 
@@ -1169,7 +1170,7 @@ class Network():
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
             inputs = image2array(inputs)
-        output_shape = self[layer_name].keras_layer.output_shape
+        output_shape = self[layer_name].get_output_shape()
         retval = """<table><tr>"""
         if self._layer_has_features(layer_name):
             if html:
@@ -1947,7 +1948,7 @@ class Network():
                                              "font_family": config["font_family"],
                                              "text_anchor": "start",
                 }])
-                output_shape = self[layer_name].keras_layer.output_shape
+                output_shape = self[layer_name].get_output_shape()
                 if (isinstance(output_shape, tuple) and len(output_shape) == 4 and
                     "ImageLayer" != self[layer_name].__class__.__name__):
                     features = str(output_shape[3])

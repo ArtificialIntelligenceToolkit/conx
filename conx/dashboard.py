@@ -392,7 +392,7 @@ class Dashboard(Tab):
             mindim.observe(lambda change, layer=layer: (self.set_min(layer, change["new"]), self.prop_one()))
             maxdim.observe(lambda change, layer=layer: (self.set_max(layer, change["new"]), self.prop_one()))
             children.append(HBox([mindim, maxdim]))
-            output_shape = layer.keras_layer.output_shape
+            output_shape = layer.get_output_shape()
             if (isinstance(output_shape, tuple) and
                 len(output_shape) == 4 and
                 "ImageLayer" != layer.__class__.__name__):

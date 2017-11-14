@@ -352,6 +352,15 @@ class _BaseLayer():
         else: # activation in ["linear"] or otherwise
             return (-1,+1)
 
+    def get_output_shape(self):
+        ## FIXME: verify this:
+        if self.keras_layer:
+            if hasattr(self.keras_layer, "output_shape"):
+                return self.keras_layer.output_shape
+            ## Tensors don't have output_shape; is this right:
+            elif hasattr(self.keras_layer, "_keras_shape"):
+                return self.keras_layer._keras_shape
+
     def tooltip(self):
         """
         String (with newlines) for describing layer."
