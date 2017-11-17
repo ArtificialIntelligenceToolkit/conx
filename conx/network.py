@@ -482,14 +482,8 @@ class Network():
         else:
             ## need to split; check format based on output banks:
             length = len(self.dataset.train_targets)
-            if self.num_target_layers == 1:
-                targets = self.dataset._targets[:length]
-            else:
-                targets = [column[:length] for column in self.dataset._targets]
-            if self.num_input_layers == 1:
-                inputs = self.dataset._inputs[:length]
-            else:
-                inputs = [column[:length] for column in self.dataset._inputs]
+            targets = [column[:length] for column in self.dataset._targets]
+            inputs = [column[:length] for column in self.dataset._inputs]
         self._test(inputs, targets, "train dataset", batch_size, show,
                    tolerance, force, show_inputs, show_outputs, filter)
         if self.dataset._split in [1.0, 0.0]: ## special case; use entire set
@@ -497,14 +491,8 @@ class Network():
         else: # split is greater than 0, less than 1
             ## need to split; check format based on output banks:
             length = len(self.dataset.test_targets)
-            if self.num_target_layers == 1:
-                targets = self.dataset._targets[-length:]
-            else:
-                targets = [column[-length:] for column in self.dataset._targets]
-            if self.num_input_layers == 1:
-                inputs = self.dataset._inputs[-length:]
-            else:
-                inputs = [column[-length:] for column in self.dataset._inputs]
+            targets = [column[-length:] for column in self.dataset._targets]
+            inputs = [column[-length:] for column in self.dataset._inputs]
             val_values = self.model.evaluate(inputs, targets, verbose=0)
         self._test(inputs, targets, "validation dataset", batch_size, show,
                    tolerance, force, show_inputs, show_outputs, filter)
@@ -748,14 +736,8 @@ class Network():
         else:
             ## need to split; check format based on output banks:
             length = len(self.dataset.train_targets)
-            if self.num_target_layers == 1:
-                targets = self.dataset._targets[:length]
-            else:
-                targets = [column[:length] for column in self.dataset._targets]
-            if self.num_input_layers == 1:
-                inputs = self.dataset._inputs[:length]
-            else:
-                inputs = [column[:length] for column in self.dataset._inputs]
+            targets = [column[:length] for column in self.dataset._targets]
+            inputs = [column[:length] for column in self.dataset._inputs]
         if len(self.history) > 0:
             results = self.history[-1]
         else:
@@ -774,14 +756,8 @@ class Network():
             print("Evaluating initial validation metrics...")
             ## need to split; check format based on output banks:
             length = len(self.dataset.test_targets)
-            if self.num_target_layers == 1:
-                targets = self.dataset._targets[-length:]
-            else:
-                targets = [column[-length:] for column in self.dataset._targets]
-            if self.num_input_layers == 1:
-                inputs = self.dataset._inputs[-length:]
-            else:
-                inputs = [column[-length:] for column in self.dataset._inputs]
+            targets = [column[-length:] for column in self.dataset._targets]
+            inputs = [column[-length:] for column in self.dataset._inputs]
             val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
             val_results = {"val_%s" % metric: value for metric,value in zip(self.model.metrics_names, val_values)}
         if val_results:
