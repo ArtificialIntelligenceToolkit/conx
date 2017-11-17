@@ -1818,7 +1818,6 @@ class Network():
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
-            last_connections_up = False
             for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible or anchor:
                     continue
@@ -1829,9 +1828,10 @@ class Network():
             if any_connections_up:
                 cheight += config["vspace"] # for arrows
             else: # give a bit of room:
-                if not last_connections_up:
-                    cheight += 5
-            last_connections_up = any_connections_up
+                ## FIXME: determine if there were spaces drawn last layer
+                ## Right now, just skip any space at all
+                ## cheight += 5
+                pass
             max_height = 0 # for row of images
             for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible:

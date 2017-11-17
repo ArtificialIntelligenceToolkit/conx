@@ -25,6 +25,7 @@ Welcome to conx's documentation!
    Camera
    Plotting
    Robot Simulation
+   DeepDreams
 
    modules
 
