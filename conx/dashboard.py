@@ -21,7 +21,7 @@ import threading
 import time
 import numpy as np
 from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
-                        Layout, Tab, Label, FloatSlider, Checkbox, IntText,
+                        Layout, Label, FloatSlider, Checkbox, IntText,
                         Box, Accordion, FloatText)
 
 from .utils import AVAILABLE_COLORMAPS, get_colormap
@@ -50,7 +50,7 @@ class _Player(threading.Thread):
     def resume(self):
         self.can_run.set()
 
-class Dashboard(Tab):
+class Dashboard(VBox):
     """
     Build the dashboard for Jupyter widgets. Requires running
     in a notebook/jupyterlab.
@@ -73,15 +73,10 @@ class Dashboard(Tab):
         self.net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.net.build_svg(),), layout=Layout(
             width=self._width, overflow_x='auto', overflow_y="auto",
             justify_content="center"))
-        tabs = [
-            ("Network", self.make_net_page()),
-            ("Configuration", self.make_config_page()),
-            ("Help", self.make_help_page()),
-        ]
-        super().__init__([t[1] for t in tabs])
-        for i in range(len(tabs)):
-            name, widget = tabs[i]
-            self.set_title(i, name)
+        # Make controls first:
+        controls = self.make_controls()
+        config = self.make_config()
+        super().__init__([config, controls, self.net_svg])
 
     def dataset_move(self, position):
         if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -242,6 +237,15 @@ class Dashboard(Tab):
         self.update_control_slider()
         self.prop_one()
 
+    def make_colormap_image(self, colormap_name):
+        from .layers import Layer
+        if not colormap_name:
+            colormap_name = get_colormap()
+        layer = Layer("Colormap", 100)
+        image = layer.make_image(np.arange(-1, 1, .01), colormap_name,
+                                 {"pixels_per_unit": 1}).resize((300, 25))
+        return image
+
     def set_attr(self, obj, attr, value):
         if value not in [{}, None]: ## value is None when shutting down
             if isinstance(value, dict):
@@ -253,38 +257,7 @@ class Dashboard(Tab):
             ## was crashing on Widgets.__del__, if get_ipython() no longer existed
             self.refresh()
 
-    def set_min(self, obj, value):
-        if value not in [{}, None]: ## value is None when shutting down
-            if isinstance(value, dict):
-                value = value["value"]
-            obj.minmax = (value, obj.minmax[1])
-            ## was crashing on Widgets.__del__, if get_ipython() no longer existed
-            self.refresh()
-
-    def set_max(self, obj, value):
-        if value not in [{}, None]: ## value is None when shutting down
-            if isinstance(value, dict):
-                value = value["value"]
-            obj.minmax = (obj.minmax[0], value)
-            ## was crashing on Widgets.__del__, if get_ipython() no longer existed
-            self.refresh()
-
-    def make_colormap_image(self, colormap_name):
-        from .layers import Layer
-        if not colormap_name:
-            colormap_name = get_colormap()
-        layer = Layer("Colormap", 100)
-        image = layer.make_image(np.arange(-1, 1, .01), colormap_name,
-                                 {"pixels_per_unit": 1}).resize((250, 25))
-        return image
-
-    def on_colormap_change(self, change, layer, colormap_image):
-        if change["name"] == "value":
-            layer.colormap = change["new"] if change["new"] else None
-            colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
-            self.prop_one()
-
-    def make_net_page(self):
+    def make_controls(self):
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
         button_prev = Button(icon="backward", layout=Layout(width='100%'))
         button_next = Button(icon="forward", layout=Layout(width='100%'))
@@ -292,6 +265,7 @@ class Dashboard(Tab):
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         #button_train = Button(description="Train", layout=Layout(width='100%'))
         self.button_play = Button(icon="play", description="Play", layout=Layout(width="100%"))
+        refresh_button = Button(icon="refresh", layout=Layout(width="25%"))
 
         self.position_text = IntText(value=0, layout=Layout(width="100%"))
 
@@ -303,21 +277,15 @@ class Dashboard(Tab):
             button_next,
             button_end,
             self.button_play,
+            refresh_button
         ], layout=Layout(width='100%', height="50px"))
-        self.control_select = Select(
-            options=['Test', 'Train'],
-            value='Train',
-            description='Dataset:',
-        rows=1
-        )
-        refresh_button = Button(icon="refresh", layout=Layout(width="40px"))
         length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
         self.control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,
                                    max=max(length, 0),
                                    value=0,
-                                   layout=Layout(width='95%'))
+                                   layout=Layout(width='100%'))
         self.total_text = Label(value="of 0", layout=Layout(width="100px"))
         self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
                                   value=self.net.config["svg_height"]/780.0)
@@ -328,26 +296,19 @@ class Dashboard(Tab):
         button_next.on_click(lambda button: self.dataset_move("next"))
         button_prev.on_click(lambda button: self.dataset_move("prev"))
         self.button_play.on_click(self.toggle_play)
-        self.control_select.observe(self.update_control_slider)
         self.control_slider.observe(self.update_slider_control)
         refresh_button.on_click(self.refresh)
         self.zoom_slider.observe(self.update_zoom_slider)
         self.position_text.observe(self.update_position_text)
-        self.feature_bank = Select(description="Features:", value="",
-                              options=[""] + [layer.name for layer in self.net.layers if self.net._layer_has_features(layer.name)],
-                              rows=1)
-        self.feature_bank.observe(self.refresh)
         # Put them together:
-        control = VBox([HBox([self.control_select, self.feature_bank, refresh_button], layout=Layout(height="40px")),
-                        HBox([self.control_slider, self.total_text], layout=Layout(height="40px")),
-                        self.control_buttons],
-                       layout=Layout(width='95%'))
+        controls = VBox([HBox([self.control_slider, self.total_text], layout=Layout(height="40px")),
+                         self.control_buttons], layout=Layout(width='100%'))
 
-        net_page = VBox([control, self.net_svg], layout=Layout(width='95%'))
-        net_page.on_displayed(lambda widget: self.update_slider_control({"name": "value"}))
-        return net_page
+        #net_page = VBox([control, self.net_svg], layout=Layout(width='95%'))
+        #controls.on_displayed(lambda widget: self.update_slider_control({"name": "value"}))
+        return controls
 
-    def make_config_page(self):
+    def make_config(self):
         layout = Layout()
         style = {"description_width": "initial"}
         checkbox1 = Checkbox(description="Show Targets", value=self.net.config["show_targets"],
@@ -363,53 +324,98 @@ class Dashboard(Tab):
         vspace = IntText(value=self.net.config["vspace"], description="Vertical space between layers:",
                          style=style, layout=layout)
         vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]))
-        config_children = [VBox(
-            [HTML(value="<p><h3>Network display:</h3></p>", layout=layout),
-             self.zoom_slider,
-             hspace,
-             vspace,
-             checkbox1,
-             checkbox2,
-             self.feature_columns,
-             self.feature_scale
-            ])]
+        self.feature_bank = Select(description="Features:", value="",
+                              options=[""] + [layer.name for layer in self.net.layers if self.net._layer_has_features(layer.name)],
+                              rows=1)
+        self.feature_bank.observe(self.refresh)
+        self.control_select = Select(
+            options=['Test', 'Train'],
+            value='Train',
+            description='Dataset:',
+            rows=1
+        )
+        self.control_select.observe(self.update_control_slider)
+        column1 = [self.control_select,
+                   self.zoom_slider,
+                   hspace,
+                   vspace,
+                   checkbox1,
+                   checkbox2,
+                   self.feature_bank,
+                   self.feature_columns,
+                   self.feature_scale
+        ]
+        ## Make layer selectable, and update-able:
+        column2 = []
+        layer = self.net.layers[-1]
+        self.layer_select = Select(description="Layer:", value=layer.name,
+                                   options=[layer.name for layer in
+                                            self.net.layers],
+                                   rows=1)
+        self.layer_select.observe(lambda widget: self.update_layer_selection())
+        column2.append(self.layer_select)
+        self.layer_visible_checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
+        self.layer_visible_checkbox.observe(lambda change: self.update_layer())
+        column2.append(self.layer_visible_checkbox)
+        self.layer_colormap = Select(description="Colormap:",
+                                     options=[""] + AVAILABLE_COLORMAPS,
+                                     value=layer.colormap if layer.colormap is not None else "", layout=layout, rows=1)
+        self.layer_colormap_image = HTML(value="""<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap)))
+        self.layer_colormap.observe(lambda change: self.update_layer())
+        column2.append(self.layer_colormap)
+        column2.append(self.layer_colormap_image)
+        self.layer_mindim = IntText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
+        self.layer_maxdim = IntText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
+        self.layer_mindim.observe(lambda change: self.update_layer())
+        self.layer_maxdim.observe(lambda change: self.update_layer())
+        column2.append(self.layer_mindim)
+        column2.append(self.layer_maxdim)
+        output_shape = layer.get_output_shape()
+        self.layer_feature = IntText(value=layer.feature, description="Feature to show:", style=style)
+        self.layer_feature.observe(lambda change: self.update_layer())
+        column2.append(self.layer_feature)
 
-        for layer in reversed(self.net.layers):
-            children = []
-            children.append(HTML(value="<p><hr/><h3>%s bank:</h3></p>" % layer.name, layout=layout))
-            checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
-            checkbox.observe(lambda change, layer=layer: self.set_attr(layer, "visible", change["new"]))
-            children.append(checkbox)
-            colormap = Select(description="Colormap:",
-                              options=[""] + AVAILABLE_COLORMAPS,
-                              value=layer.colormap if layer.colormap is not None else "", layout=layout, rows=1)
-            colormap_image = HTML(value="""<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap)))
-            colormap.observe(lambda change, layer=layer, colormap_image=colormap_image:
-                             self.on_colormap_change(change, layer, colormap_image))
-            children.append(HBox([colormap, colormap_image]))
-            mindim = IntText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
-            maxdim = IntText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
-            mindim.observe(lambda change, layer=layer: (self.set_min(layer, change["new"]), self.prop_one()))
-            maxdim.observe(lambda change, layer=layer: (self.set_max(layer, change["new"]), self.prop_one()))
-            children.append(HBox([mindim, maxdim]))
-            output_shape = layer.get_output_shape()
-            if (isinstance(output_shape, tuple) and
-                len(output_shape) == 4 and
-                "ImageLayer" != layer.__class__.__name__):
-                ## Allow feature to be selected:
-                feature = IntText(value=layer.feature, description="Feature to show:", style=style)
-                feature.observe(lambda change, layer=layer: self.set_attr(layer, "feature", change["new"]))
-                children.append(feature)
-            config_children.append(VBox(children))
+        config_children = HBox([VBox(column1, layout=Layout(width="100%")),
+                                VBox(column2, layout=Layout(width="100%"))])
+        accordion = Accordion(children=[config_children])
+        accordion.set_title(0, self.net.name)
+        accordion.selected_index = None
+        return accordion
 
-        accordion = Accordion(children=config_children)
-        accordion.set_title(0, "Network configuration")
-        for i in range(len(self.net.layers)):
-            accordion.set_title(i + 1, "%s bank" % self.net.layers[len(self.net.layers) - i - 1].name)
-        config_page = VBox([accordion], layout=Layout(width='95%', overflow_x="auto", overflow_y="auto"))
-        return config_page
+    def update_layer(self):
+        """
+        Update the net object, and redisplay.
+        """
+        if (hasattr(self, "_ignore_layer_updates") and
+            self._ignore_layer_updates):
+            return
+        layer = self.net[self.layer_select.value]
+        layer.visible = self.layer_visible_checkbox.value
+        layer.colormap = self.layer_colormap.value if self.layer_colormap.value else None
+        layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
+        layer.feature = self.layer_feature.value
+        #if (isinstance(output_shape, tuple) and
+        #    len(output_shape) == 4 and
+        #    "ImageLayer" != layer.__class__.__name__):
+        #    ## Allow feature to be selected:
+        #    feature.observe(lambda change, layer=layer: self.set_attr(layer, "feature", change["new"]))
+        self.layer_colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
+        ##print("Changing colormap to: %s" % layer.colormap)
+        self.refresh()
 
-    def make_help_page(self):
-        help_page = HTML("""<iframe src="https://conx.readthedocs.io" width="100%%" height="%s"></frame>""" % (self._height,),
-                         layout=Layout(width="95%"))
-        return help_page
+    def update_layer_selection(self):
+        """
+        Just update the widgets; don't redraw anything.
+        """
+        ## No need to redisplay anything
+        self._ignore_layer_updates = True
+        ## First, get the new layer selected:
+        layer = self.net[self.layer_select.value]
+        ## Now, let's update all of the values without updating:
+        self.layer_visible_checkbox.value = layer.visible
+        self.layer_colormap.value = layer.colormap if layer.colormap != "" else ""
+        self.layer_colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
+        self.layer_mindim.value = layer.minmax[0]
+        self.layer_maxdim.value = layer.minmax[1]
+        self.layer_feature.value = layer.feature
+        self._ignore_layer_updates = False
