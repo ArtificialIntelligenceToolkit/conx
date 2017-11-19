@@ -22,7 +22,7 @@ import time
 import numpy as np
 from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
                         Layout, Label, FloatSlider, Checkbox, IntText,
-                        Box, Accordion, FloatText)
+                        Box, Accordion, FloatText, Output)
 
 from .utils import AVAILABLE_COLORMAPS, get_colormap
 
@@ -56,6 +56,7 @@ class Dashboard(VBox):
     in a notebook/jupyterlab.
     """
     def __init__(self, net, width="95%", height="550px", play_rate=0.5):
+        self._ignore_layer_updates = False
         self.player = _Player(self, play_rate)
         self.player.start()
         self.net = net
@@ -67,16 +68,17 @@ class Dashboard(VBox):
         style = {"description_width": "initial"}
         self.feature_columns = IntText(description="Feature columns:", value=3, style=style)
         self.feature_scale = FloatText(description="Feature scale:", value=2.0, style=style)
-        self.feature_columns.observe(self.refresh)
-        self.feature_scale.observe(self.refresh)
+        self.feature_columns.observe(self.regenerate, names='value')
+        self.feature_scale.observe(self.regenerate, names='value')
         ## Hack to center SVG as justify-content is broken:
-        self.net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % (self.net.build_svg(),), layout=Layout(
+        self.net_svg = HTML(value="""<p style="text-align:center">%s</p>""" % ("",), layout=Layout(
             width=self._width, overflow_x='auto', overflow_y="auto",
             justify_content="center"))
         # Make controls first:
+        self.output = Output()
         controls = self.make_controls()
         config = self.make_config()
-        super().__init__([config, controls, self.net_svg])
+        super().__init__([config, controls, self.net_svg, self.output])
 
     def dataset_move(self, position):
         if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
@@ -110,7 +112,8 @@ class Dashboard(VBox):
             self.control_slider.disabled = True
             self.position_text.disabled = True
             for child in self.control_buttons.children:
-                child.disabled = True
+                if not hasattr(child, "icon") or child.icon != "refresh":
+                    child.disabled = True
             return
         if self.control_select.value == "Test":
             self.total_text.value = "of %s" % len(self.dataset.test_inputs)
@@ -142,12 +145,13 @@ class Dashboard(VBox):
         self.position_text.disbaled = disabled
         self.position_text.value = self.control_slider.value
         for child in self.control_buttons.children:
-            child.disabled = disabled
+            if not hasattr(child, "icon") or child.icon != "refresh":
+                child.disabled = disabled
 
     def update_zoom_slider(self, change):
         if change["name"] == "value":
             self.net.config["svg_height"] = self.zoom_slider.value * 780
-            self.refresh()
+            self.regenerate()
 
     def update_position_text(self, change):
         if (change["name"] == "_property_lock" and
@@ -214,16 +218,19 @@ class Dashboard(VBox):
     def prop_one(self, button=None):
         self.update_slider_control({"name": "value"})
 
-    def refresh(self, button=None):
+    def regenerate(self, button=None):
+        ## Protection when deleting object on shutdown:
         if isinstance(button, dict) and 'new' in button and button['new'] is None:
             return
+        #with self.output:
+        #    print("regenerate called!", button)
         inputs = self.get_current_input()
         features = None
         if self.feature_bank.value in self.net.layer_dict.keys():
             features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                       cols=self.feature_columns.value,
                                                       scale=self.feature_scale.value, display=False)
-        svg = """<p style="text-align:center">%s</p>""" % (self.net.build_svg(),)
+        svg = """<p style="text-align:center">%s</p>""" % (self.net.build_svg(inputs=inputs),)
         if inputs is not None and features is not None:
             self.net_svg.value = """
 <table align="center" style="width: 100%%;">
@@ -234,8 +241,6 @@ class Dashboard(VBox):
 </table>""" % (svg, "%s features" % self.feature_bank.value, features)
         else:
             self.net_svg.value = svg
-        self.update_control_slider()
-        self.prop_one()
 
     def make_colormap_image(self, colormap_name):
         from .layers import Layer
@@ -255,7 +260,7 @@ class Dashboard(VBox):
             else:
                 setattr(obj, attr, value)
             ## was crashing on Widgets.__del__, if get_ipython() no longer existed
-            self.refresh()
+            self.regenerate()
 
     def make_controls(self):
         button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
@@ -296,51 +301,50 @@ class Dashboard(VBox):
         button_next.on_click(lambda button: self.dataset_move("next"))
         button_prev.on_click(lambda button: self.dataset_move("prev"))
         self.button_play.on_click(self.toggle_play)
-        self.control_slider.observe(self.update_slider_control)
-        refresh_button.on_click(self.refresh)
-        self.zoom_slider.observe(self.update_zoom_slider)
-        self.position_text.observe(self.update_position_text)
+        self.control_slider.observe(self.update_slider_control, names='value')
+        refresh_button.on_click(lambda widget: (self.output.clear_output(), self.regenerate()))
+        self.zoom_slider.observe(self.update_zoom_slider, names='value')
+        self.position_text.observe(self.update_position_text, names='value')
         # Put them together:
         controls = VBox([HBox([self.control_slider, self.total_text], layout=Layout(height="40px")),
                          self.control_buttons], layout=Layout(width='100%'))
 
         #net_page = VBox([control, self.net_svg], layout=Layout(width='95%'))
-        #controls.on_displayed(lambda widget: self.update_slider_control({"name": "value"}))
+        controls.on_displayed(lambda widget: self.regenerate())
         return controls
 
     def make_config(self):
         layout = Layout()
         style = {"description_width": "initial"}
         checkbox1 = Checkbox(description="Show Targets", value=self.net.config["show_targets"],
-                             layout=layout)
-        checkbox1.observe(lambda change: self.set_attr(self.net.config, "show_targets", change["new"]))
-        checkbox2 = Checkbox(description="Show Errors", value=self.net.config["show_errors"],
-                             layout=layout)
-        checkbox2.observe(lambda change: self.set_attr(self.net.config, "show_errors", change["new"]))
+                             layout=layout, style=style)
+        checkbox1.observe(lambda change: self.set_attr(self.net.config, "show_targets", change["new"]), names='value')
+        checkbox2 = Checkbox(description="Errors", value=self.net.config["show_errors"],
+                             layout=layout, style=style)
+        checkbox2.observe(lambda change: self.set_attr(self.net.config, "show_errors", change["new"]), names='value')
 
         hspace = IntText(value=self.net.config["hspace"], description="Horizontal space between banks:",
                          style=style, layout=layout)
-        hspace.observe(lambda change: self.set_attr(self.net.config, "hspace", change["new"]))
+        hspace.observe(lambda change: self.set_attr(self.net.config, "hspace", change["new"]), names='value')
         vspace = IntText(value=self.net.config["vspace"], description="Vertical space between layers:",
                          style=style, layout=layout)
-        vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]))
+        vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]), names='value')
         self.feature_bank = Select(description="Features:", value="",
                               options=[""] + [layer.name for layer in self.net.layers if self.net._layer_has_features(layer.name)],
                               rows=1)
-        self.feature_bank.observe(self.refresh)
+        self.feature_bank.observe(self.regenerate, names='value')
         self.control_select = Select(
             options=['Test', 'Train'],
             value='Train',
             description='Dataset:',
             rows=1
         )
-        self.control_select.observe(self.update_control_slider)
+        self.control_select.observe(self.update_control_slider, names='value')
         column1 = [self.control_select,
                    self.zoom_slider,
                    hspace,
                    vspace,
-                   checkbox1,
-                   checkbox2,
+                   HBox([checkbox1, checkbox2]),
                    self.feature_bank,
                    self.feature_columns,
                    self.feature_scale
@@ -352,27 +356,27 @@ class Dashboard(VBox):
                                    options=[layer.name for layer in
                                             self.net.layers],
                                    rows=1)
-        self.layer_select.observe(lambda widget: self.update_layer_selection())
+        self.layer_select.observe(self.update_layer_selection, names='value')
         column2.append(self.layer_select)
         self.layer_visible_checkbox = Checkbox(description="Visible", value=layer.visible, layout=layout)
-        self.layer_visible_checkbox.observe(lambda change: self.update_layer())
+        self.layer_visible_checkbox.observe(self.update_layer, names='value')
         column2.append(self.layer_visible_checkbox)
         self.layer_colormap = Select(description="Colormap:",
                                      options=[""] + AVAILABLE_COLORMAPS,
                                      value=layer.colormap if layer.colormap is not None else "", layout=layout, rows=1)
         self.layer_colormap_image = HTML(value="""<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap)))
-        self.layer_colormap.observe(lambda change: self.update_layer())
+        self.layer_colormap.observe(self.update_layer, names='value')
         column2.append(self.layer_colormap)
         column2.append(self.layer_colormap_image)
-        self.layer_mindim = IntText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
-        self.layer_maxdim = IntText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
-        self.layer_mindim.observe(lambda change: self.update_layer())
-        self.layer_maxdim.observe(lambda change: self.update_layer())
+        self.layer_mindim = FloatText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
+        self.layer_maxdim = FloatText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
+        self.layer_mindim.observe(self.update_layer, names='value')
+        self.layer_maxdim.observe(self.update_layer, names='value')
         column2.append(self.layer_mindim)
         column2.append(self.layer_maxdim)
         output_shape = layer.get_output_shape()
         self.layer_feature = IntText(value=layer.feature, description="Feature to show:", style=style)
-        self.layer_feature.observe(lambda change: self.update_layer())
+        self.layer_feature.observe(self.update_layer, names='value')
         column2.append(self.layer_feature)
 
         config_children = HBox([VBox(column1, layout=Layout(width="100%")),
@@ -382,28 +386,33 @@ class Dashboard(VBox):
         accordion.selected_index = None
         return accordion
 
-    def update_layer(self):
+    def update_layer(self, change):
         """
-        Update the net object, and redisplay.
+        Update the layer object, and redisplay.
         """
-        if (hasattr(self, "_ignore_layer_updates") and
-            self._ignore_layer_updates):
+        if self._ignore_layer_updates:
             return
+        ## The rest indicates a change to a display variable.
+        ## We need to save the value in the layer, and regenerate
+        ## the display.
+        # Get the layer:
         layer = self.net[self.layer_select.value]
-        layer.visible = self.layer_visible_checkbox.value
-        layer.colormap = self.layer_colormap.value if self.layer_colormap.value else None
-        layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
+        # Save the changed value in the layer:
         layer.feature = self.layer_feature.value
-        #if (isinstance(output_shape, tuple) and
-        #    len(output_shape) == 4 and
-        #    "ImageLayer" != layer.__class__.__name__):
-        #    ## Allow feature to be selected:
-        #    feature.observe(lambda change, layer=layer: self.set_attr(layer, "feature", change["new"]))
-        self.layer_colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
-        ##print("Changing colormap to: %s" % layer.colormap)
-        self.refresh()
+        layer.visible = self.layer_visible_checkbox.value
+        ## These three, dealing with colors of activations,
+        ## can be done with a prop_one():
+        if "color" in change["owner"].description.lower():
+            ## Matches: Colormap, lefmost color, rightmost color
+            layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
+            layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
+            layer.colormap = self.layer_colormap.value if self.layer_colormap.value else None
+            self.layer_colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
+            self.prop_one()
+        else:
+            self.regenerate()
 
-    def update_layer_selection(self):
+    def update_layer_selection(self, change):
         """
         Just update the widgets; don't redraw anything.
         """

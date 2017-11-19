@@ -1183,6 +1183,8 @@ class Network():
                     if self._comm.kernel:
                         self._comm.send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
                 self[layer_name].feature = orig_feature
+        else:
+            raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
         """
@@ -1997,7 +1999,8 @@ require(['base/js/namespace'], function(Jupyter) {
         See .config for all options.
         """
         if any([(layer.kind() == "unconnected") for layer in self.layers]):
-            raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
+            #raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
+            return None
         #if self.model is None:
         #    raise Exception("can't build display before Network.compile(...) as been run")
         self.visualize = False # so we don't try to update previously drawn images
