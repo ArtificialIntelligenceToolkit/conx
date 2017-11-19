@@ -1,7 +1,7 @@
 numpy
 keras
 matplotlib
-ipywidgets
+ipywidgets>=7.0
 Pillow
 IPython
 tensorflow
