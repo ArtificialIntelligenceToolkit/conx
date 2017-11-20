@@ -2019,7 +2019,7 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" height="{svg_height}" image-rendering="pixelated">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" max-width="100%" height="{svg_height}" image-rendering="pixelated">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
