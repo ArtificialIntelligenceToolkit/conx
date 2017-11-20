@@ -191,7 +191,7 @@ def shape(item):
     """
     return tuple(get_shape(get_form(item))[1])
 
-class _DataVector():
+class DataVector():
     """
     Class to make internal Keras numpy arrays look like
     lists in the [bank, bank, ...] format.
@@ -466,7 +466,7 @@ class Dataset():
                 "test_inputs", "test_targets",
                 "train_inputs", "train_targets",
         ]:
-            return _DataVector(self, item)
+            return DataVector(self, item)
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
 
