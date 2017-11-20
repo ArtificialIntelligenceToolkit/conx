@@ -231,7 +231,7 @@ class Network():
             seed = config["seed"]
             del config["seed"]
         else:
-            seed = np.random.randint(int(2 ** 32 - 1))
+            seed = np.random.randint(2 ** 31 - 1)
         self.seed = seed
         np.random.seed(self.seed)
         self.config = {
@@ -315,7 +315,7 @@ class Network():
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         from IPython.display import HTML
         if class_id is None:
-            r = random.randint(1,1000000)
+            r = random.randint(1, 1000000)
             class_id = "snapshot-%s-%s" % (self.name, r)
         if height is not None:
             opts["svg_height"] = height
