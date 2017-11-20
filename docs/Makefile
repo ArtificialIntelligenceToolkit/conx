@@ -20,6 +20,10 @@ help:
 
 clean: Makefile
 	rm -f source/*.ipynb
+	rm -f source/*.jpg
+	rm -f source/*.png
+	rm -f source/*.gif
+	rm -f source/*.md
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 %: Makefile

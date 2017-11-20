@@ -17,9 +17,9 @@ sys.path.insert(0, os.path.abspath('../..'))
 print("Copying updated ../../notebooks/ files ...")
 for filename in (glob.glob("../../notebooks/*.ipynb") +
                  glob.glob("../../*.md") +
-                 glob.glob("../../*.gif") +
-                 glob.glob("../../*.jpg") +
-                 glob.glob("../../*.png")):
+                 glob.glob("../../notebooks/*.gif") +
+                 glob.glob("../../notebooks/*.jpg") +
+                 glob.glob("../../notebooks/*.png")):
     path, dst = os.path.split(filename)
     if os.path.isfile(dst): # dst exists here
         dst_time = os.path.getmtime(dst)
