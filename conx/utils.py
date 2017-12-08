@@ -85,8 +85,10 @@ def argmax(seq):
 
 def image2array(image):
     """
-    Convert a PIL.Image into a numpy array.
+    Convert an image filename or PIL.Image into a numpy array.
     """
+    if isinstance(image, str):
+        image = PIL.image.open(image)
     return np.array(image, "float32") / 255.0
 
 def array2image(array, scale=1.0):
