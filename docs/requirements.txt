@@ -11,3 +11,4 @@ sphinx_rtd_theme
 nbsphinx
 jupyter_sphinx
 sphinxcontrib-napoleon
+recommonmark

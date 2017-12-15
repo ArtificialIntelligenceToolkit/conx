@@ -1,4 +1,4 @@
-# conx
+# Conx Neural Networks
 
 ## Deep Learning for Simple Folk
 
