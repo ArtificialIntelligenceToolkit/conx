@@ -354,7 +354,7 @@ class _BaseLayer():
 
     def get_output_shape(self):
         ## FIXME: verify this:
-        if self.keras_layer:
+        if self.keras_layer is not None:
             if hasattr(self.keras_layer, "output_shape"):
                 return self.keras_layer.output_shape
             ## Tensors don't have output_shape; is this right:
