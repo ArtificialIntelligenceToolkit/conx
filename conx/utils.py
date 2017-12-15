@@ -52,9 +52,9 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
-def choice(seq, p=None):
+def choice(seq=None, p=None):
     """
-    Get a random choice from sequence, optinally given a probability
+    Get a random choice from sequence, optionally given a probability
     distribution.
 
     >>> choice(1)
@@ -65,7 +65,14 @@ def choice(seq, p=None):
 
     >>> choice("abcde", p=[0, 1, 0, 0, 0])
     'b'
+
+    >>> choice(p=[0, 0, 1, 0, 0])
+    2
     """
+    if seq is None and p is None:
+        raise Exception("seq and p can't both be None")
+    elif seq is None:
+        seq = len(p)
     ## Allow seq to be a number:
     if isinstance(seq, numbers.Real):
         seq = range(int(seq))
@@ -76,6 +83,17 @@ def choice(seq, p=None):
         p = [item/total for item in p]
     pick = np.random.choice(len(seq), 1, p=p)[0]
     return seq[pick]
+
+def frange(start, stop=None, step=1.0):
+    """
+    Like range(), but with floats.
+
+    May not be exactly correct due to rounding issues.
+    """
+    if stop is None:
+        stop = start
+        start = 0.0
+    return np.arange(start, stop, step)
 
 def argmax(seq):
     """
