@@ -288,7 +288,8 @@ def get_device():
     elif K._BACKEND == "tensorflow":
         from tensorflow.python.client import device_lib
         devices = [dev.name for dev in device_lib.list_local_devices()]
-        return "gpu" if any(["gpu" in dev for dev in devices]) else "cpu"
+        ## ['/device:CPU:0', '/device:GPU:0']
+        return "gpu" if any(["GPU" in dev for dev in devices]) else "cpu"
     else:
         return "unknown"
 
