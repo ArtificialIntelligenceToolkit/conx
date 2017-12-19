@@ -730,7 +730,7 @@ class Network():
         if tolerance is not None:
             if accuracy is None:
                 raise Exception("tolerance given but unknown accuracy")
-            self._tolerance.set_value(tolerance)
+            self._tolerance.assign(tolerance)
         ## Going to need evaluation on training set in any event:
         if self.dataset._split == 1.0: ## special case; use entire set
             inputs = self.dataset._inputs
