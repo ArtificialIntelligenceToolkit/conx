@@ -505,7 +505,13 @@ class Network():
         print("Testing %s with tolerance %.6s..." % (dataset, tolerance))
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FYI: outputs not shaped
-        correct = self.compute_correct(outputs, targets, tolerance)
+        if self.num_target_layers > 1:
+            correct = self.compute_correct(outputs, targets, tolerance)
+        else:
+            ## Warning:
+            ## keras returns outputs as a single column
+            ## conx targets are always multi-column
+            correct = self.compute_correct([outputs], targets, tolerance)
         count = len(correct)
         if show:
             if show_inputs:
@@ -545,16 +551,12 @@ class Network():
         Both are np.arrays. Return [True, ...].
         """
         tolerance = tolerance if tolerance is not None else self.tolerance
-        if self.num_target_layers > 1: ## multiple output banks
-            correct = []
-            for r in range(len(outputs[0])):
-                row = []
-                for c in range(len(outputs)):
-                    row.extend(list(map(lambda v: v <= tolerance, np.abs(outputs[c][r] - targets[c][r]))))
-                correct.append(all(row))
-            return correct
-        else:
-            correct = [x.all() for x in map(lambda v: v <= tolerance, np.abs(outputs - targets))]
+        correct = []
+        for r in range(len(outputs[0])):
+            row = []
+            for c in range(len(outputs)):
+                row.extend(list(map(lambda v: v <= tolerance, np.abs(outputs[c][r] - targets[c][r]))))
+            correct.append(all(row))
         return correct
 
     def train_one(self, inputs, targets, batch_size=32):
@@ -899,6 +901,12 @@ class Network():
                         other_str = other[:-4] + " accuracy"
                     s += "| %9.5f " % results[other]
         print(s)
+
+    def set_dataset(self, dataset):
+        """
+        """
+        ## FIXME: check to make sure it is matches
+        self.dataset = dataset
 
     def set_activation(self, layer_name, activation):
         """

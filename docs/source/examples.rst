@@ -4,9 +4,10 @@ Examples
 .. toctree::
    :maxdepth: 1
 
+   Learning
+   XOR
    ActivationFunctions
    Datasets
-   XOR
    Autoencoder
    MNIST
    Predicting and Generating Texts

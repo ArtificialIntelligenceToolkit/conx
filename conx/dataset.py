@@ -652,7 +652,7 @@ class Dataset():
                 if form != get_form(targets[i]):
                     raise Exception("Malformed target at number %d" % (i + 1))
         # Test the inputs, see if outputs match:
-        if self.network.model:
+        if self.network and self.network.model:
             #### Get one to test output: list of np.array() per banks
             inputs = [np.array([bank], "float32") for bank in inputs[0]]
             ## Predict:
