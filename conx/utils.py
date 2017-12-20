@@ -335,3 +335,64 @@ def import_keras_model(model, network_name):
             clayer.model = keras.models.Model(inputs=model.layers[0].input,
                                               outputs=clayer.keras_layer.output)
     return network
+
+def plot_f(f, frange=(-1, 1, .1), symbol="o-"):
+    """
+    Plot a function.
+    """
+    xs = np.arange(*frange)
+    ys = [f(x) for x in xs]
+    plt.plot(xs, ys, symbol)
+    plt.show()
+    #bytes = io.BytesIO()
+    #plt.savefig(bytes, format='svg')
+    #svg = bytes.getvalue()
+    #plt.close(fig)
+    #return SVG(svg.decode())
+
+def plot(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
+    """
+    SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
+             ylabel="error",
+             xlabel="hello"))
+    """
+    if plt is None:
+        raise Exception("matplotlib was not loaded")
+    plt.rcParams['figure.figsize'] = (width, height)
+    for (label, symbol, data) in lines:
+        kwargs = {}
+        args = [data]
+        if label:
+            kwargs["label"] = label
+        if symbol:
+            args.append(symbol)
+        plt.plot(*args, **kwargs)
+    if any([line[0] for line in lines]):
+        plt.legend()
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    plt.show()
+
+def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
+    if plt is None:
+        raise Exception("matplotlib was not loaded")
+    plt.rcParams['figure.figsize'] = (width, height)
+    for (label, symbol, pairs) in lines:
+        kwargs = {}
+        args = []
+        xs = [pair[0] for pair in pairs]
+        ys = [pair[1] for pair in pairs]
+        if label:
+            kwargs["label"] = label
+        if symbol:
+            args.append(symbol)
+        plt.plot(xs, ys, *args, **kwargs)
+    if any([line[0] for line in lines]):
+        plt.legend()
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    plt.show()
