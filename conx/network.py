@@ -77,7 +77,7 @@ class ReportCallback(Callback):
         if self.in_console and (epoch+1) % self.report_rate == 0:
             self.network.report_epoch(self.network.epoch_count, results)
         if self.record != 0 and (epoch+1) % self.record == 0:
-            self.network.weight_history[epoch] = self.network.to_array()
+            self.network.weight_history[self.network.epoch_count] = self.network.to_array()
 
 class PlotCallback(Callback):
     def __init__(self, network, report_rate, mpl_backend):
@@ -353,6 +353,28 @@ class Network():
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
+
+    def playback(self, function, step=1):
+        """
+        Playback a function over the set of recorded weights.
+
+        function has signature: function(network, epoch)
+        """
+        from IPython.display import clear_output
+        count = 0
+        last_epoch = 0
+        for epoch in sorted(self.weight_history.keys()):
+            count += 1
+            if count == step:
+                self.from_array(self.weight_history[epoch])
+                clear_output(wait=True)
+                function(self, epoch)
+                last_epoch = epoch
+                count = 0
+        if self.weight_history and max(self.weight_history.keys()) != last_epoch:
+            self.from_array(self.weight_history[max(self.weight_history.keys())])
+            clear_output(wait=True)
+            function(self, epoch)
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         from IPython.display import HTML
@@ -841,7 +863,8 @@ class Network():
         results.update(val_results)
         if len(self.history) == 0:
             self.history = [results]
-            self.weight_history[0] = self.to_array()
+            if record:
+                self.weight_history[0] = self.to_array()
         print("Training...")
         if self.in_console(mpl_backend):
             self.report_epoch(self.epoch_count, self.history[-1])
@@ -889,6 +912,8 @@ class Network():
             if handler.interrupted:
                 interrupted = True
         last_epoch = self.history[-1]
+        if record:
+            self.weight_history[self.epoch_count] = self.to_array()
         assert len(self.history) == self.epoch_count+1  # +1 is for epoch 0
         if verbose:
             print("=" * 72)
@@ -1263,7 +1288,7 @@ class Network():
 
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
-                            resolution=None, act_range=(0,1), show_values=False):
+                            resolution=None, act_range=(0,1), show_values=False, title=None):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1305,7 +1330,10 @@ class Network():
                 mat[row,col] = activations[to_unit]
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
-        ax.set_title("Activation of %s[%s]" % (to_layer, to_unit))
+        if title is not None:
+            ax.set_title("Activation of %s[%s]: %s" % (to_layer, to_unit, title))
+        else:
+            ax.set_title("Activation of %s[%s]" % (to_layer, to_unit))
         ax.set_xlabel("%s[%s]" % (from_layer, ix))
         ax.set_ylabel("%s[%s]" % (from_layer, iy))
         ax.xaxis.tick_bottom()
