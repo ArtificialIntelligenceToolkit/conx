@@ -58,13 +58,14 @@ except:
 #------------------------------------------------------------------------
 
 class ReportCallback(Callback):
-    def __init__(self, network, report_rate, mpl_backend):
+    def __init__(self, network, report_rate, mpl_backend, record):
         # mpl_backend is matplotlib backend
         super().__init__()
         self.network = network
         self.report_rate = report_rate
         self.mpl_backend = mpl_backend
         self.in_console = self.network.in_console(mpl_backend)
+        self.record = record
 
     def on_epoch_end(self, epoch, results=None):
         #print("in ReportCallback with epoch = %d" % epoch)
@@ -75,6 +76,8 @@ class ReportCallback(Callback):
         #print("ReportCallback got:", epoch, results)
         if self.in_console and (epoch+1) % self.report_rate == 0:
             self.network.report_epoch(self.network.epoch_count, results)
+        if self.record != 0 and (epoch+1) % self.record == 0:
+            self.network.weight_history[epoch] = self.network.to_array()
 
 class PlotCallback(Callback):
     def __init__(self, network, report_rate, mpl_backend):
@@ -98,6 +101,44 @@ class PlotCallback(Callback):
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
             self.network.plot_loss_acc(self, epoch)
+
+class FunctionCallback(Callback):
+    """
+        'on_batch_begin',
+        'on_batch_end',
+        'on_epoch_begin',
+        'on_epoch_end',
+        'on_train_begin',
+        'on_train_end',
+    """
+    def __init__(self, network, on_method, function):
+        self.network = network
+        self.on_method = on_method
+        self.function = function
+
+    def on_batch_begin(self, batch, logs=None):
+        if self.on_method == "on_batch_begin":
+            self.function(self.network, batch, logs)
+
+    def on_batch_end(self, batch, logs=None):
+        if self.on_method == "on_batch_end":
+            self.function(self.network, batch, logs)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        if self.on_method == "on_epoch_begin":
+            self.function(self.network, epoch, logs)
+
+    def on_epoch_end(self, epoch, logs=None):
+        if self.on_method == "on_epoch_end":
+            self.function(self.network, epoch, logs)
+
+    def on_train_begin(self, logs=None):
+        if self.on_method == "on_train_begin":
+            self.function(self.network, logs)
+
+    def on_train_end(self, logs=None):
+        if self.on_method == "on_train_end":
+            self.function(self.network, logs)
 
 class StoppingCriteria(Callback):
     def __init__(self, item, op, value, use_validation_to_stop):
@@ -281,6 +322,7 @@ class Network():
             self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
         self.epoch_count = 0
         self.history = []
+        self.weight_history = {}
         self.visualize = get_ipython() is not None
         self._comm = None
         self.model = None
@@ -455,6 +497,7 @@ class Network():
         """
         self.epoch_count = 0
         self.history = []
+        self.weight_history = {}
         self.prop_from_dict = {}
         if self.model:
             if "seed" in overrides:
@@ -683,7 +726,7 @@ class Network():
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
-              plot=False):
+              plot=False, record=0, callbacks=None):
         """
         Train the network.
 
@@ -706,6 +749,8 @@ class Network():
             "tolerance": tolerance,
             "use_validation_to_stop": use_validation_to_stop,
             "plot": plot,
+            "record": record,
+            "callbacks": callbacks,
             }
         if plot:
             import matplotlib
@@ -796,21 +841,25 @@ class Network():
         results.update(val_results)
         if len(self.history) == 0:
             self.history = [results]
+            self.weight_history[0] = self.to_array()
         print("Training...")
         if self.in_console(mpl_backend):
             self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
-        callbacks=[
+        kcallbacks=[
             History(),
-            ReportCallback(self, report_rate, mpl_backend),
+            ReportCallback(self, report_rate, mpl_backend, record),
         ]
         if accuracy is not None:
-            callbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
+            kcallbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
         if error is not None:
-            callbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
+            kcallbacks.append(StoppingCriteria("loss", "<=", error, use_validation_to_stop))
         if plot:
             pc = PlotCallback(self, report_rate, mpl_backend)
-            callbacks.append(pc)
+            kcallbacks.append(pc)
+        if callbacks is not None:
+            for (on_method, function) in callbacks:
+                kcallbacks.append(FunctionCallback(self, on_method, function))
         with _InterruptHandler(self) as handler:
             if self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
@@ -819,7 +868,7 @@ class Network():
                                         epochs=epochs,
                                         validation_data=(self.dataset._inputs,
                                                          self.dataset._targets),
-                                        callbacks=callbacks,
+                                        callbacks=kcallbacks,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
@@ -830,7 +879,7 @@ class Network():
                                         batch_size=batch_size,
                                         epochs=epochs,
                                         validation_split=self.dataset._split,
-                                        callbacks=callbacks,
+                                        callbacks=kcallbacks,
                                         shuffle=shuffle,
                                         class_weight=class_weight,
                                         sample_weight=sample_weight,
@@ -2240,6 +2289,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if os.path.isfile(full_filename):
             with open(os.path.join(dir, filename), "rb") as fp:
                 self.history = pickle.load(fp)
+                self.weight_history = pickle.load(fp)
                 self.epoch_count = (len(self.history) - 1) if self.history else 0
         else:
             print("WARNING: no such history file '%s'" % full_filename)
@@ -2258,6 +2308,7 @@ require(['base/js/namespace'], function(Jupyter) {
             os.makedirs(dir)
         with open(os.path.join(dir, filename), "wb") as fp:
             pickle.dump(self.history, fp)
+            pickle.dump(self.weight_history, fp)
 
     def load_weights(self, dir=None, filename=None):
         """
