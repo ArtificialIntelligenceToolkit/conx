@@ -603,6 +603,26 @@ class Network():
         print("      incorrect:", len([c for c in correct if not c]))
         print("Total percentage correct:", list(correct).count(True)/len(correct))
 
+    def compute_pca(self, states, dim=2):
+        """
+        >>> net = Network("PCA Example")
+        >>> data = [
+        ...         [0.00, 0.00, 0.00],
+        ...         [0.25, 0.25, 0.25],
+        ...         [0.50, 0.50, 0.50],
+        ...         [0.75, 0.75, 0.75],
+        ...         [1.00, 1.00, 1.00],
+        ... ]
+        >>> pca = net.compute_pca(data)
+        >>> new_data  = pca.transform(data)
+        >>> pca_0 = new_data[:, 0]
+        >>> pca_1 = new_data[:, 1]
+        """
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=dim, svd_solver="randomized")
+        pca.fit(states)
+        return pca
+
     def compute_correct(self, outputs, targets, tolerance=None):
         """
         Both are np.arrays. Return [True, ...].
@@ -1281,7 +1301,7 @@ class Network():
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
-                            interactive=True):
+                            interactive=True, scatter=None):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1323,6 +1343,18 @@ class Network():
                 mat[row,col] = activations[to_unit]
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
+        if scatter is not None:
+            for (label, symbol, pairs) in scatter:
+                kwargs = {}
+                args = []
+                xs = [min(pair[0], act_max - .01) * xpixels for pair in pairs]
+                ys = [min(pair[1], act_max - .01) * ypixels for pair in pairs]
+                if label:
+                    kwargs["label"] = label
+                if symbol:
+                    args.append(symbol)
+                ax.plot(xs, ys, *args, **kwargs)
+            ax.legend()
         if title is not None:
             ax.set_title("Activation of %s[%s]: %s" % (to_layer, to_unit, title))
         else:
@@ -1597,7 +1629,7 @@ class Network():
             elif metric == 'val_acc' and acc_ax is not None:
                 acc_ax.plot(x_values, y_values, label='Validation set')
         loss_ax.set_ylim(bottom=0)
-        loss_ax.set_title("%s: Loss" % (self.name,))
+        loss_ax.set_title("%s: Error" % (self.name,))
         loss_ax.set_xlabel('Epoch')
         loss_ax.legend(loc='best')
         if acc_ax is not None:
