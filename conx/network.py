@@ -96,11 +96,11 @@ class PlotCallback(Callback):
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
-            self.network.plot_loss_acc(self, epoch)
+            self.network.plot_loss_acc(self, epoch, interactive=False)
             if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
-            self.network.plot_loss_acc(self, epoch)
+            self.network.plot_loss_acc(self, epoch, interactive=False)
 
 class FunctionCallback(Callback):
     """
@@ -354,27 +354,19 @@ class Network():
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
 
-    def playback(self, function, step=1):
+    def playback(self, function):
         """
         Playback a function over the set of recorded weights.
 
         function has signature: function(network, epoch)
         """
-        from IPython.display import clear_output
-        count = 0
-        last_epoch = 0
-        for epoch in sorted(self.weight_history.keys()):
-            count += 1
-            if count == step:
-                self.from_array(self.weight_history[epoch])
-                clear_output(wait=True)
-                function(self, epoch)
-                last_epoch = epoch
-                count = 0
-        if self.weight_history and max(self.weight_history.keys()) != last_epoch:
-            self.from_array(self.weight_history[max(self.weight_history.keys())])
-            clear_output(wait=True)
-            function(self, epoch)
+        from .widgets import SequenceViewer
+        sequence = sorted(self.weight_history.keys())
+        def display_weight_history(index):
+            self.from_array(self.weight_history[sequence[index]])
+            return function(self, sequence[index])
+        sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(sequence))
+        return sv
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         from IPython.display import HTML
@@ -1288,7 +1280,8 @@ class Network():
 
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
-                            resolution=None, act_range=(0,1), show_values=False, title=None):
+                            resolution=None, act_range=(0,1), show_values=False, title=None,
+                            interactive=True):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1342,7 +1335,15 @@ class Network():
         ax.set_yticks([i*(ypixels-1)/4 for i in range(5)])
         ax.set_yticklabels([ymin+i*yspan/4 for i in range(5)])
         cbar = fig.colorbar(axim)
-        plt.show(block=False)
+        if interactive:
+            plt.show(block=False)
+        else:
+            from IPython.display import SVG
+            bytes = io.BytesIO()
+            plt.savefig(bytes, format='svg')
+            img_bytes = bytes.getvalue()
+            plt.close(fig)
+            return SVG(img_bytes.decode())
         # optionally print out a table of activation values
         if show_values:
             s = '\n'
@@ -1363,7 +1364,8 @@ class Network():
             print(s)
 
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
-                           cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3)):
+                           cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
+                           interactive=True):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
         or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
         value of the weight matrix is used. wrange overrides provided wmin/wmax values. ticks
@@ -1447,7 +1449,15 @@ class Network():
             cbar_labels[0] = wmin_label
             cbar_labels[-1] = wmax_label
             colorbar.ax.set_yticklabels(cbar_labels)
-        plt.show(block=False)
+        if interactive:
+            plt.show(block=False)
+        else:
+            from IPython.display import SVG
+            bytes = io.BytesIO()
+            plt.savefig(bytes, format='svg')
+            img_bytes = bytes.getvalue()
+            plt.close(fig)
+            return SVG(img_bytes.decode())
 
     def show_unit_weights(self, layer_name, unit, vshape=None, ascii=False):
         if self[layer_name] is None:
@@ -1485,7 +1495,7 @@ class Network():
         return sorted(metrics)
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
-             title=None, svg=False):
+             title=None, interactive=True):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -1547,17 +1557,17 @@ class Network():
         if title is None:
             title = self.name
         plt.title(title)
-        if svg:
+        if interactive:
+            plt.show(block=False)
+        else:
             from IPython.display import SVG
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')
             img_bytes = bytes.getvalue()
             plt.close(fig)
             return SVG(img_bytes.decode())
-        else:
-            plt.show(block=False)
 
-    def plot_loss_acc(self, callback, epoch):
+    def plot_loss_acc(self, callback, epoch, interactive=True):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
         #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
@@ -1595,7 +1605,7 @@ class Network():
             acc_ax.set_title("%s: Accuracy" % (self.name,))
             acc_ax.set_xlabel('Epoch')
             acc_ax.legend(loc='best')
-        if not callback.in_console:
+        if not callback.in_console or not interactive:
             from IPython.display import SVG, clear_output, display
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')
@@ -1603,7 +1613,7 @@ class Network():
             clear_output(wait=True)
             display(SVG(img_bytes.decode()))
             #return SVG(img_bytes.decode())
-        else:
+        else: # interactive
             plt.pause(0.01)
             #plt.show(block=False)
 
@@ -2377,7 +2387,7 @@ require(['base/js/namespace'], function(Jupyter) {
         Build the dashboard for Jupyter widgets. Requires running
         in a notebook/jupyterlab.
         """
-        from .dashboard import Dashboard
+        from .widgets import Dashboard
         return Dashboard(self, width, height, play_rate)
 
     def pp(self, *args, **opts):
