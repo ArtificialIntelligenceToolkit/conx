@@ -614,7 +614,7 @@ class Network():
         ...         [1.00, 1.00, 1.00],
         ... ]
         >>> pca = net.compute_pca(data)
-        >>> new_data  = pca.transform(data)
+        >>> new_data = pca.transform(data)
         >>> pca_0 = new_data[:, 0]
         >>> pca_1 = new_data[:, 1]
         """
