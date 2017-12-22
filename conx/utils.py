@@ -350,7 +350,8 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-"):
     #plt.close(fig)
     #return SVG(svg.decode())
 
-def plot(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
+def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
+         ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     """
     SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
              ylabel="error",
@@ -359,6 +360,7 @@ def plot(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
     if plt is None:
         raise Exception("matplotlib was not loaded")
     plt.rcParams['figure.figsize'] = (width, height)
+    fig, ax = plt.subplots()
     for (label, symbol, data) in lines:
         kwargs = {}
         args = [data]
@@ -373,12 +375,32 @@ def plot(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
         plt.xlabel(xlabel)
     if ylabel:
         plt.ylabel(ylabel)
-    plt.show()
+    if title:
+        plt.title(title)
+    if ymin is not None:
+        plt.ylim(ymin=ymin)
+    if ymax is not None:
+        plt.ylim(ymax=ymax)
+    if xmin is not None:
+        plt.xlim(xmin=xmin)
+    if xmax is not None:
+        plt.xlim(xmax=xmax)
+    if interactive:
+        plt.show(block=False)
+    else:
+        from IPython.display import SVG
+        bytes = io.BytesIO()
+        plt.savefig(bytes, format='svg')
+        img_bytes = bytes.getvalue()
+        plt.close(fig)
+        return SVG(img_bytes.decode())
 
-def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
+def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel="", title="",
+            ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     if plt is None:
         raise Exception("matplotlib was not loaded")
     plt.rcParams['figure.figsize'] = (width, height)
+    fig, ax = plt.subplots()
     for (label, symbol, pairs) in lines:
         kwargs = {}
         args = []
@@ -395,4 +417,22 @@ def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel=""):
         plt.xlabel(xlabel)
     if ylabel:
         plt.ylabel(ylabel)
-    plt.show()
+    if ymin is not None:
+        plt.ylim(ymin=ymin)
+    if ymax is not None:
+        plt.ylim(ymax=ymax)
+    if xmin is not None:
+        plt.xlim(xmin=xmin)
+    if xmax is not None:
+        plt.xlim(xmax=xmax)
+    if title:
+        plt.title(title)
+    if interactive:
+        plt.show(block=False)
+    else:
+        from IPython.display import SVG
+        bytes = io.BytesIO()
+        plt.savefig(bytes, format='svg')
+        img_bytes = bytes.getvalue()
+        plt.close(fig)
+        return SVG(img_bytes.decode())
