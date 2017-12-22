@@ -336,19 +336,22 @@ def import_keras_model(model, network_name):
                                               outputs=clayer.keras_layer.output)
     return network
 
-def plot_f(f, frange=(-1, 1, .1), symbol="o-"):
+def plot_f(f, frange=(-1, 1, .1), symbol="o-", interactive=True):
     """
     Plot a function.
     """
     xs = np.arange(*frange)
     ys = [f(x) for x in xs]
     plt.plot(xs, ys, symbol)
-    plt.show()
-    #bytes = io.BytesIO()
-    #plt.savefig(bytes, format='svg')
-    #svg = bytes.getvalue()
-    #plt.close(fig)
-    #return SVG(svg.decode())
+    if interactive:
+        plt.show(block=False)
+    else:
+        from IPython.display import SVG
+        bytes = io.BytesIO()
+        plt.savefig(bytes, format='svg')
+        svg = bytes.getvalue()
+        plt.close(fig)
+        return SVG(svg.decode())
 
 def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
          ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
@@ -436,3 +439,66 @@ def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel="", title="",
         img_bytes = bytes.getvalue()
         plt.close(fig)
         return SVG(img_bytes.decode())
+
+class PCA():
+    def __init__(self, states, dim=2, solver="randomized"):
+        """
+        >>> data = [
+        ...         [0.00, 0.00, 0.00],
+        ...         [0.25, 0.25, 0.25],
+        ...         [0.50, 0.50, 0.50],
+        ...         [0.75, 0.75, 0.75],
+        ...         [1.00, 1.00, 1.00],
+        ... ]
+        >>> pca = PCA(data)
+        >>> new_data = pca.transform(data)
+        """
+        from sklearn.decomposition import PCA
+        self.dim = dim
+        self.solver = solver
+        self.pca = PCA(n_components=self.dim, svd_solver=self.solver)
+        self.pca.fit(states)
+        ## Now, compute and cache stats about this space:
+        self.mins = {}
+        self.maxs = {}
+        states_pca = self.pca.transform(states)
+        for i in range(self.dim):
+            self.mins[i] = min([state[i] for state in states_pca])
+            self.maxs[i] = max([state[i] for state in states_pca])
+
+    def transform_one(self, vector):
+        vector_prime = self.pca.transform([vector])[0]
+        return vector_prime
+
+    def transform(self, vectors):
+        vectors_prime = self.pca.transform(vectors)
+        return vectors_prime
+
+    def transform_network_bank(self, network, bank, tolerance=None, test=True,
+                               symbols={}):
+        categories = {}
+        if test:
+            tolerance = tolerance if tolerance is not None else self.tolerance
+            if len(network.dataset.inputs) == 0:
+                raise Exception("nothing to test")
+            inputs = network.dataset._inputs
+            targets = network.dataset._targets
+            results = network._test(inputs, targets, "train dataset", tolerance=tolerance,
+                                    show_inputs=False, show_outputs=False, filter="all",
+                                    interactive=False)
+        for i in range(len(network.dataset.inputs)):
+            ## FIXME: get index for bank, not 0
+            label = network.dataset._labels[0][i]
+            input_vector = network.dataset.inputs[i]
+            if test:
+                category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
+            else:
+                category = label
+            symbol = symbols.get(category, "o")
+            hid = network.propagate_to(bank, input_vector, visualize=False)
+            hid_prime = self.transform_one(hid)
+            if category in categories:
+                categories[category][1].append(hid_prime)
+            else:
+                categories[category] = [symbol, [hid_prime]]
+        return [[category, categories[category][0], categories[category][1]] for category in sorted(categories.keys())]

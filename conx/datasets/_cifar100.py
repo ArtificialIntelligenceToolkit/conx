@@ -7,6 +7,7 @@ def cifar100(dataset):
     inputs = np.concatenate((x_train, x_test))
     labels = np.concatenate((y_train, y_test))
     targets = to_categorical(labels, 100)
+    labels = np.array([str(label[0]) for label in labels], dtype=str)
     inputs = inputs.astype('float32')
     inputs /= 255
-    dataset.load_direct([inputs], [targets], labels)
+    dataset.load_direct([inputs], [targets], [labels])

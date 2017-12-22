@@ -557,9 +557,10 @@ class Network():
     def _test(self, inputs, targets, dataset, batch_size=32, show=False,
               tolerance=None, force=False,
               show_inputs=True, show_outputs=True,
-              filter="all"):
-        print("=" * 56)
-        print("Testing %s with tolerance %.6s..." % (dataset, tolerance))
+              filter="all", interactive=True):
+        if interactive:
+            print("=" * 56)
+            print("Testing %s with tolerance %.6s..." % (dataset, tolerance))
         outputs = self.model.predict(inputs, batch_size=batch_size)
         ## FYI: outputs not shaped
         if self.num_target_layers > 1:
@@ -598,30 +599,13 @@ class Network():
                         line += "%s | %s | " % (targ_formatted[i], out_formatted[i])
                     line += "correct" if correct[i] else "X"
                     print(line)
-        print("Total count:", len(correct))
-        print("      correct:", len([c for c in correct if c]))
-        print("      incorrect:", len([c for c in correct if not c]))
-        print("Total percentage correct:", list(correct).count(True)/len(correct))
-
-    def compute_pca(self, states, dim=2):
-        """
-        >>> net = Network("PCA Example")
-        >>> data = [
-        ...         [0.00, 0.00, 0.00],
-        ...         [0.25, 0.25, 0.25],
-        ...         [0.50, 0.50, 0.50],
-        ...         [0.75, 0.75, 0.75],
-        ...         [1.00, 1.00, 1.00],
-        ... ]
-        >>> pca = net.compute_pca(data)
-        >>> new_data = pca.transform(data)
-        >>> pca_0 = new_data[:, 0]
-        >>> pca_1 = new_data[:, 1]
-        """
-        from sklearn.decomposition import PCA
-        pca = PCA(n_components=dim, svd_solver="randomized")
-        pca.fit(states)
-        return pca
+        if interactive:
+            print("Total count:", len(correct))
+            print("      correct:", len([c for c in correct if c]))
+            print("      incorrect:", len([c for c in correct if not c]))
+            print("Total percentage correct:", list(correct).count(True)/len(correct))
+        else:
+            return list(correct)
 
     def compute_correct(self, outputs, targets, tolerance=None):
         """

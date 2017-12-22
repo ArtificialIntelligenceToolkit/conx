@@ -603,7 +603,7 @@ class Dataset():
         if targets is not None:
             self._targets = targets
         if labels is not None:
-            self._labels = labels # should be a np.array/list of single values
+            self._labels = labels # should be a list of np.arrays(dtype=str), one per bank
         self._cache_values()
 
     def load(self, pairs=None, inputs=None, targets=None):
@@ -737,14 +737,14 @@ class Dataset():
         else:
             if stop is None: # (None, None)
                 start = 0
-                stop = len(self._inputs) # <---FIXME: will this work if multiple banks?
+                stop = len(self._inputs[0])
             else: # (None, #)
                 start = 0
         self._inputs = [np.array(row[start:stop]) for row in self._inputs]
 
         self._targets = [np.array(row[start:stop]) for row in self._targets]
         if len(self._labels) > 0:
-            self._labels = self._labels[start:stop]
+            self._labels = [np.array(row[start:stop]) for row in self._labels]
         self._cache_values()
 
     def _cache_values(self):
@@ -831,16 +831,17 @@ class Dataset():
             self._inputs = copy.copy(self._targets)
         self._cache_values()
 
-    def set_targets_from_labels(self, num_classes, bank_index=0):
+    def set_targets_from_labels(self, num_classes=None, bank_index=0):
         """
         Given net.labels are integers, set the net.targets to onehot() categories.
         """
-        ## FIXME: allow working on multi-targets
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
+        if num_classes is None:
+            num_classes = len(set(self._labels[bank_index]))
         if not isinstance(num_classes, numbers.Integral) or num_classes <= 0:
             raise Exception("number of classes must be a positive integer")
-        self._targets[bank_index] = to_categorical(self._labels, num_classes).astype("uint8")
+        self._targets[bank_index] = to_categorical([int(v) for v in self._labels[bank_index]], num_classes).astype("uint8")
         self._cache_values()
         print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
@@ -885,7 +886,7 @@ class Dataset():
         self._inputs = [self._inputs[b][permutation] for b in range(self._num_input_banks())]
         self._targets = [self._targets[b][permutation] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
-            self._labels = self._labels[permutation]
+            self._labels = [self._labels[b][permutation] for b in range(self._num_target_banks())]
 
     def split(self, split=0.50):
         """Splits the inputs/targets into training and validation sets. The
@@ -957,7 +958,7 @@ class Dataset():
         self._inputs = [self._inputs[b][:retain] for b in range(self._num_input_banks())]
         self._targets = [self._targets[b][:retain] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
-            self._labels = self._labels[:retain]
+            self._labels = [self._labels[b][:retain] for b in range(self._num_target_banks())]
 
     def _get_input(self, i):
         """
