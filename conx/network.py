@@ -96,11 +96,11 @@ class PlotCallback(Callback):
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
-            self.network.plot_loss_acc(self, epoch, interactive=False)
+            self.network.plot_loss_acc(self, epoch, interactive=True)
             if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
-            self.network.plot_loss_acc(self, epoch, interactive=False)
+            self.network.plot_loss_acc(self, epoch, interactive=True)
 
 class FunctionCallback(Callback):
     """

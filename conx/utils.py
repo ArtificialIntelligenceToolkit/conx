@@ -398,11 +398,17 @@ def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
         plt.close(fig)
         return SVG(img_bytes.decode())
 
-def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel="", title="",
+def set_plt_param(setting, value):
+    plt.rcParams[setting] = value
+
+def reset_plt_param(setting):
+    plt.rcParams[setting] = plt.rcParamsDefault[setting]
+
+def scatter(lines, width=6.0, height=6.0, xlabel="", ylabel="", title="",
             ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    plt.rcParams['figure.figsize'] = (width, height)
+    set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
     for (label, symbol, pairs) in lines:
         kwargs = {}
@@ -432,13 +438,16 @@ def scatter(lines, width=8.0, height=4.0, xlabel="", ylabel="", title="",
         plt.title(title)
     if interactive:
         plt.show(block=False)
+        result = None
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
         plt.savefig(bytes, format='svg')
         img_bytes = bytes.getvalue()
         plt.close(fig)
-        return SVG(img_bytes.decode())
+        result = SVG(img_bytes.decode())
+    reset_plt_param('figure.figsize')
+    return result
 
 class PCA():
     def __init__(self, states, dim=2, solver="randomized"):
