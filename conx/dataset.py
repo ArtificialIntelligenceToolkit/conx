@@ -1040,7 +1040,7 @@ class Dataset():
         """
         size = self._get_size()
         if isinstance(i, slice):
-            if not (i.start <= size and i.stop < size):
+            if i.start is not None and i.stop is not None and not (i.start <= size and i.stop < size):
                 raise Exception("target slice %s is out of bounds" % (i,))
         else:
             if not 0 <= i < size:
