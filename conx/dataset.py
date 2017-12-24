@@ -219,6 +219,12 @@ class DataVector():
         """
         if self.item == "targets":
             return self.dataset._get_target(pos)
+        elif self.item == "labels":
+            return self.dataset._get_label(pos)
+        elif self.item == "test_labels":
+            return self.dataset._get_test_label(pos)
+        elif self.item == "train_labels":
+            return self.dataset._get_train_label(pos)
         elif self.item == "inputs":
             return self.dataset._get_input(pos)
         elif self.item == "test_inputs":
@@ -394,13 +400,19 @@ class DataVector():
         size, num_train, num_test = self.dataset._get_split_sizes()
         if self.item == "targets":
             return size
+        elif self.item == "labels":
+            return size
         elif self.item == "inputs":
             return size
         elif self.item == "train_targets":
             return num_train
+        elif self.item == "train_labels":
+            return num_train
         elif self.item == "train_inputs":
             return num_train
         elif self.item == "test_targets":
+            return num_test
+        elif self.item == "test_labels":
             return num_test
         elif self.item == "test_inputs":
             return num_test
@@ -421,6 +433,8 @@ class DataVector():
 
     def __repr__(self):
         length = len(self)
+        if "label" in self.item:
+            return "<Dataset '%s', length=%s>" % (self.item, length)
         if length > 0:
             ## type and shape:
             shape = get_shape(get_form(self[0]))
@@ -465,6 +479,7 @@ class Dataset():
                 "inputs", "targets",
                 "test_inputs", "test_targets",
                 "train_inputs", "train_targets",
+                "labels", "test_labels", "train_labels",
         ]:
             return DataVector(self, item)
         else:
@@ -606,7 +621,7 @@ class Dataset():
             self._labels = labels # should be a list of np.arrays(dtype=str), one per bank
         self._cache_values()
 
-    def load(self, pairs=None, inputs=None, targets=None):
+    def load(self, pairs=None, inputs=None, targets=None, labels=None):
         """
         Set the human-specified dataset to a proper keras dataset.
 
@@ -621,7 +636,10 @@ class Dataset():
             if targets is not None:
                 if pairs is not None:
                     raise Exception("Use pairs or inputs/targets but not both")
-                pairs = list(zip(inputs, targets))
+                if labels is not None:
+                    pairs = list(zip(inputs, targets, labels))
+                else:
+                    pairs = list(zip(inputs, targets))
             else:
                 raise Exception("you cannot set inputs without targets")
         elif targets is not None:
@@ -632,7 +650,7 @@ class Dataset():
         if len(pairs) == 0:
             raise Exception("need more than zero pairs of inputs/targets")
         for pair in pairs:
-            if len(pair) != 2:
+            if len(pair) not in [2, 3]:
                 raise Exception("need a pair of inputs/targets for each pattern")
         inputs = [pair[0] for pair in pairs] ## all inputs, human format
         if self._num_input_banks() == 1:
@@ -640,6 +658,12 @@ class Dataset():
         targets = [pair[1] for pair in pairs] ## all targets, human format
         if self._num_target_banks() == 1:
             targets = [[target] for target in targets] ## standard format
+        labels = []
+        if len(pairs[0]) == 3:
+            if self._num_target_banks() == 1:
+                labels = [[label] for label in labels] ## now standard format
+            else:
+                labels = [pair[2] for pair in pairs] ## now standard format
         ### standard format from here down:
         if len(inputs) > 1:
             form = get_form(inputs[0]) # get the first form
@@ -678,15 +702,22 @@ class Dataset():
         if self._num_input_banks() > 1: ## for incoming format
             inputs = []
             for i in range(len(pairs[0][0])):
-                inputs.append(np.array([x[i] for (x,y) in pairs], "float32"))
+                inputs.append(np.array([x[0][i] for x in pairs], "float32"))
         else:
-            inputs = [np.array([x for (x, y) in pairs], "float32")]
+            inputs = [np.array([x[0] for x in pairs], "float32")]
         if self._num_target_banks() > 1: ## for incoming format
             targets = []
             for i in range(len(pairs[0][1])):
-                targets.append(np.array([y[i] for (x,y) in pairs], "float32"))
+                targets.append(np.array([y[1][i] for y in pairs], "float32"))
         else:
-            targets = [np.array([y for (x, y) in pairs], "float32")]
+            targets = [np.array([y[1] for y in pairs], "float32")]
+        labels = []
+        if len(pairs[0]) == 3:
+            if self._num_target_banks() > 1: ## for incoming format
+                for i in range(len(pairs[0][2])):
+                    labels.append(np.array([y[2][i] for y in pairs], str))
+            else:
+                labels = [np.array([y[2] for y in pairs], str)]
         ## inputs:
         if len(self._inputs) == 0:
             self._inputs = inputs
@@ -699,6 +730,12 @@ class Dataset():
         else:
             for i in range(len(self._targets)):
                 self._targets[i] = np.append(self._targets[i], targets[i], 0)
+        ## labels:
+        if len(self._labels) == 0:
+            self._labels = labels
+        else:
+            for i in range(len(self._labels)):
+                self._labels[i] = np.append(self._labels[i], labels[i], 0)
         self._cache_values()
 
     def get(self, dataset_name=None, *args, **kwargs):
@@ -996,6 +1033,24 @@ class Dataset():
         else:
             return data
 
+    def _get_label(self, i):
+        """
+        Get a label from the internal dataset and
+        format it in the human API.
+        """
+        size = self._get_size()
+        if isinstance(i, slice):
+            if not (i.start <= size and i.stop < size):
+                raise Exception("target slice %s is out of bounds" % (i,))
+        else:
+            if not 0 <= i < size:
+                raise Exception("target index %d is out of bounds" % (i,))
+        data = [self._labels[b][i] for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
+        else:
+            return data
+
     def _get_train_input(self, i):
         """
         Get a training input from the internal dataset and
@@ -1019,6 +1074,20 @@ class Dataset():
         if not 0 <= i < num_train:
             raise Exception("training target index %d is out of bounds" % (i,))
         data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
+        else:
+            return data
+
+    def _get_train_label(self, i):
+        """
+        Get a training label from the internal dataset and
+        format it in the human API.
+        """
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_train:
+            raise Exception("training target index %d is out of bounds" % (i,))
+        data = [self._labels[b][i] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
         else:
@@ -1049,6 +1118,21 @@ class Dataset():
             raise Exception("test target index %d is out of bounds" % (i,))
         j = size - num_test + i
         data = [self._targets[b][j].tolist() for b in range(self._num_target_banks())]
+        if self._num_target_banks() == 1:
+            return data[0]
+        else:
+            return data
+
+    def _get_test_label(self, i):
+        """
+        Get a test label from the internal dataset and
+        format it in the human API.
+        """
+        size, num_train, num_test = self._get_split_sizes()
+        if not 0 <= i < num_test:
+            raise Exception("test target index %d is out of bounds" % (i,))
+        j = size - num_test + i
+        data = [self._labels[b][j] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
         else:

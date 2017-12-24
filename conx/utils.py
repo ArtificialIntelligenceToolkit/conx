@@ -353,7 +353,7 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", interactive=True):
         plt.close(fig)
         return SVG(svg.decode())
 
-def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
+def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="",
          ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     """
     SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
@@ -364,7 +364,7 @@ def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
         raise Exception("matplotlib was not loaded")
     plt.rcParams['figure.figsize'] = (width, height)
     fig, ax = plt.subplots()
-    for (label, symbol, data) in lines:
+    for (label, symbol, data) in data:
         kwargs = {}
         args = [data]
         if label:
@@ -372,7 +372,7 @@ def plot(lines, width=8.0, height=4.0, xlabel="", ylabel="",
         if symbol:
             args.append(symbol)
         plt.plot(*args, **kwargs)
-    if any([line[0] for line in lines]):
+    if any([line[0] for line in data]):
         plt.legend()
     if xlabel:
         plt.xlabel(xlabel)
@@ -404,13 +404,13 @@ def set_plt_param(setting, value):
 def reset_plt_param(setting):
     plt.rcParams[setting] = plt.rcParamsDefault[setting]
 
-def scatter(lines, width=6.0, height=6.0, xlabel="", ylabel="", title="",
+def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
             ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     if plt is None:
         raise Exception("matplotlib was not loaded")
     set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
-    for (label, symbol, pairs) in lines:
+    for (label, symbol, pairs) in data:
         kwargs = {}
         args = []
         xs = [pair[0] for pair in pairs]
@@ -420,7 +420,7 @@ def scatter(lines, width=6.0, height=6.0, xlabel="", ylabel="", title="",
         if symbol:
             args.append(symbol)
         plt.plot(xs, ys, *args, **kwargs)
-    if any([line[0] for line in lines]):
+    if any([line[0] for line in data]):
         plt.legend()
     if xlabel:
         plt.xlabel(xlabel)
@@ -510,4 +510,11 @@ class PCA():
                 categories[category][1].append(hid_prime)
             else:
                 categories[category] = [symbol, [hid_prime]]
-        return [[category, categories[category][0], categories[category][1]] for category in sorted(categories.keys())]
+        return {
+            "data": [[category, categories[category][0], categories[category][1]]
+                     for category in sorted(categories.keys())],
+            "xmin": self.mins[0],
+            "xmax": self.maxs[0],
+            "ymin": self.mins[1],
+            "ymax": self.maxs[1],
+        }
