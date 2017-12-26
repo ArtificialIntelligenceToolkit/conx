@@ -19,9 +19,8 @@
 
 import sys
 from ._version import __version__
-
-print("conx, version %s" % __version__, file=sys.stderr)
-
 from .network import *
 from .layers import *
 from .dataset import *
+
+print("conx, version %s" % __version__, file=sys.stderr)

@@ -106,7 +106,7 @@ def image2array(image):
     Convert an image filename or PIL.Image into a numpy array.
     """
     if isinstance(image, str):
-        image = PIL.image.open(image)
+        image = PIL.Image.open(image)
     return np.array(image, "float32") / 255.0
 
 def array2image(array, scale=1.0):
@@ -342,6 +342,7 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", interactive=True):
     """
     xs = np.arange(*frange)
     ys = [f(x) for x in xs]
+    fig, ax = plt.subplots()
     plt.plot(xs, ys, symbol)
     if interactive:
         plt.show(block=False)
@@ -353,22 +354,26 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", interactive=True):
         plt.close(fig)
         return SVG(svg.decode())
 
-def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="",
-         ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
+def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
+         symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
+         interactive=True):
     """
-    SVG(plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
-             ylabel="error",
-             xlabel="hello"))
+    plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
+         ylabel="error",
+         xlabel="hello"))
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
     plt.rcParams['figure.figsize'] = (width, height)
     fig, ax = plt.subplots()
-    for (label, symbol, data) in data:
+    if len(shape(data)) == 1:
+        data = [data]
+    for (label, vectors) in data:
         kwargs = {}
-        args = [data]
+        args = [vectors]
         if label:
             kwargs["label"] = label
+        symbol = get_symbol(label, symbols)
         if symbol:
             args.append(symbol)
         plt.plot(*args, **kwargs)
@@ -405,18 +410,24 @@ def reset_plt_param(setting):
     plt.rcParams[setting] = plt.rcParamsDefault[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
-            ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
+            symbols=None, ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
+    """
+    scatter()
+    """
     if plt is None:
         raise Exception("matplotlib was not loaded")
     set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
-    for (label, symbol, pairs) in data:
+    if shape(data) == (1,):
+        data = [data]
+    for (label, vectors) in data:
         kwargs = {}
         args = []
-        xs = [pair[0] for pair in pairs]
-        ys = [pair[1] for pair in pairs]
+        xs = [vector[0] for vector in vectors]
+        ys = [vector[1] for vector in vectors]
         if label:
             kwargs["label"] = label
+        symbol = get_symbol(label, symbols)
         if symbol:
             args.append(symbol)
         plt.plot(xs, ys, *args, **kwargs)
@@ -483,11 +494,10 @@ class PCA():
         vectors_prime = self.pca.transform(vectors)
         return vectors_prime
 
-    def transform_network_bank(self, network, bank, tolerance=None, test=True,
-                               symbols={}):
+    def transform_network_bank(self, network, bank, tolerance=None, test=True):
         categories = {}
         if test:
-            tolerance = tolerance if tolerance is not None else self.tolerance
+            tolerance = tolerance if tolerance is not None else network.tolerance
             if len(network.dataset.inputs) == 0:
                 raise Exception("nothing to test")
             inputs = network.dataset._inputs
@@ -503,18 +513,238 @@ class PCA():
                 category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
             else:
                 category = label
-            symbol = symbols.get(category, "o")
             hid = network.propagate_to(bank, input_vector, visualize=False)
             hid_prime = self.transform_one(hid)
-            if category in categories:
-                categories[category][1].append(hid_prime)
-            else:
-                categories[category] = [symbol, [hid_prime]]
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(hid_prime)
         return {
-            "data": [[category, categories[category][0], categories[category][1]]
-                     for category in sorted(categories.keys())],
+            "data": sorted(categories.items()),
             "xmin": self.mins[0],
             "xmax": self.maxs[0],
             "ymin": self.mins[1],
             "ymax": self.maxs[1],
         }
+
+def get_symbol(label: str, symbols: dict=None) -> str:
+    """
+    Get a matplotlib symbol from a label.
+
+    Possible shape symbols:
+
+        * '-'	solid line style
+        * '--'	dashed line style
+        * '-.'	dash-dot line style
+        * ':'	dotted line style
+        * '.'	point marker
+        * ','	pixel marker
+        * 'o'	circle marker
+        * 'v'	triangle_down marker
+        * '^'	triangle_up marker
+        * '<'	triangle_left marker
+        * '>'	triangle_right marker
+        * '1'	tri_down marker
+        * '2'	tri_up marker
+        * '3'	tri_left marker
+        * '4'	tri_right marker
+        * 's'	square marker
+        * 'p'	pentagon marker
+        * '*'	star marker
+        * 'h'	hexagon1 marker
+        * 'H'	hexagon2 marker
+        * '+'	plus marker
+        * 'x'	x marker
+        * 'D'	diamond marker
+        * 'd'	thin_diamond marker
+        * '|'	vline marker
+        * '_'	hline marker
+
+    In addition, the shape symbol can be preceded by the following color abbreviations:
+
+        * ‘b’	blue
+        * ‘g’	green
+        * ‘r’	red
+        * ‘c’	cyan
+        * ‘m’	magenta
+        * ‘y’	yellow
+        * ‘k’	black
+        * ‘w’	white
+
+    Examples:
+        >>> get_symbol("Apple")
+        'o'
+        >>> get_symbol("Apple", {'Apple': 'x'})
+        'x'
+        >>> get_symbol("Banana", {'Apple': 'x'})
+        'o'
+    """
+    if symbols is None:
+        return "o"
+    else:
+        return symbols.get(label, "o")
+
+def atype(dtype):
+    """
+    Given a numpy dtype, return the associated Python type.
+    If unable to determine, just return the dtype.kind code.
+
+    >>> atype(np.float64(23).dtype)
+    <class 'numbers.Number'>
+    """
+    if dtype.kind in ["i", "f", "u"]:
+        return numbers.Number
+    elif dtype.kind in ["U", "S"]:
+        return str
+    else:
+        return dtype.kind
+
+def format_collapse(ttype, dims):
+    """
+    Given a type and a tuple of dimensions, return a struct of
+    [[[ttype, dims[-1]], dims[-2]], ...]
+
+    >>> format_collapse(int, (1, 2, 3))
+    [[[<class 'int'>, 3], 2], 1]
+    """
+    if len(dims) == 1:
+        return [ttype, dims[0]]
+    else:
+        return format_collapse([ttype, dims[-1]], dims[:-1])
+
+def types(item):
+    """
+    Get the types of (possibly) nested list(s), and collapse
+    if possible.
+
+    >>> types(0)
+    <class 'numbers.Number'>
+
+    >>> types([0, 1, 2])
+    [<class 'numbers.Number'>, 3]
+    """
+    try:
+        length = len(item)
+    except:
+        return (numbers.Number
+                if isinstance(item, numbers.Number)
+                else type(item))
+    if isinstance(item, str):
+        return str
+    elif length == 0:
+        return [None, 0]
+    array = None
+    try:
+        array = np.asarray(item)
+    except:
+        pass
+    if array is None or array.dtype == object:
+        return [types(x) for x in item]
+    else:
+        dtype = array.dtype ## can be many things!
+        return format_collapse(atype(dtype), array.shape)
+
+def all_same(iterator):
+    """
+    Are there more than one item, and all the same?
+
+    >>> all_same([int, int, int])
+    True
+
+    >>> all_same([int, float, int])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return False
+    return all([first == rest for rest in iterator])
+
+def is_collapsed(item):
+    """
+    Is this a collapsed item?
+
+    >>> is_collapsed([int, 3])
+    True
+
+    >>> is_collapsed([int, int, int])
+    False
+    """
+    try:
+        return (len(item) == 2 and
+                isinstance(item[0], (type, np.dtype)) and
+                isinstance(item[1], numbers.Number))
+    except:
+        return False
+
+def collapse(item):
+    """
+    For any repeated structure, return [struct, count].
+
+    >>> collapse([[int, int, int], [float, float]])
+    [[<class 'int'>, 3], [<class 'float'>, 2]]
+    """
+    if is_collapsed(item):
+        return item
+    try:
+        length = len(item)
+    except:
+        return item
+    items = [collapse(i) for i in item]
+    if all_same(items):
+        return [items[0], length]
+    else:
+        return items
+
+def get_form(item):
+    """
+    First, get the types of all items, and then collapse
+    repeated structures.
+
+    >>> get_form([1, [2, 5, 6], 3])
+    [<class 'numbers.Number'>, [<class 'numbers.Number'>, 3], <class 'numbers.Number'>]
+    """
+    return collapse(types(item))
+
+def get_shape(form):
+    """
+    Given a form, format it in [type, dimension] format.
+
+    >>> get_shape(get_form([[0.00], [0.00]]))
+    (<class 'numbers.Number'>, [2, 1])
+    """
+    if (isinstance(form, list) and
+        len(form) == 2 and
+        isinstance(form[1], numbers.Number)):
+        ## Is it [type, count]
+        if isinstance(form[0], (np.dtype, numbers.Number, type)):
+            return (form[0], [form[1]])
+        else:
+            f = get_shape(form[0])
+            if isinstance(f, tuple): ## FIXME: and same
+                return (f[0], [form[1]] + f[1])
+            else:
+                return ([get_shape(f) for f in form], [len(form)])
+    elif isinstance(form, list):
+        return ([get_shape(x) for x in form], [len(form)])
+    else:
+        return (form, [0]) # scalar
+
+def shape(item):
+    """
+    Shortcut for get_shape(get_form(item)).
+
+    >>> shape([1])
+    (1,)
+    >>> shape([1, 2])
+    (2,)
+    >>> shape([[1, 2, 3], [4, 5, 6]])
+    (2, 3)
+    """
+    s = get_shape(get_form(item))
+    if (isinstance(s, tuple) and
+        len(s) == 2 and
+        all([isinstance(v, (np.dtype, numbers.Number, type)) for v in s[1]])):
+        return tuple(s[1])
+    else:
+        return [tuple(v[1]) for v in s]

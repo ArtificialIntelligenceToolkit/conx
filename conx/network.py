@@ -23,12 +23,9 @@ The network module contains the code for the Network class.
 
 import collections
 import operator
-import importlib
 from functools import reduce
 import signal
 import numbers
-import threading
-import time
 import random
 import pickle
 import base64
@@ -37,14 +34,14 @@ import copy
 import sys
 import io
 import os
-import re
-import PIL
 from typing import Any
 
+import PIL
 import numpy as np
 import matplotlib.pyplot as plt
 import keras
 from keras.callbacks import Callback, History
+import keras.backend as K
 
 from .utils import *
 from .layers import Layer
@@ -67,15 +64,15 @@ class ReportCallback(Callback):
         self.in_console = self.network.in_console(mpl_backend)
         self.record = record
 
-    def on_epoch_end(self, epoch, results=None):
+    def on_epoch_end(self, epoch, logs=None):
         #print("in ReportCallback with epoch = %d" % epoch)
-        self.network.history.append(results)
+        self.network.history.append(logs)
         self.network.epoch_count += 1
         #print("epoch_count is now", self.network.epoch_count)
         #print("history is now", self.network.history)
-        #print("ReportCallback got:", epoch, results)
+        #print("ReportCallback got:", epoch, logs)
         if self.in_console and (epoch+1) % self.report_rate == 0:
-            self.network.report_epoch(self.network.epoch_count, results)
+            self.network.report_epoch(self.network.epoch_count, logs)
         if self.record != 0 and (epoch+1) % self.record == 0:
             self.network.weight_history[self.network.epoch_count] = self.network.to_array()
 
@@ -90,7 +87,7 @@ class PlotCallback(Callback):
         self.in_console = self.network.in_console(mpl_backend)
         self.figure = None
 
-    def on_epoch_end(self, epoch, results=None):
+    def on_epoch_end(self, epoch, logs=None):
         #print("in PlotCallback with epoch = %d" % epoch)
         if epoch == -1:
             # training loop finished, so make a final update to plot
@@ -112,6 +109,7 @@ class FunctionCallback(Callback):
         'on_train_end',
     """
     def __init__(self, network, on_method, function):
+        super().__init__()
         self.network = network
         self.on_method = on_method
         self.function = function
@@ -148,24 +146,24 @@ class StoppingCriteria(Callback):
         self.value = value
         self.use_validation_to_stop = use_validation_to_stop
 
-    def on_epoch_end(self, epoch, results=None):
+    def on_epoch_end(self, epoch, logs=None):
         key = ("val_" + self.item) if self.use_validation_to_stop else self.item
-        if key in results: # we get what we need directly:
-            if self.compare(results[key], self.op, self.value):
+        if key in logs: # we get what we need directly:
+            if self.compare(logs[key], self.op, self.value):
                 self.model.stop_training = True
         else:
             ## ok, then let's sum/average anything that matches
             total = 0
             count = 0
-            for item in results:
+            for item in logs:
                 if self.use_validation_to_stop:
                     if item.startswith("val_") and item.endswith("_" + self.item):
                         count += 1
-                        total += results[item]
+                        total += logs[item]
                 else:
                     if item.endswith("_" + self.item) and not item.startswith("val_"):
                         count += 1
-                        total += results[item]
+                        total += logs[item]
             if count > 0 and self.compare(total/count, self.op, self.value):
                 self.model.stop_training = True
 
@@ -262,7 +260,6 @@ class Network():
                        'sparse_categorical_crossentropy', 'squared_hinge']
 
     def __init__(self, name: str, *sizes: int, **config: Any):
-        import keras.backend as K
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.debug = False
@@ -331,11 +328,9 @@ class Network():
         self._need_to_show_headings = True
 
     def _get_tolerance(self):
-        import keras.backend as K
         return K.get_value(self._tolerance)
 
     def _set_tolerance(self, value):
-        import keras.backend as K
         K.set_value(self._tolerance, value)
 
     tolerance = property(_get_tolerance,
@@ -354,6 +349,34 @@ class Network():
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
 
+    def set_weights_from_history(self, index, epochs=None):
+        """
+        Set the weights of the network from a particular point in the learning
+        sequence.
+
+        net.set_weights_from_history(0)  # restore initial weights
+        net.set_weights_from_history(-1) # restore last weights
+
+        See also:
+            * `Network.get_weights_from_history`
+        """
+        epochs = epochs if epochs is not None else sorted(self.weight_history.keys())
+        return self.from_array(self.get_weights_from_history(index, epochs))
+
+    def get_weights_from_history(self, index, epochs=None):
+        """
+        Get the weights of the network from a particular point in the learning
+        sequence.
+
+        wts = net.get_weights_from_history(0)  # get initial weights
+        wts = net.get_weights_from_history(-1) # get last weights
+
+        See also:
+            * `Network.set_weights_from_history`
+        """
+        epochs = epochs if epochs is not None else sorted(self.weight_history.keys())
+        return self.weight_history[epochs[index]]
+
     def playback(self, function):
         """
         Playback a function over the set of recorded weights.
@@ -361,11 +384,11 @@ class Network():
         function has signature: function(network, epoch)
         """
         from .widgets import SequenceViewer
-        sequence = sorted(self.weight_history.keys())
+        epochs = sorted(self.weight_history.keys())
         def display_weight_history(index):
-            self.from_array(self.weight_history[sequence[index]])
-            return function(self, sequence[index])
-        sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(sequence))
+            self.set_weights_from_history(index, epochs)
+            return function(self, epochs[index])
+        sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(epochs))
         return sv
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
@@ -377,7 +400,7 @@ class Network():
             opts["svg_height"] = height
         return HTML(self.build_svg(class_id=class_id, inputs=inputs, opts=opts))
 
-    def in_console(self, mpl_backend):
+    def in_console(self, mpl_backend: str) -> bool:
         """
         Return True if running connected to a console; False if connected
         to notebook, or other non-console system.
@@ -401,7 +424,7 @@ class Network():
             'NbAgg',
         ]
 
-    def add(self, layer: Layer):
+    def add(self, layer: Layer) -> None:
         """
         Add a layer to the network layer connections. Order is not
         important, unless calling :any:`Network.connect` without any
@@ -431,7 +454,7 @@ class Network():
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
 
-    def connect(self, from_layer_name:str=None, to_layer_name:str=None):
+    def connect(self, from_layer_name : str=None, to_layer_name : str=None):
         """
         Connect two layers together if called with arguments. If
         called with no arguments, then it will make a sequential
@@ -526,33 +549,35 @@ class Network():
 
     def test(self, batch_size=32, show=False, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
-             filter="all"):
+             filter="all", interactive=True):
         """
         Test a dataset.
         """
         tolerance = tolerance if tolerance is not None else self.tolerance
         if len(self.dataset.inputs) == 0:
             raise Exception("nothing to test")
+        length = len(self.dataset.train_targets)
         if self.dataset._split == 1.0: ## special case; use entire set
             inputs = self.dataset._inputs
             targets = self.dataset._targets
         else:
             ## need to split; check format based on output banks:
-            length = len(self.dataset.train_targets)
             targets = [column[:length] for column in self.dataset._targets]
             inputs = [column[:length] for column in self.dataset._inputs]
-        self._test(inputs, targets, "train dataset", batch_size, show,
-                   tolerance, force, show_inputs, show_outputs, filter)
-        if self.dataset._split in [1.0, 0.0]: ## special case; use entire set
-            return
-        else: # split is greater than 0, less than 1
-            ## need to split; check format based on output banks:
-            length = len(self.dataset.test_targets)
-            targets = [column[-length:] for column in self.dataset._targets]
-            inputs = [column[-length:] for column in self.dataset._inputs]
-            val_values = self.model.evaluate(inputs, targets, verbose=0)
-        self._test(inputs, targets, "validation dataset", batch_size, show,
-                   tolerance, force, show_inputs, show_outputs, filter)
+        if interactive:
+            self._test(inputs, targets, "validation dataset", batch_size, show,
+                       tolerance, force, show_inputs, show_outputs, filter, interactive)
+        else:
+            results = self._test(inputs, targets, "validation dataset", batch_size, show,
+                                 tolerance, force, show_inputs, show_outputs, filter, interactive)
+            categories = {}
+            for i in range(length):
+                label = "%s (%s)" % (self.dataset.labels[i],
+                                     "correct" if results[i] else "wrong")
+                if not label in categories:
+                    categories[label] = []
+                categories[label].append(self.dataset.inputs[i])
+            return sorted(categories.items())
 
     def _test(self, inputs, targets, dataset, batch_size=32, show=False,
               tolerance=None, force=False,
@@ -687,18 +712,18 @@ class Network():
                 targets = targets[0]
         pairs = [(inputs, targets)]
         if self.num_input_layers == 1:
-            ins = np.array([x for (x, y) in pairs], "float32")
+            ins = np.array([pair[0] for pair in pairs], "float32")
         else:
             ins = []
             for i in range(len(pairs[0][0])):
-                ins.append(np.array([x[i] for (x,y) in pairs], "float32"))
+                ins.append(np.array([pair[0][i] for pair in pairs], "float32"))
         if self.num_target_layers == 1:
-            targs = np.array([y for (x, y) in pairs], "float32")
+            targs = np.array([pair[1] for pair in pairs], "float32")
         else:
             targs = []
             for i in range(len(pairs[0][1])):
-                targs.append(np.array([y[i] for (x,y) in pairs], "float32"))
-        history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
+                targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
+        ## history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, visualize=False)
         errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
@@ -753,7 +778,6 @@ class Network():
         Normally, it will check training info to stop, unless you
         use_validation_to_stop = True.
         """
-        import keras.backend as K
         self.train_options = {
             "epochs": epochs,
             "accuracy": accuracy,
@@ -1015,7 +1039,6 @@ class Network():
         Get the weights from the model.
         """
         from matplotlib import cm
-        import PIL
         weights = [layer.get_weights() for layer in self.model.layers
                    if layer_name == layer.name][0]
         weights = weights[0] # get the weight matrix, not the biases
@@ -1050,7 +1073,6 @@ class Network():
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
         """
-        import keras.backend as K
         visualize = visualize if visualize is not None else self.visualize
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
@@ -1285,7 +1307,7 @@ class Network():
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
-                            interactive=True, scatter=None):
+                            interactive=True, scatter=None, symbols=None):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1328,13 +1350,14 @@ class Network():
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
         if scatter is not None:
-            for (label, symbol, pairs) in scatter:
+            for (label, data) in scatter:
                 kwargs = {}
                 args = []
-                xs = [min(pair[0], act_max - .01) * xpixels for pair in pairs]
-                ys = [min(pair[1], act_max - .01) * ypixels for pair in pairs]
+                xs = [min(vector[0], act_max - .01) * xpixels for vector in data]
+                ys = [min(vector[1], act_max - .01) * ypixels for vector in data]
                 if label:
                     kwargs["label"] = label
+                symbol = get_symbol(label, symbols)
                 if symbol:
                     args.append(symbol)
                 ax.plot(xs, ys, *args, **kwargs)
@@ -1639,7 +1662,6 @@ class Network():
 
         See https://keras.io/ `Model.compile()` method for more details.
         """
-        import keras.backend as K
         ## Error checking:
         if len(self.layers) == 0:
             raise Exception("network has no layers")
@@ -1693,7 +1715,6 @@ class Network():
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
-        import keras.backend as K
         return K.mean(K.all(K.less_equal(K.abs(targets - outputs), self._tolerance), axis=-1), axis=-1)
 
     def _find_keras_layer(self, layer_name):
@@ -2105,7 +2126,7 @@ class Network():
                 }])
                 output_shape = self[layer_name].get_output_shape()
                 if (isinstance(output_shape, tuple) and len(output_shape) == 4 and
-                    "ImageLayer" != self[layer_name].__class__.__name__):
+                    self[layer_name].__class__.__name__ != "ImageLayer"):
                     features = str(output_shape[3])
                     feature = str(self[layer_name].feature)
                     struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
@@ -2470,7 +2491,6 @@ require(['base/js/namespace'], function(Jupyter) {
             >>> net.pf([0]*10000)
             '[0,0,0,..., 0,0,0]'
         """
-        from IPython.lib.pretty import pretty
         if isinstance(vector, collections.Iterable):
             vector = list(vector)
         if isinstance(vector, (list, tuple)):
@@ -2542,6 +2562,9 @@ class _InterruptHandler():
     def __init__(self, network, sig=signal.SIGINT):
         self.network = network
         self.sig = sig
+        self.interrupted = None
+        self.released = None
+        self.original_handler = None
 
     def __enter__(self):
         self.interrupted = False

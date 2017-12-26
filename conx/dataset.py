@@ -22,174 +22,13 @@ The Dataset class is useful for loading standard datasets, or for
 manipulating a set of inputs/targets.
 """
 
-from functools import reduce
-import operator
 import numpy as np
 import copy
 import numbers
-
-import keras
-from keras.utils import to_categorical
-
-from .utils import valid_shape, onehot, binary
-import conx.datasets
 import inspect
 
-def atype(dtype):
-    """
-    Given a numpy dtype, return the associated Python type.
-    If unable to determine, just return the dtype.kind code.
-
-    >>> atype(np.float64(23).dtype)
-    <class 'numbers.Number'>
-    """
-    if dtype.kind in ["i", "f", "u"]:
-        return numbers.Number
-    elif dtype.kind in ["U", "S"]:
-        return str
-    else:
-        return dtype.kind
-
-def format_collapse(ttype, dims):
-    """
-    Given a type and a tuple of dimensions, return a struct of
-    [[[ttype, dims[-1]], dims[-2]], ...]
-
-    >>> format_collapse(int, (1, 2, 3))
-    [[[<class 'int'>, 3], 2], 1]
-    """
-    if len(dims) == 1:
-        return [ttype, dims[0]]
-    else:
-        return format_collapse([ttype, dims[-1]], dims[:-1])
-
-def types(item):
-    """
-    Get the types of (possibly) nested list(s), and collapse
-    if possible.
-
-    >>> types(0)
-    <class 'numbers.Number'>
-
-    >>> types([0, 1, 2])
-    [<class 'numbers.Number'>, 3]
-    """
-    try:
-        length = len(item)
-    except:
-        return (numbers.Number
-                if isinstance(item, numbers.Number)
-                else type(item))
-    if isinstance(item, str):
-        return str
-    elif length == 0:
-        return [None, 0]
-    array = None
-    try:
-        array = np.asarray(item)
-    except:
-        pass
-    if array is None or array.dtype == object:
-        return [types(x) for x in item]
-    else:
-        dtype = array.dtype ## can be many things!
-        return format_collapse(atype(dtype), array.shape)
-
-def all_same(iterator):
-    """
-    Are there more than one item, and all the same?
-
-    >>> all_same([int, int, int])
-    True
-
-    >>> all_same([int, float, int])
-    False
-    """
-    iterator = iter(iterator)
-    try:
-        first = next(iterator)
-    except StopIteration:
-        return False
-    return all([first == rest for rest in iterator])
-
-def is_collapsed(item):
-    """
-    Is this a collapsed item?
-
-    >>> is_collapsed([int, 3])
-    True
-
-    >>> is_collapsed([int, int, int])
-    False
-    """
-    try:
-        return (len(item) == 2 and
-                isinstance(item[0], (type, np.dtype)) and
-                isinstance(item[1], numbers.Number))
-    except:
-        return False
-
-def collapse(item):
-    """
-    For any repeated structure, return [struct, count].
-
-    >>> collapse([[int, int, int], [float, float]])
-    [[<class 'int'>, 3], [<class 'float'>, 2]]
-    """
-    if is_collapsed(item):
-        return item
-    try:
-        length = len(item)
-    except:
-        return item
-    items = [collapse(i) for i in item]
-    if all_same(items):
-        return [items[0], length]
-    else:
-        return items
-
-def get_form(item):
-    """
-    First, get the types of all items, and then collapse
-    repeated structures.
-
-    >>> get_form([1, [2, 5, 6], 3])
-    [<class 'numbers.Number'>, [<class 'numbers.Number'>, 3], <class 'numbers.Number'>]
-    """
-    return collapse(types(item))
-
-def get_shape(form):
-    """
-    Given a form, format it in [type, dimension] format.
-
-    >>> get_shape(get_form([[0.00], [0.00]]))
-    [<class 'numbers.Number'>, [2, 1]]
-    """
-    if (isinstance(form, list) and
-        len(form) == 2 and
-        isinstance(form[1], numbers.Number)):
-        ## Is it [type, count]
-        if form[0] in (np.dtype, numbers.Number):
-            return form[0], [form[1]]
-        else:
-            ## or [[...], [...]]
-            f = get_shape(form[0])
-            return [f[0], [form[1]] + f[1]]
-    else:
-        return [get_shape(x) for x in form]
-
-def shape(item):
-    """
-    Shortcut for get_shape(get_form(item)).
-
-    >>> shape([1])
-    (1,)
-    >>> shape([1, 2])
-    (2,)
-    >>> shape([[1, 2, 3], [4, 5, 6]])
-    (2, 3)
-    """
-    return tuple(get_shape(get_form(item))[1])
+from .utils import *
+import conx.datasets
 
 class DataVector():
     """
@@ -236,7 +75,7 @@ class DataVector():
         elif self.item == "train_targets":
             return self.dataset._get_train_target(pos)
         else:
-            raise Exception("unknown vector: %s" % (item,))
+            raise Exception("unknown vector: %s" % (self.item,))
 
     def __setitem__(self, pos, value):
         """
@@ -297,7 +136,7 @@ class DataVector():
             else:
                 return self.dataset._default_targets[bank_index]
         else:
-            raise Exception("unknown vector: %s" % (item,))
+            raise Exception("unknown vector: %s" % (self.item,))
 
     def reshape(self, bank_index, new_shape=None):
         """
@@ -339,11 +178,11 @@ class DataVector():
             shape = self.dataset._inputs[bank_index].shape
             self.dataset._inputs[bank_index] = self.dataset._inputs[0].reshape((shape[0],) + new_shape)
         elif self.item in ["test_targets", "train_targets"]:
-            raise Exception("unable to reshape vector '%s';  call dataset.targets.reshape(), and re-split" % (item,))
+            raise Exception("unable to reshape vector '%s';  call dataset.targets.reshape(), and re-split" % (self.item,))
         elif self.item in ["test_inputs", "train_inputs"]:
-            raise Exception("unable to reshape vector '%s'; call dataset.inputs.rehsape(), and re-split" % (item,))
+            raise Exception("unable to reshape vector '%s'; call dataset.inputs.rehsape(), and re-split" % (self.item,))
         else:
-            raise Exception("unknown vector: %s" % (item,))
+            raise Exception("unknown vector: %s" % (self.item,))
         self.dataset._cache_values()
 
     def flatten(self, bank_index=None):
@@ -374,11 +213,11 @@ class DataVector():
             else:
                 self.dataset._inputs[bank_index] = self.dataset._inputs[bank_index].flatten()
         elif self.item in ["test_targets", "train_targets"]:
-            raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (item,))
+            raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (self.item,))
         elif self.item in ["test_inputs", "train_inputs"]:
-            raise Exception("unable to flatten vector '%s'; call dataset.inputs.flatten(), and re-split" % (item,))
+            raise Exception("unable to flatten vector '%s'; call dataset.inputs.flatten(), and re-split" % (self.item,))
         else:
-            raise Exception("unknown vector: %s" % (item,))
+            raise Exception("unknown vector: %s" % (self.item,))
         self.dataset._cache_values()
 
     def __len__(self):
@@ -417,7 +256,7 @@ class DataVector():
         elif self.item == "test_inputs":
             return num_test
         else:
-            raise Exception("unknown vector type: %s" % (item,))
+            raise Exception("unknown vector type: %s" % (self.item,))
 
     def __iter__(self):
         self._iter_index = 0
@@ -1041,10 +880,10 @@ class Dataset():
         size = self._get_size()
         if isinstance(i, slice):
             if i.start is not None and i.stop is not None and not (i.start <= size and i.stop < size):
-                raise Exception("target slice %s is out of bounds" % (i,))
+                raise Exception("label slice %s is out of bounds" % (i,))
         else:
             if not 0 <= i < size:
-                raise Exception("target index %d is out of bounds" % (i,))
+                raise Exception("label index %d is out of bounds" % (i,))
         data = [self._labels[b][i] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
@@ -1086,7 +925,7 @@ class Dataset():
         """
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_train:
-            raise Exception("training target index %d is out of bounds" % (i,))
+            raise Exception("training label index %d is out of bounds" % (i,))
         data = [self._labels[b][i] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
@@ -1130,7 +969,7 @@ class Dataset():
         """
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_test:
-            raise Exception("test target index %d is out of bounds" % (i,))
+            raise Exception("test label index %d is out of bounds" % (i,))
         j = size - num_test + i
         data = [self._labels[b][j] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
