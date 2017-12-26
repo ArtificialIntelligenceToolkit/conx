@@ -91,5 +91,9 @@ ENV/
 ## conx specific:
 
 docs/source/*.ipynb
+docs/source/*.jpg
+docs/source/*.gif
+docs/source/*.png
+docs/source/*.md
 tmp/
 Makefile
