@@ -205,6 +205,15 @@ def autoname(index, sizes):
     """
     Given an index and list of sizes, return a
     name for the layer.
+
+    >>> autoname(0, sizes=4)
+    'input'
+    >>> autoname(1, sizes=4)
+    'hidden1'
+    >>> autoname(2, sizes=4)
+    'hidden2'
+    >>> autoname(3, sizes=4)
+    'output'
     """
     if index == 0:
         n = "input"
@@ -264,6 +273,9 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
         return (new_min + (a - old_min)*new_delta/old_delta).astype(new_dtype)
 
 def uri_to_image(image_str, width=320, height=240):
+    """
+    Given an URI, return an image.
+    """
     header, image_b64 = image_str.split(",")
     image_binary = base64.b64decode(image_b64)
     image = PIL.Image.open(io.BytesIO(image_binary)).resize((width, height))
@@ -273,6 +285,9 @@ def get_device():
     """
     Returns 'cpu' or 'gpu' indicating which device
     the system will use.
+
+    >>> get_device() in ["gpu", "cpu"]
+    True
     """
     import keras.backend as K
     if K._BACKEND == "theano":
@@ -295,6 +310,8 @@ def get_device():
 
 def import_keras_model(model, network_name):
     """
+    Import a keras model into conx.
+
     """
     from .network import Network
     import inspect
@@ -340,6 +357,9 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
            interactive=True):
     """
     Plot a function.
+
+    >>> plot_f(lambda x: x, frange=(-1, 1, .1), interactive=False)
+    <IPython.core.display.SVG object>
     """
     xs = np.arange(*frange)
     ys = [f(x) for x in xs]
@@ -365,9 +385,16 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
          interactive=True):
     """
-    plot([["Error", "+", [1, 2, 4, 6, 1, 2, 3]]],
-         ylabel="error",
-         xlabel="hello"))
+    >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
+    ...           ylabel="error",
+    ...           xlabel="hello", interactive=False)
+    >>> p
+    <IPython.core.display.SVG object>
+    >>> p = plot([["Error", [1, 2, 4, 6, 1, 2, 3]]],
+    ...           ylabel="error",
+    ...           xlabel="hello", interactive=False)
+    >>> p
+    <IPython.core.display.SVG object>
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
@@ -410,22 +437,54 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
         plt.close(fig)
         return SVG(img_bytes.decode())
 
+CACHE_PARAMS = {}
+
 def set_plt_param(setting, value):
+    """
+    Set the matplotlib setting to a new value.
+
+    >>> original = plt.rcParams["font.size"]
+    >>> set_plt_param("font.size", 8.0)
+    >>> original == plt.rcParams["font.size"]
+    False
+    >>> 8.0 == plt.rcParams["font.size"]
+    True
+    >>> reset_plt_param("font.size")
+    >>> original == plt.rcParams["font.size"]
+    True
+    """
+    CACHE_PARAMS[setting] = plt.rcParams[setting]
     plt.rcParams[setting] = value
 
 def reset_plt_param(setting):
-    plt.rcParams[setting] = plt.rcParamsDefault[setting]
+    """
+    Reset the matplotlib setting to its default.
+
+    >>> original = plt.rcParams["figure.figsize"]
+    >>> set_plt_param("figure.figsize", [5, 5])
+    >>> original == plt.rcParams["figure.figsize"]
+    False
+    >>> [5, 5] == plt.rcParams["figure.figsize"]
+    True
+    >>> reset_plt_param("figure.figsize")
+    >>> original == plt.rcParams["figure.figsize"]
+    True
+    """
+    plt.rcParams[setting] = CACHE_PARAMS[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
             symbols=None, ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     """
-    scatter()
+    Create a scatter plot with series of (x,y) data.
+
+    >>> scatter(["Test 1", [(0,4), (2,3), (1,2)]], interactive=False)
+    <IPython.core.display.SVG object>
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
     set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
-    if shape(data) == (1,):
+    if len(shape(data)) == 1:
         data = [data]
     for (label, vectors) in data:
         kwargs = {}
@@ -468,8 +527,11 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
     return result
 
 class PCA():
-    def __init__(self, states, dim=2, solver="randomized"):
-        """
+    """
+    Compute the Prinicpal Component Analysis for the points
+    in a multi-dimensional space.
+
+    Example:
         >>> data = [
         ...         [0.00, 0.00, 0.00],
         ...         [0.25, 0.25, 0.25],
@@ -479,7 +541,10 @@ class PCA():
         ... ]
         >>> pca = PCA(data)
         >>> new_data = pca.transform(data)
-        """
+        >>> len(new_data)
+        5
+    """
+    def __init__(self, states, dim=2, solver="randomized"):
         from sklearn.decomposition import PCA
         self.dim = dim
         self.solver = solver
@@ -494,14 +559,72 @@ class PCA():
             self.maxs[i] = max([state[i] for state in states_pca])
 
     def transform_one(self, vector):
+        """
+        Transform a vector into the PCA of the trained states.
+
+        >>> from conx import Network
+        >>> net = Network("Example", 2, 2, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.load([
+        ...        [[0, 0], [0], "0"],
+        ...        [[0, 1], [1], "1"],
+        ...        [[1, 0], [1], "1"],
+        ...        [[1, 1], [0], "0"],
+        ... ])
+        >>> states = [net.propagate_to("hidden", input) for input in net.dataset.inputs]
+        >>> pca = PCA(states)
+        >>> new_state = pca.transform_one(states[0])
+        >>> len(new_state)
+        2
+        """
         vector_prime = self.pca.transform([vector])[0]
         return vector_prime
 
     def transform(self, vectors):
+        """
+        >>> from conx import Network
+        >>> net = Network("Example", 2, 2, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.load([
+        ...        [[0, 0], [0], "0"],
+        ...        [[0, 1], [1], "1"],
+        ...        [[1, 0], [1], "1"],
+        ...        [[1, 1], [0], "0"],
+        ... ])
+        >>> states = [net.propagate_to("hidden", input) for input in net.dataset.inputs]
+        >>> pca = PCA(states)
+        >>> new_states = pca.transform(states)
+        >>> len(new_states)
+        4
+        """
         vectors_prime = self.pca.transform(vectors)
         return vectors_prime
 
-    def transform_network_bank(self, network, bank, tolerance=None, test=True):
+    def transform_network_bank(self, network, bank, label_index=0, tolerance=None, test=True):
+        """
+        >>> from conx import Network
+        >>> net = Network("Example", 2, 2, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.dataset.load([
+        ...        [[0, 0], [0], "0"],
+        ...        [[0, 1], [1], "1"],
+        ...        [[1, 0], [1], "1"],
+        ...        [[1, 1], [0], "0"],
+        ... ])
+        >>> states = [net.propagate_to("hidden", input) for input in net.dataset.inputs]
+        >>> pca = PCA(states)
+        >>> results = pca.transform_network_bank(net, "hidden")
+        >>> sum([len(vectors) for (label, vectors) in results["data"]])
+        4
+        >>> "xmin" in results
+        True
+        >>> "xmax" in results
+        True
+        >>> "ymin" in results
+        True
+        >>> "ymax" in results
+        True
+        """
         categories = {}
         if test:
             tolerance = tolerance if tolerance is not None else network.tolerance
@@ -513,8 +636,7 @@ class PCA():
                                     show_inputs=False, show_outputs=False, filter="all",
                                     interactive=False)
         for i in range(len(network.dataset.inputs)):
-            ## FIXME: get index for bank, not 0
-            label = network.dataset._labels[0][i]
+            label = network.dataset._labels[label_index][i]
             input_vector = network.dataset.inputs[i]
             if test:
                 category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
