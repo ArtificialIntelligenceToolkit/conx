@@ -336,13 +336,20 @@ def import_keras_model(model, network_name):
                                               outputs=clayer.keras_layer.output)
     return network
 
-def plot_f(f, frange=(-1, 1, .1), symbol="o-", interactive=True):
+def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
+           interactive=True):
     """
     Plot a function.
     """
     xs = np.arange(*frange)
     ys = [f(x) for x in xs]
     fig, ax = plt.subplots()
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    if title:
+        plt.title(title)
     plt.plot(xs, ys, symbol)
     if interactive:
         plt.show(block=False)
