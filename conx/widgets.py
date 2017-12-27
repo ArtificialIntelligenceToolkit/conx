@@ -132,13 +132,24 @@ class SequenceViewer(VBox):
         return controls
 
     def initialize(self):
-        self.displayer = display(self.function(self.control_slider.value), display_id=True)
+        results = self.function(self.control_slider.value)
+        try:
+            results = list(results)
+        except:
+            results = [results]
+        self.displayers = [display(x, display_id=True) for x in results]
 
     def update_slider_control(self, change):
         if change["name"] == "value":
             self.position_text.value = self.control_slider.value
             self.output.clear_output(wait=True)
-            self.displayer.update(self.function(self.control_slider.value))
+            results = self.function(self.control_slider.value)
+            try:
+                results = list(results)
+            except:
+                results = [results]
+            for i in range(len(self.displayers)):
+                self.displayers[i].update(results[i])
 
 class Dashboard(VBox):
     """

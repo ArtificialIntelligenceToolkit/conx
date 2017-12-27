@@ -1350,6 +1350,10 @@ class Network():
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
         if scatter is not None:
+            if isinstance(scatter, dict):
+                scatter = scatter["data"]
+                if len(shape(scatter)) == 1:
+                    scatter = [scatter]
             for (label, data) in scatter:
                 kwargs = {}
                 args = []
@@ -1558,7 +1562,7 @@ class Network():
             print("No history available")
             return
         if metrics is None:
-            return self.plot('loss') # FIXME: change this to plot loss and acc on separate graphs
+            metrics = ['loss']
         elif metrics is '?':
             print("Available metrics:", ", ".join(self.get_metrics()))
             return
