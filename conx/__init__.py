@@ -18,6 +18,13 @@
 # Boston, MA 02110-1301  USA
 
 import sys
+import os
+import matplotlib
+## If no DISPLAY, then set the matplotlib backend
+## to an alternate to work:
+if (("DISPLAY" not in os.environ) or
+    (os.environ["DISPLAY"] == "")):
+    matplotlib.use('Agg')
 from ._version import __version__
 from .network import *
 from .layers import *
