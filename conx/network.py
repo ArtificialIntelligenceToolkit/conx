@@ -38,6 +38,14 @@ from typing import Any
 
 import PIL
 import numpy as np
+import matplotlib
+
+## If no DISPLAY, then set the matplotlib backend
+## to an alternate to work:
+if (("DISPLAY" not in os.environ) or
+    (os.environ["DISPLAY"] == "")):
+    matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import keras
 from keras.callbacks import Callback, History
