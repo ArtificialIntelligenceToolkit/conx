@@ -34,19 +34,31 @@ CURRENT_COLORMAP = "seismic_r"
 ERROR_COLORMAP = "seismic_r"
 
 def set_colormap(s):
+    """
+    Set the global colormap for displaying all network activations.
+    """
     global CURRENT_COLORMAP
     assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
     CURRENT_COLORMAP = s
 
 def set_error_colormap(s):
+    """
+    Set the error color map for display error values.
+    """
     global ERROR_COLORMAP
     assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
     ERROR_COLORMAP = s
 
 def get_error_colormap():
+    """
+    Get the global error colormap.
+    """
     return ERROR_COLORMAP
 
 def get_colormap():
+    """
+    Get the global colormap.
+    """
     return CURRENT_COLORMAP
 
 #------------------------------------------------------------------------
@@ -89,6 +101,9 @@ def frange(start, stop=None, step=1.0):
     Like range(), but with floats.
 
     May not be exactly correct due to rounding issues.
+
+    >>> len(frange(-1, 1, .1))
+    20
     """
     if stop is None:
         stop = start
@@ -98,6 +113,9 @@ def frange(start, stop=None, step=1.0):
 def argmax(seq):
     """
     Find the index of the maximum value in seq.
+
+    >>> argmax([0.1, 0.2, 0.3, 0.1])
+    2
     """
     return np.argmax(seq)
 
@@ -256,6 +274,10 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
     """
     Given a vector, old min/max, a new min/max and a numpy type,
     create a new vector scaling the old values.
+
+    >>> import numpy as np
+    >>> rescale_numpy_array(np.array([0.1, 0.2, 0.3]), (0, 1), (0.5, 1.), float)
+    array([ 0.55,  0.6 ,  0.65])
     """
     assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range

@@ -392,6 +392,14 @@ class Network():
         return sv
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
+        """
+        Create an SVG of the network given some inputs.
+
+        >>> net = Network("Snapshot", 2, 2, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.snapshot([.5, .5])
+        <IPython.core.display.HTML object>
+        """
         from IPython.display import HTML
         if class_id is None:
             r = random.randint(1, 1000000)
@@ -756,6 +764,20 @@ class Network():
             raise Exception("attempting to find accuracy in results, but there aren't any")
 
     def evaluate(self, batch_size=32):
+        """
+        Test the network on the train and test data, returning a dict of results.
+
+        Example:
+            >>> net = Network("Evaluate", 2, 2, 1, activation="sigmoid")
+            >>> net.compile(error='mean_squared_error', optimizer="adam")
+            >>> ds = [[[0, 0], [0]],
+            ...       [[0, 1], [1]],
+            ...       [[1, 0], [1]],
+            ...       [[1, 1], [0]]]
+            >>> net.dataset.load(ds)
+            >>> net.evaluate()           # doctest: +ELLIPSIS
+            {'loss': ..., 'acc': ...}
+        """
         if len(self.dataset.inputs) == 0:
             raise Exception("no dataset loaded")
         (train_inputs, train_targets), (test_inputs, test_targets) = self.dataset._split_data()
@@ -1000,7 +1022,7 @@ class Network():
     def set_dataset(self, dataset):
         """
         """
-        ## FIXME: check to make sure it is matches
+        ## FIXME: check to make sure it matches network structure
         self.dataset = dataset
 
     def set_activation(self, layer_name, activation):
@@ -2322,10 +2344,16 @@ require(['base/js/namespace'], function(Jupyter) {
         return retval
 
     def load(self, dir=None):
+        """
+        Load the model and the weights/history into an existing conx network.
+        """
         self.load_model(dir)
         self.load_weights(dir)
 
     def save(self, dir=None):
+        """
+        Save the model and the weights/history (if compiled) to a dir.
+        """
         if self.model:
             self.save_model(dir)
             self.save_weights(dir)
@@ -2333,6 +2361,9 @@ require(['base/js/namespace'], function(Jupyter) {
             raise Exception("need to compile network before saving")
 
     def load_model(self, dir=None, filename=None):
+        """
+        Load a model from a dir/filename.
+        """
         from keras.models import load_model
         if dir is None:
             dir = "%s.conx" % self.name.replace(" ", "_")
@@ -2343,6 +2374,9 @@ require(['base/js/namespace'], function(Jupyter) {
             self.reset()
 
     def save_model(self, dir=None, filename=None):
+        """
+        Save a model (if compiled) to a dir/filename.
+        """
         if self.model:
             if dir is None:
                 dir = "%s.conx" % self.name.replace(" ", "_")
@@ -2356,7 +2390,7 @@ require(['base/js/namespace'], function(Jupyter) {
 
     def load_history(self, dir=None, filename=None):
         """
-        Load the history from a file.
+        Load the history from a dir/file.
 
         network.load_history()
         """
@@ -2391,7 +2425,7 @@ require(['base/js/namespace'], function(Jupyter) {
 
     def load_weights(self, dir=None, filename=None):
         """
-        Load the network weights from a file.
+        Load the network weights and history from dir/files.
 
         network.load_weights()
         """
@@ -2407,7 +2441,7 @@ require(['base/js/namespace'], function(Jupyter) {
 
     def save_weights(self, dir=None, filename=None):
         """
-        Save the network weights to a file.
+        Save the network weights and history to dir/files.
 
         network.save_weights()
         """
