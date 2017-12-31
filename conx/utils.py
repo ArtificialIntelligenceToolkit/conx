@@ -273,8 +273,8 @@ def valid_vshape(x):
 
 def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
     """
-    Given a vector, old min/max, a new min/max and a numpy type,
-    create a new vector scaling the old values.
+    Given a numpy array, old min/max, a new min/max and a numpy type,
+    create a new numpy array that scales the old values into the new_range.
 
     >>> import numpy as np
     >>> rescale_numpy_array(np.array([0.1, 0.2, 0.3]), (0, 1), (0.5, 1.), float)
@@ -405,7 +405,7 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
         return SVG(svg.decode())
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
-         symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
+         label="", symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
          interactive=True):
     """
     >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
@@ -425,12 +425,14 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
     fig, ax = plt.subplots()
     if len(shape(data)) == 1:
         data = [data]
-    for (label, vectors) in data:
+    for (data_label, vectors) in data:
         kwargs = {}
         args = [vectors]
-        if label:
+        if label: ## override
             kwargs["label"] = label
-        symbol = get_symbol(label, symbols)
+        elif data_label:
+            kwargs["label"] = data_label
+        symbol = get_symbol(kwargs.get("label", None), symbols)
         if symbol:
             args.append(symbol)
         plt.plot(*args, **kwargs)
@@ -495,7 +497,7 @@ def reset_plt_param(setting):
     """
     plt.rcParams[setting] = CACHE_PARAMS[setting]
 
-def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
+def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
             symbols=None, ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
     """
     Create a scatter plot with series of (x,y) data.
@@ -509,14 +511,16 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="",
     fig, ax = plt.subplots()
     if len(shape(data)) == 1:
         data = [data]
-    for (label, vectors) in data:
+    for (data_label, vectors) in data:
         kwargs = {}
         args = []
         xs = [vector[0] for vector in vectors]
         ys = [vector[1] for vector in vectors]
-        if label:
+        if label: ## override
             kwargs["label"] = label
-        symbol = get_symbol(label, symbols)
+        elif data_label:
+            kwargs["label"] = data_label
+        symbol = get_symbol(kwargs.get("label", None), symbols)
         if symbol:
             args.append(symbol)
         plt.plot(xs, ys, *args, **kwargs)
@@ -678,7 +682,7 @@ class PCA():
             "ymax": self.maxs[1],
         }
 
-def get_symbol(label: str, symbols: dict=None) -> str:
+def get_symbol(label: str, symbols: dict=None, default='o') -> str:
     """
     Get a matplotlib symbol from a label.
 
@@ -731,9 +735,9 @@ def get_symbol(label: str, symbols: dict=None) -> str:
         'o'
     """
     if symbols is None:
-        return "o"
+        return default
     else:
-        return symbols.get(label, "o")
+        return symbols.get(label, default)
 
 def atype(dtype):
     """
@@ -913,24 +917,28 @@ class Experiment():
     ...     net.compile(error="mse", optimizer=optimizer)
     ...     net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
     ...     net.train(report_rate=100, verbose=0, **options)
-    ...     return net
+    ...     category = "%s-%s" % (optimizer, activation)
+    ...     return category, net
     >>> exp = Experiment("XOR")
     >>> exp.run(function,
-    ...         trials=5,
-    ...         epochs=[10],
+    ...         epochs=[5],
     ...         accuracy=[0.8],
     ...         tolerance=[0.2],
     ...         optimizer=["adam", "sgd"],
     ...         activation=["sigmoid", "relu"],
     ...         dir="/tmp/")
     >>> len(exp.results)
-    20
+    4
+    >>> exp.plot("loss", interactive=False)
+    <IPython.core.display.SVG object>
+    >>> exp.apply(lambda category, exp_name: (category, exp_name))
+    [('adam-sigmoid', '/tmp/XOR-00001-00001'), ('sgd-sigmoid', '/tmp/XOR-00001-00002'), ('adam-relu', '/tmp/XOR-00001-00003'), ('sgd-relu', '/tmp/XOR-00001-00004')]
     """
     def __init__(self, name):
         self.name = name
         self.results = []
 
-    def run(self, function, trials=1, dir="./", **options):
+    def run(self, function, trials=1, dir="./", save=True, **options):
         options = sorted(options.items())
         keys = [option[0] for option in options]
         values = [option[1] for option in options]
@@ -938,16 +946,47 @@ class Experiment():
             count = 1
             for combination in itertools.product(*values):
                 opts = dict(zip(keys, combination))
-                net = function(**opts)
+                category, net = function(**opts)
                 exp_name = "%s%s-%05d-%05d" % (dir, self.name, trial, count)
-                net.save(exp_name)
-                self.results.append(exp_name)
+                if save:
+                    net.save(exp_name)
+                self.results.append((category, exp_name))
                 count += 1
 
-    def plot(self, metrics='loss'):
+    def apply(self, function, *args, **kwargs):
+        """
+        Apply a function to experimental runs.
+
+        function() takes a network, *args, and **kwargs
+        and returns some results.
+        """
         from conx import Network
+        results = []
+        for (category, exp_name) in self.results:
+            results.append(function(category, exp_name, *args, **kwargs))
+        return results
+
+    def plot(self, metrics='loss', symbols=None, interactive=True):
+        from conx import Network
+        colors = list('bgrcmyk')
+        symbols = {}
+        count = 0
+        for (category, exp_name) in self.results:
+            if category not in symbols:
+                symbols[category] = colors[count % len(colors)] + '-'
+                count += 1
         fig_ax = None
-        for exp_name in self.results:
+        for (category, exp_name) in self.results:
             net = Network.load(exp_name)
-            fig_ax = net.plot(metrics, return_fig_ax=True, fig_ax=fig_ax)
-        plt.show(block=False)
+            fig_ax = net.plot(metrics, return_fig_ax=True, fig_ax=fig_ax, label=category,
+                              symbols=symbols, title=self.name)
+        fig, ax = fig_ax
+        if interactive:
+            plt.show(block=False)
+        else:
+            from IPython.display import SVG
+            bytes = io.BytesIO()
+            plt.savefig(bytes, format='svg')
+            svg = bytes.getvalue()
+            plt.close(fig)
+            return SVG(svg.decode())

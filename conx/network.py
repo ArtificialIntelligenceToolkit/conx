@@ -1586,7 +1586,7 @@ class Network():
         return sorted(metrics)
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
-             title=None, return_fig_ax=False, fig_ax=None, interactive=True):
+             label=None, symbols=None, title=None, return_fig_ax=False, fig_ax=None, interactive=True):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -1637,7 +1637,9 @@ class Network():
             if y_values.count(None) == len(y_values):
                 print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
             else:
-                ax.plot(x_values, y_values, label=metric)
+                label = label if label else metric
+                symbol = get_symbol(label, symbols, '-')
+                ax.plot(x_values, y_values, symbol, label=label)
                 data_found = True
         if not data_found:
             if return_fig_ax:
@@ -2386,9 +2388,10 @@ require(['base/js/namespace'], function(Jupyter) {
             raise Exception("Network.load() requires a directory name")
         elif isinstance(self, str):
             dir = self
-            with open("%s.conx/network.pickle" % dir, "rb") as fp:
+            with open("%s/network.pickle" % (("%s.conx" % self.name)
+                                             if dir is None else dir), "rb") as fp:
                 network = pickle.load(fp)
-            network.load()
+            network.load(dir)
             return network
         else:
             self.load_model(dir)
