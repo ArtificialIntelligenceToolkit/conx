@@ -20,6 +20,7 @@
 import numbers
 import PIL
 import base64
+import itertools
 import io
 import numpy as np
 from keras.utils import to_categorical
@@ -899,3 +900,54 @@ def shape(item):
         return tuple(s[1])
     else:
         return [tuple(v[1]) for v in s]
+
+class Experiment():
+    """
+    Run a series of experiments.
+
+    function() should take any options, and return a network.
+
+    >>> from conx import Network
+    >>> def function(optimizer, activation, **options):
+    ...     net = Network("XOR", 2, 2, 1, activation=activation)
+    ...     net.compile(error="mse", optimizer=optimizer)
+    ...     net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
+    ...     net.train(report_rate=100, verbose=0, **options)
+    ...     return net
+    >>> exp = Experiment("XOR")
+    >>> exp.run(function,
+    ...         trials=5,
+    ...         epochs=[10],
+    ...         accuracy=[0.8],
+    ...         tolerance=[0.2],
+    ...         optimizer=["adam", "sgd"],
+    ...         activation=["sigmoid", "relu"],
+    ...         dir="/tmp/")
+    >>> len(exp.results)
+    20
+    """
+    def __init__(self, name):
+        self.name = name
+        self.results = []
+
+    def run(self, function, trials=1, dir="./", **options):
+        options = sorted(options.items())
+        keys = [option[0] for option in options]
+        values = [option[1] for option in options]
+        for trial in range(1, trials + 1):
+            count = 1
+            for combination in itertools.product(*values):
+                opts = dict(zip(keys, combination))
+                net = function(**opts)
+                exp_name = "%s%s-%05d-%05d" % (dir, self.name, trial, count)
+                net.save(exp_name)
+                self.results.append(exp_name)
+                count += 1
+
+    def plot(self, metrics='loss'):
+        from conx import Network
+        fig_ax = None
+        for exp_name in self.results:
+            net = Network.load(exp_name)
+            fig_ax = net.plot(metrics, return_fig_ax=True, fig_ax=fig_ax)
+        plt.show(block=False)

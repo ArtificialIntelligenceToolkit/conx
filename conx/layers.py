@@ -31,6 +31,7 @@ from functools import reduce
 import sys
 import inspect
 import html
+import copy
 import re
 import os
 
@@ -55,6 +56,17 @@ if ON_RTD:  ## takes too long to load, unless really needed
 
 
 #------------------------------------------------------------------------
+def make_layer(state):
+    if state["class"] == "Layer":
+        return Layer(state["name"], state["shape"], **state["params"])
+    elif state["class"] == "ImageLayer":
+        return ImageLayer(state["name"], state["dimension"], **state["params"])
+    elif state["class"] == "EmbeddingLayer":
+        return EmbeddingLayer(state["name"], state["in_size"], **state["params"])
+    else:
+        return eval("%s(%s, *%s, **%s)" % (state["class"], state["name"],
+                                           state["args"], state["params"]))
+#------------------------------------------------------------------------
 
 class _BaseLayer():
     """
@@ -67,6 +79,12 @@ class _BaseLayer():
     CLASS = None
 
     def __init__(self, name, *args, **params):
+        self._state = {
+            "class": self.__class__.__name__,
+            "name": name,
+            "args": args,
+            "params": copy.copy(params),
+        }
         if not (isinstance(name, str) and len(name) > 0):
             raise Exception('bad layer name: %s' % (name,))
         self.name = name
@@ -151,6 +169,9 @@ class _BaseLayer():
 
         self.incoming_connections = []
         self.outgoing_connections = []
+
+    def __getstate__(self):
+        return self._state
 
     def on_connect(self, relation, other_layer):
         """
@@ -413,7 +434,14 @@ class Layer(_BaseLayer):
     """
     CLASS = keras.layers.Dense
     def __init__(self, name: str, shape, **params):
+        _state = {
+            "class": "Layer",
+            "name": name,
+            "shape": shape,
+            "params": copy.copy(params),
+        }
         super().__init__(name, **params)
+        self._state = _state
         if not valid_shape(shape):
             raise Exception('bad shape: %s' % (shape,))
         # set layer topology (shape) and number of units (size)
@@ -467,7 +495,15 @@ class ImageLayer(Layer):
     A class for images. WIP.
     """
     def __init__(self, name, dimensions, depth, **params):
+        _state = {
+            "class": self.__class__.__name__,
+            "name": name,
+            "dimensions": dimensions,
+            "depth": depth,
+            "params": copy.copy(params),
+        }
         super().__init__(name, dimensions, **params)
+        self._state = _state
         if self.vshape is None:
             self.vshape = self.shape
         self.dimensions = dimensions
@@ -502,7 +538,15 @@ class EmbeddingLayer(Layer):
     A class for embeddings. WIP.
     """
     def __init__(self, name, in_size, out_size, **params):
+        _state = {
+            "class": self.__class__.__name__,
+            "name": name,
+            "in_size": in_size,
+            "out_size": out_size,
+            "params": copy.copy(params),
+        }
         super().__init__(name, in_size, **params)
+        self._state = _state
         if self.vshape is None:
             self.vshape = self.shape
         self.in_size = in_size

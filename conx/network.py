@@ -327,6 +327,29 @@ class Network():
         self._svg_counter = 1
         self._need_to_show_headings = True
 
+    def __getstate__(self):
+        return {
+            "name": self.name,
+            "layers": [layer.__getstate__() for layer in self.layers],
+            "outgoing_connections": {layer.name: [layer2.name for layer2 in layer.outgoing_connections]
+                                     for layer in self.layers},
+            "config": self.config,
+            "compiled": self.model is not None,
+            "compile_options": self.compile_options,
+        }
+
+    def __setstate__(self, state):
+        from .layers import make_layer
+        Network.__init__(self, state["name"])
+        self.config = state["config"]
+        for layer_state in state["layers"]:
+            self.add(make_layer(layer_state))
+        for layer_from in self.layers:
+            for layer_to in state["outgoing_connections"][layer_from.name]:
+                self.connect(layer_from.name, layer_to)
+        if state["compiled"]:
+            self.compile(**state["compile_options"])
+
     def _get_tolerance(self):
         return K.get_value(self._tolerance)
 
@@ -853,7 +876,8 @@ class Network():
         if len(self.history) > 0:
             results = self.history[-1]
         else:
-            print("Evaluating initial training metrics...")
+            if verbose > 0:
+                print("Evaluating initial training metrics...")
             values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
             if not isinstance(values, list): # if metrics is just a single value
                 values = [values]
@@ -865,7 +889,8 @@ class Network():
         elif self.dataset._split == 1.0: ## special case; use entire set; already done!
             val_results = {"val_%s" % key: results[key] for key in results}
         else: # split is greater than 0, less than 1
-            print("Evaluating initial validation metrics...")
+            if verbose > 0:
+                print("Evaluating initial validation metrics...")
             ## need to split; check format based on output banks:
             length = len(self.dataset.test_targets)
             targets = [column[-length:] for column in self.dataset._targets]
@@ -907,8 +932,9 @@ class Network():
             self.history = [results]
             if record:
                 self.weight_history[0] = self.to_array()
-        print("Training...")
-        if self.in_console(mpl_backend):
+        if verbose > 0:
+            print("Training...")
+        if self.in_console(mpl_backend) and verbose > 0:
             self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
         kcallbacks=[
@@ -1560,7 +1586,7 @@ class Network():
         return sorted(metrics)
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
-             title=None, interactive=True):
+             title=None, return_fig_ax=False, fig_ax=None, interactive=True):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -1597,7 +1623,10 @@ class Network():
         else:
             print("metrics: expected a list or a string but got %s" % (metrics,))
             return
-        fig, ax = plt.subplots(1)
+        if fig_ax:
+            fig, ax = fig_ax
+        else:
+            fig, ax = plt.subplots(1)
         x_values = range(self.epoch_count+1)
         x_values = x_values[start:end]
         ax.set_xlabel('Epoch')
@@ -1606,12 +1635,15 @@ class Network():
             y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
             y_values = y_values[start:end]
             if y_values.count(None) == len(y_values):
-                print("WARNING: No %s data available for the specified epochs" % (metric,))
+                print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
             else:
                 ax.plot(x_values, y_values, label=metric)
                 data_found = True
         if not data_found:
-            plt.close(fig)
+            if return_fig_ax:
+                return (fig, ax)
+            else:
+                plt.close(fig)
             return
         if ymin is not None:
             plt.ylim(ymin=ymin)
@@ -1622,7 +1654,9 @@ class Network():
         if title is None:
             title = self.name
         plt.title(title)
-        if interactive:
+        if return_fig_ax:
+            return (fig, ax)
+        elif interactive:
             plt.show(block=False)
         else:
             from IPython.display import SVG
@@ -2347,8 +2381,18 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         Load the model and the weights/history into an existing conx network.
         """
-        self.load_model(dir)
-        self.load_weights(dir)
+        import pickle
+        if self is None:
+            raise Exception("Network.load() requires a directory name")
+        elif isinstance(self, str):
+            dir = self
+            with open("%s.conx/network.pickle" % dir, "rb") as fp:
+                network = pickle.load(fp)
+            network.load()
+            return network
+        else:
+            self.load_model(dir)
+            self.load_weights(dir)
 
     def save(self, dir=None):
         """
@@ -2357,6 +2401,9 @@ require(['base/js/namespace'], function(Jupyter) {
         if self.model:
             self.save_model(dir)
             self.save_weights(dir)
+            with open("%s/network.pickle" % (("%s.conx" % self.name)
+                                             if dir is None else dir), "wb") as fp:
+                pickle.dump(self, fp)
         else:
             raise Exception("need to compile network before saving")
 
