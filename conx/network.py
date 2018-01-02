@@ -2390,6 +2390,15 @@ require(['base/js/namespace'], function(Jupyter) {
                 os.path.isfile("%s/model.h5" % dir) and
                 os.path.isfile("%s/weights.h5" % dir))
 
+    def delete(self, dir=None):
+        """
+        Delete network save folder.
+        """
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        import shutil
+        shutil.rmtree(dir)
+
     def load(self, dir=None):
         """
         Load the model and the weights/history into an existing conx network.

@@ -650,7 +650,7 @@ class PCA():
             self.mins[i] = min([state[i] for state in states_pca])
             self.maxs[i] = max([state[i] for state in states_pca])
 
-    def transform_one(self, vector):
+    def transform_one(self, vector, scale=False):
         """
         Transform a vector into the PCA of the trained states.
 
@@ -670,9 +670,12 @@ class PCA():
         2
         """
         vector_prime = self.pca.transform([vector])[0]
-        return vector_prime
+        if scale:
+            return self.scale(vector_prime)
+        else:
+            return vector_prime
 
-    def transform(self, vectors):
+    def transform(self, vectors, scale=False):
         """
         >>> from conx import Network
         >>> net = Network("Example", 2, 2, 1)
@@ -690,9 +693,13 @@ class PCA():
         4
         """
         vectors_prime = self.pca.transform(vectors)
-        return vectors_prime
+        if scale:
+            return np.array([self.scale(v) for v in vectors])
+        else:
+            return vectors_prime
 
-    def transform_network_bank(self, network, bank, label_index=0, tolerance=None, test=True):
+    def transform_network_bank(self, network, bank, label_index=0, tolerance=None, test=True,
+                               scale=False):
         """
         >>> from conx import Network
         >>> net = Network("Example", 2, 2, 1)
@@ -735,7 +742,7 @@ class PCA():
             else:
                 category = label
             hid = network.propagate_to(bank, input_vector, visualize=False)
-            hid_prime = self.transform_one(hid)
+            hid_prime = self.transform_one(hid, scale)
             if category not in categories:
                 categories[category] = []
             categories[category].append(hid_prime)
@@ -746,6 +753,16 @@ class PCA():
             "ymin": self.mins[1],
             "ymax": self.maxs[1],
         }
+
+    def scale(self, ovector):
+        """
+        Scale a transformed vector to (0, 1).
+        """
+        vector = np.array(ovector)
+        for i in range(len(vector)):
+            span = (self.maxs[i] - self.mins[i])
+            vector[i] = (vector[i] - self.mins[i]) / span
+        return vector
 
 def get_symbol(label: str, symbols: dict=None, default='o') -> str:
     """
