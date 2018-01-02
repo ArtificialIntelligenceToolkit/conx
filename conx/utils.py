@@ -421,9 +421,9 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    plt.rcParams['figure.figsize'] = (width, height)
+    set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
-    if len(shape(data)) == 1:
+    if len(data) == 2 and isinstance(data[0], str):
         data = [data]
     for (data_label, vectors) in data:
         kwargs = {}
@@ -454,13 +454,78 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
         plt.xlim(xmax=xmax)
     if interactive:
         plt.show(block=False)
+        result = None
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
         plt.savefig(bytes, format='svg')
         img_bytes = bytes.getvalue()
         plt.close(fig)
-        return SVG(img_bytes.decode())
+        result = SVG(img_bytes.decode())
+    reset_plt_param('figure.figsize')
+    return result
+
+def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel="", ylabel="", title="",
+            resolution=None, out_min=None, out_max=None, colormap=None, interactive=True):
+    """
+    >>> import math
+    >>> def function(x, y):
+    ...     return math.sqrt(x ** 2 + y ** 2)
+    >>> hm = heatmap(function,
+    ...              interactive=False)
+    >>> hm
+    <IPython.core.display.SVG object>
+    """
+    in_min, in_max = in_range
+    if plt is None:
+        raise Exception("matplotlib was not loaded")
+    set_plt_param('figure.figsize', (width, height))
+    fig, ax = plt.subplots()
+    if callable(function_or_matrix):
+        function = function_or_matrix
+        if resolution is None:
+            resolution = (in_max - in_min) / 50  # 50x50 pixels by default
+        xmin, xmax, xstep = in_min, in_max, resolution
+        ymin, ymax, ystep = in_min, in_max, resolution
+        xspan = xmax - xmin
+        yspan = ymax - ymin
+        xpixels = int(xspan/xstep)+1
+        ypixels = int(yspan/ystep)+1
+        mat = np.zeros((ypixels, xpixels))
+        for row in range(ypixels):
+            for col in range(xpixels):
+                # (x,y) corresponds to lower left corner point of pixel
+                x = xmin + xstep * col
+                y = ymin + ystep * row
+                mat[row,col] = function(x, y)
+    else:
+        mat = np.array(function_or_matrix)
+    if out_min is None:
+        out_min = mat.min()
+    if out_max is None:
+        out_max = mat.max()
+    if colormap is None:
+        colormap = get_colormap()
+    axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
+    fig.colorbar(axim)
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    if title:
+        plt.title(title)
+    if interactive:
+        plt.show(block=False)
+        result = None
+    else:
+        from IPython.display import SVG
+        bytes = io.BytesIO()
+        plt.savefig(bytes, format='svg')
+        img_bytes = bytes.getvalue()
+        plt.close(fig)
+        result = SVG(img_bytes.decode())
+    reset_plt_param('figure.figsize')
+    return result
 
 CACHE_PARAMS = {}
 
@@ -509,7 +574,7 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
         raise Exception("matplotlib was not loaded")
     set_plt_param('figure.figsize', (width, height))
     fig, ax = plt.subplots()
-    if len(shape(data)) == 1:
+    if len(data) == 2 and isinstance(data[0], str):
         data = [data]
     for (data_label, vectors) in data:
         kwargs = {}

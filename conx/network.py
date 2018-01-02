@@ -1400,8 +1400,8 @@ class Network():
         if scatter is not None:
             if isinstance(scatter, dict):
                 scatter = scatter["data"]
-                if len(shape(scatter)) == 1:
-                    scatter = [scatter]
+            if len(scatter) == 2 and isinstance(scatter[0], str):
+                scatter = [scatter]
             for (label, data) in scatter:
                 kwargs = {}
                 args = []
@@ -2379,6 +2379,17 @@ require(['base/js/namespace'], function(Jupyter) {
         ## FIXME: how to show merged layer weights?
         return retval
 
+    def saved(self, dir=None):
+        """
+        Return True if network has been saved.
+        """
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        return (os.path.isdir(dir) and
+                os.path.isfile("%s/network.pickle" % dir) and
+                os.path.isfile("%s/model.h5" % dir) and
+                os.path.isfile("%s/weights.h5" % dir))
+
     def load(self, dir=None):
         """
         Load the model and the weights/history into an existing conx network.
@@ -2388,7 +2399,7 @@ require(['base/js/namespace'], function(Jupyter) {
             raise Exception("Network.load() requires a directory name")
         elif isinstance(self, str):
             dir = self
-            with open("%s/network.pickle" % (("%s.conx" % self.name)
+            with open("%s/network.pickle" % (("%s.conx" % self.name.replace(" ", "_"))
                                              if dir is None else dir), "rb") as fp:
                 network = pickle.load(fp)
             network.load(dir)
@@ -2404,7 +2415,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if self.model:
             self.save_model(dir)
             self.save_weights(dir)
-            with open("%s/network.pickle" % (("%s.conx" % self.name)
+            with open("%s/network.pickle" % (("%s.conx" % self.name.replace(" ", "_"))
                                              if dir is None else dir), "wb") as fp:
                 pickle.dump(self, fp)
         else:
