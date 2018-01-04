@@ -93,11 +93,11 @@ class PlotCallback(Callback):
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
-            self.network.plot_loss_acc(self, epoch, interactive=True)
+            self.network.plot_loss_acc(self, interactive=True)
             if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
-            self.network.plot_loss_acc(self, epoch, interactive=True)
+            self.network.plot_loss_acc(self, interactive=True)
 
 class FunctionCallback(Callback):
     """
@@ -1721,9 +1721,9 @@ class Network():
             if y_values.count(None) == len(y_values):
                 print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
             else:
-                label = label if label else metric
+                next_label = label if label else metric
                 symbol = get_symbol(label, symbols, '-')
-                ax.plot(x_values, y_values, symbol, label=label)
+                ax.plot(x_values, y_values, symbol, label=next_label)
                 data_found = True
         if not data_found:
             if return_fig_ax:
@@ -1752,11 +1752,11 @@ class Network():
             plt.close(fig)
             return SVG(img_bytes.decode())
 
-    def plot_loss_acc(self, callback, epoch, interactive=True):
+    def plot_loss_acc(self, callback=None, interactive=True):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
         #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
-        if callback.figure is not None:
+        if callback is not None and callback.figure is not None:
             # figure and axes objects have already been created
             fig, loss_ax, acc_ax = callback.figure
             loss_ax.clear()
@@ -1769,7 +1769,8 @@ class Network():
             else:
                 fig, loss_ax = plt.subplots(1)
                 acc_ax = None
-            callback.figure = fig, loss_ax, acc_ax
+            if callback is not None:
+                callback.figure = fig, loss_ax, acc_ax
         x_values = range(self.epoch_count+1)
         for metric in metrics:
             y_values = self.get_metric(metric)
@@ -1790,7 +1791,7 @@ class Network():
             acc_ax.set_title("%s: Accuracy" % (self.name,))
             acc_ax.set_xlabel('Epoch')
             acc_ax.legend(loc='best')
-        if not callback.in_console or not interactive:
+        if (callback is not None and not callback.in_console) or not interactive:
             from IPython.display import SVG, clear_output, display
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')

@@ -47,7 +47,7 @@ class _Player(threading.Thread):
     def run(self):
         while True:
             self.can_run.wait()
-            self.controller.dataset_move("next")
+            self.controller.goto("next")
             time.sleep(self.time_wait)
 
     def pause(self):
@@ -69,7 +69,7 @@ class SequenceViewer(VBox):
         controls = self.make_controls()
         super().__init__([controls, self.output])
 
-    def dataset_move(self, position):
+    def goto(self, position):
         #### Position it:
         if position == "begin":
             self.control_slider.value = 0
@@ -120,10 +120,10 @@ class SequenceViewer(VBox):
                                         style={"description_width": 'initial'},
                                         layout=Layout(width='100%'))
         ## Hook them up:
-        button_begin.on_click(lambda button: self.dataset_move("begin"))
-        button_end.on_click(lambda button: self.dataset_move("end"))
-        button_next.on_click(lambda button: self.dataset_move("next"))
-        button_prev.on_click(lambda button: self.dataset_move("prev"))
+        button_begin.on_click(lambda button: self.goto("begin"))
+        button_end.on_click(lambda button: self.goto("end"))
+        button_next.on_click(lambda button: self.goto("next"))
+        button_prev.on_click(lambda button: self.goto("prev"))
         self.button_play.on_click(self.toggle_play)
         self.control_slider.observe(self.update_slider_control, names='value')
         controls = VBox([HBox([self.control_slider, self.total_text], layout=Layout(height="40px")),
