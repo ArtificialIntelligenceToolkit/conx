@@ -1019,8 +1019,16 @@ class Experiment():
     def __init__(self, name):
         self.name = name
         self.results = []
+        self.cache = {}
 
-    def run(self, function, trials=1, dir="./", save=True, **options):
+    def run(self, function, trials=1, dir="./", save=True, cache=False, **options):
+        """
+        Run a set of experiments, varying parameters.
+
+        If save == True, then the networks will be saved to disk.
+
+        If cache == True, then the networks will be saved in memory.
+        """
         options = sorted(options.items())
         keys = [option[0] for option in options]
         values = [option[1] for option in options]
@@ -1032,6 +1040,8 @@ class Experiment():
                 exp_name = "%s%s-%05d-%05d" % (dir, self.name, trial, count)
                 if save:
                     net.save(exp_name)
+                if cache:
+                    self.cache[exp_name] = net
                 self.results.append((category, exp_name))
                 count += 1
 
@@ -1039,16 +1049,29 @@ class Experiment():
         """
         Apply a function to experimental runs.
 
-        function() takes a network, *args, and **kwargs
-        and returns some results.
+        function() takes either:
+
+            category, network-name, *args, and **kwargs
+
+        or
+
+            category, network, *args, **kwargs
+
+        depending on cache, and returns some results.
         """
         from conx import Network
         results = []
         for (category, exp_name) in self.results:
-            results.append(function(category, exp_name, *args, **kwargs))
+            if exp_name in self.cache:
+                results.append(function(category, self.cache[exp_name], *args, **kwargs))
+            else:
+                results.append(function(category, exp_name, *args, **kwargs))
         return results
 
     def plot(self, metrics='loss', symbols=None, interactive=True):
+        """
+        Plot all of the results of the experiment on a single plot.
+        """
         from conx import Network
         colors = list('bgrcmyk')
         symbols = {}
@@ -1059,7 +1082,10 @@ class Experiment():
                 count += 1
         fig_ax = None
         for (category, exp_name) in self.results:
-            net = Network.load(exp_name)
+            if exp_name in self.cache:
+                net = self.cache[exp_name]
+            else:
+                net = Network.load(exp_name)
             fig_ax = net.plot(metrics, return_fig_ax=True, fig_ax=fig_ax, label=category,
                               symbols=symbols, title=self.name)
         fig, ax = fig_ax

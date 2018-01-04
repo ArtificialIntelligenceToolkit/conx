@@ -678,7 +678,16 @@ class Network():
 
     def train_one(self, inputs, targets, batch_size=32):
         """
-        Train on one input/target pair. Requires internal format.
+        Train on one input/target pair.
+
+        Inputs should be a vector if one input bank, or a list of vectors
+        if more than one input bank.
+
+        Targets should be a vector if one output bank, or a list of vectors
+        if more than one output bank.
+
+        Alternatively, inputs and targets can each be a dictionary mapping
+        bank to vector.
 
         Examples:
 
@@ -822,6 +831,15 @@ class Network():
 
         Normally, it will check training info to stop, unless you
         use_validation_to_stop = True.
+
+        >>> net = Network("Train Test", 1, 3, 1)
+        >>> net.compile(error="mse", optimizer="rmsprop")
+        >>> net.dataset.add([0.0], [1.0])
+        >>> net.dataset.add([1.0], [0.0])
+        >>> net.train()  # doctest: +ELLIPSIS
+        Evaluating initial training metrics...
+        Training...
+        ...
         """
         self.train_options = {
             "epochs": epochs,
@@ -1047,6 +1065,19 @@ class Network():
 
     def set_dataset(self, dataset):
         """
+        Set the dataset for the network.
+
+        Examples:
+            >>> from conx import Dataset
+            >>> data = [[[0, 0], [0]],
+            ...         [[0, 1], [1]],
+            ...         [[1, 0], [1]],
+            ...         [[1, 1], [0]]]
+            >>> ds = Dataset()
+            >>> ds.load(data)
+            >>> net = Network("Set Dataset Test", 2, 2, 1)
+            >>> net.compile(error="mse", optimizer="adam")
+            >>> net.set_dataset(ds)
         """
         ## FIXME: check to make sure it matches network structure
         self.dataset = dataset
@@ -1085,6 +1116,11 @@ class Network():
     def get_weights_as_image(self, layer_name, colormap=None):
         """
         Get the weights from the model.
+
+        >>> net = Network("Weight as Image Test", 2, 2, 5)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.get_weights_as_image("hidden") # doctest: +ELLIPSIS
+        <PIL.Image.Image image mode=RGBA size=2x2 at ...
         """
         from matplotlib import cm
         weights = [layer.get_weights() for layer in self.model.layers
@@ -1111,6 +1147,28 @@ class Network():
     def get_weights(self, layer_name):
         """
         Get the weights from the model in an easy to read format.
+
+        >>> net = Network("Weight Test", 2, 2, 5)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> len(net.get_weights("input"))
+        0
+        >>> len(net.get_weights("hidden"))
+        2
+        >>> shape(net.get_weights("hidden")[0])  ## weights
+        (2, 2)
+        >>> shape(net.get_weights("hidden")[1])  ## biases
+        (2,)
+        >>> len(net.get_weights("output"))
+        2
+        >>> shape(net.get_weights("output")[0])  ## weights
+        (2, 5)
+        >>> shape(net.get_weights("output")[1])  ## biases
+        (5,)
+
+        See also:
+            * `Network.to_array`
+            * `Network.from_array`
+            * `Network.get_weights_as_image`
         """
         weights = [layer.get_weights() for layer in self.model.layers
                    if layer_name == layer.name][0]
@@ -1120,6 +1178,19 @@ class Network():
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
+
+        Inputs should be a vector if one input bank, or a list of vectors
+        if more than one input bank.
+
+        Alternatively, inputs can be a dictionary mapping
+        bank to vector.
+
+        >>> net = Network("Prop Test", 2, 2, 5)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> len(net.propagate([0.5, 0.5]))
+        5
+        >>> len(net.propagate({"input": [1, 1]}))
+        5
         """
         visualize = visualize if visualize is not None else self.visualize
         if isinstance(input, dict):
@@ -1579,11 +1650,24 @@ class Network():
             print()
 
     def get_metrics(self):
-        """returns a list of the metrics available in the Network's history"""
+        """
+        Returns a list of the metrics available in the Network's history.
+
+        """
         metrics = set()
         for epoch in self.history:
             metrics = metrics.union(set(epoch.keys()))
         return sorted(metrics)
+
+    def get_metric(self, metric):
+        """
+        Returns the metric data from the network's history.
+
+        >>> net = Network("Test", 2, 2, 1)
+        >>> net.get_metric("loss")
+        []
+        """
+        return [epoch[metric] if metric in epoch else None for epoch in self.history]
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
              label=None, symbols=None, title=None, return_fig_ax=False, fig_ax=None, interactive=True):
@@ -1632,7 +1716,7 @@ class Network():
         ax.set_xlabel('Epoch')
         data_found = False
         for metric in metrics:
-            y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
+            y_values = self.get_metric(metric)
             y_values = y_values[start:end]
             if y_values.count(None) == len(y_values):
                 print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
@@ -1688,7 +1772,7 @@ class Network():
             callback.figure = fig, loss_ax, acc_ax
         x_values = range(self.epoch_count+1)
         for metric in metrics:
-            y_values = [epoch[metric] if metric in epoch else None for epoch in self.history]
+            y_values = self.get_metric(metric)
             if metric == 'loss':
                 loss_ax.plot(x_values, y_values, label='Training set')
             elif metric == 'val_loss':
