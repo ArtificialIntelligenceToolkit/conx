@@ -407,6 +407,8 @@ class Network():
         function has signature: function(network, epoch)
         """
         from .widgets import SequenceViewer
+        if len(self.weight_history) == 0:
+            raise Exception("network wasn't trained with record=True; please train again")
         epochs = sorted(self.weight_history.keys())
         def display_weight_history(index):
             self.set_weights_from_history(index, epochs)
@@ -415,14 +417,31 @@ class Network():
         return sv
 
     def movie(self, function, movie_name=None, start=0, stop=None, step=1,
-              loop=0, optimize=True, duration=100):
+              loop=0, optimize=True, duration=100, return_it=True):
         """
         Make a movie from a playback function over the set of recorded weights.
 
         function has signature: function(network, epoch) and should return
         a PIL.Image.
+
+        Example:
+            >>> net = Network("Movie Test", 2, 2, 1, activation="sigmoid")
+            >>> net.compile(error='mse', optimizer="adam")
+            >>> ds = [[[0, 0], [0]],
+            ...       [[0, 1], [1]],
+            ...       [[1, 0], [1]],
+            ...       [[1, 1], [0]]]
+            >>> net.dataset.load(ds)
+            >>> epochs, khistory = net.train(10, verbose=0, report_rate=1000, record=True)
+            >>> img = net.movie(lambda net, epoch: net.propagate_to_image("hidden", [1, 1],
+            ...                                                           visualize=False, resize=(500, 100)),
+            ...                 "/tmp/movie.gif")
+            >>> img
+            <IPython.core.display.HTML object>
         """
         from IPython.display import HTML
+        if len(self.weight_history) == 0:
+            raise Exception("network wasn't trained with record=True; please train again")
         if stop is None:
             stop = len(self.history)
         epochs = sorted(self.weight_history.keys())
@@ -440,11 +459,12 @@ class Network():
         if frames:
             frames[0].save(movie_name, save_all=True, append_images=frames[1:],
                            optimize=optimize, loop=loop, duration=duration)
-            data = open(movie_name, "rb").read()
-            data = base64.b64encode(data)
-            if not isinstance(data, str):
-                data = data.decode("latin1")
-            return HTML("""<img src="data:image/gif;base64,{0}" alt="{1}">""".format(html.escape(data), movie_name))
+            if return_it:
+                data = open(movie_name, "rb").read()
+                data = base64.b64encode(data)
+                if not isinstance(data, str):
+                    data = data.decode("latin1")
+                return HTML("""<img src="data:image/gif;base64,{0}" alt="{1}">""".format(html.escape(data), movie_name))
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         """
@@ -1387,7 +1407,7 @@ class Network():
         return (isinstance(output_shape, tuple) and len(output_shape) == 4)
 
 
-    def propagate_to_features(self, layer_name, inputs, cols=5, scale=1.0, html=True, size=None, display=True):
+    def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0, html=True, size=None, display=True):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1406,10 +1426,10 @@ class Network():
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    if resize is not None:
+                        image = image.resize(resize)
                     if scale != 1.0:
                         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
-                    #if size:
-                    #    image = image.resize(size)
                     data_uri = self._image_to_uri(image)
                     retval += """<td style="border: 1px solid black;"><img style="image-rendering: pixelated;" class="%s_%s_feature%s" src="%s"/><br/><center>Feature %s</center></td>""" % (
                         self.name, layer_name, i, data_uri, i)
@@ -1426,6 +1446,8 @@ class Network():
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    if resize is not None:
+                        image = image.resize(resize)
                     if scale != 1.0:
                         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
                     data_uri = self._image_to_uri(image)
@@ -1438,7 +1460,8 @@ class Network():
         else:
             raise Exception("layer '%s' has no features" % layer_name)
 
-    def propagate_to_image(self, layer_name, input, batch_size=32, scale=1.0, visualize=None):
+    def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
+                           visualize=None):
         """
         Gets an image of activations at a layer.
         """
@@ -1451,6 +1474,8 @@ class Network():
         outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
+        if resize is not None:
+            image = image.resize(resize)
         if scale != 1.0:
             image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
         return image
