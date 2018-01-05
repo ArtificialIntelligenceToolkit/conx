@@ -377,7 +377,7 @@ def import_keras_model(model, network_name):
     return network
 
 def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
-           interactive=True):
+           interactive=True, format='svg'):
     """
     Plot a function.
 
@@ -399,14 +399,23 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
-        plt.savefig(bytes, format='svg')
-        svg = bytes.getvalue()
-        plt.close(fig)
-        return SVG(svg.decode())
+        if format == "svg":
+            plt.savefig(bytes, format="svg")
+            plt.close(fig)
+            img_bytes = bytes.getvalue()
+            return SVG(img_bytes.decode())
+        elif format == "pil":
+            plt.savefig(bytes, format="png")
+            plt.close(fig)
+            bytes.seek(0)
+            pil_image = PIL.Image.open(bytes)
+            return pil_image
+        else:
+            raise Exception("format must be 'svg' or 'pil'")
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
-         interactive=True):
+         interactive=True, format='svg'):
     """
     >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
     ...           ylabel="error",
@@ -458,15 +467,24 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
-        plt.savefig(bytes, format='svg')
-        img_bytes = bytes.getvalue()
-        plt.close(fig)
-        result = SVG(img_bytes.decode())
+        if format == "svg":
+            plt.savefig(bytes, format="svg")
+            plt.close(fig)
+            img_bytes = bytes.getvalue()
+            result = SVG(img_bytes.decode())
+        elif format == "pil":
+            plt.savefig(bytes, format="png")
+            plt.close(fig)
+            bytes.seek(0)
+            pil_image = PIL.Image.open(bytes)
+            result = pil_image
+        else:
+            raise Exception("format must be 'svg' or 'pil'")
     reset_plt_param('figure.figsize')
     return result
 
 def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel="", ylabel="", title="",
-            resolution=None, out_min=None, out_max=None, colormap=None, interactive=True):
+            resolution=None, out_min=None, out_max=None, colormap=None, interactive=True, format='svg'):
     """
     >>> import math
     >>> def function(x, y):
@@ -520,10 +538,19 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
-        plt.savefig(bytes, format='svg')
-        img_bytes = bytes.getvalue()
-        plt.close(fig)
-        result = SVG(img_bytes.decode())
+        if format == "svg":
+            plt.savefig(bytes, format="svg")
+            plt.close(fig)
+            img_bytes = bytes.getvalue()
+            result = SVG(img_bytes.decode())
+        elif format == "pil":
+            plt.savefig(bytes, format="png")
+            plt.close(fig)
+            bytes.seek(0)
+            pil_image = PIL.Image.open(bytes)
+            result = pil_image
+        else:
+            raise Exception("format must be 'svg' or 'pil'")
     reset_plt_param('figure.figsize')
     return result
 
@@ -563,7 +590,8 @@ def reset_plt_param(setting):
     plt.rcParams[setting] = CACHE_PARAMS[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
-            symbols=None, ymin=None, xmin=None, ymax=None, xmax=None, interactive=True):
+            symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
+            interactive=True, format='svg'):
     """
     Create a scatter plot with series of (x,y) data.
 
@@ -611,10 +639,19 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
     else:
         from IPython.display import SVG
         bytes = io.BytesIO()
-        plt.savefig(bytes, format='svg')
-        img_bytes = bytes.getvalue()
-        plt.close(fig)
-        result = SVG(img_bytes.decode())
+        if format == "svg":
+            plt.savefig(bytes, format="svg")
+            plt.close(fig)
+            img_bytes = bytes.getvalue()
+            result = SVG(img_bytes.decode())
+        elif format == "pil":
+            plt.savefig(bytes, format="png")
+            plt.close(fig)
+            bytes.seek(0)
+            pil_image = PIL.Image.open(bytes)
+            result = pil_image
+        else:
+            raise Exception("format must be 'svg' or 'pil'")
     reset_plt_param('figure.figsize')
     return result
 
@@ -1068,7 +1105,7 @@ class Experiment():
                 results.append(function(category, exp_name, *args, **kwargs))
         return results
 
-    def plot(self, metrics='loss', symbols=None, interactive=True):
+    def plot(self, metrics='loss', symbols=None, interactive=True, format='svg'):
         """
         Plot all of the results of the experiment on a single plot.
         """
@@ -1094,7 +1131,16 @@ class Experiment():
         else:
             from IPython.display import SVG
             bytes = io.BytesIO()
-            plt.savefig(bytes, format='svg')
-            svg = bytes.getvalue()
-            plt.close(fig)
-            return SVG(svg.decode())
+            if format == "svg":
+                plt.savefig(bytes, format="svg")
+                plt.close(fig)
+                img_bytes = bytes.getvalue()
+                return SVG(img_bytes.decode())
+            elif format == "pil":
+                plt.savefig(bytes, format="png")
+                plt.close(fig)
+                bytes.seek(0)
+                pil_image = PIL.Image.open(bytes)
+                return pil_image
+            else:
+                raise Exception("format must be 'svg' or 'pil'")

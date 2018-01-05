@@ -414,6 +414,38 @@ class Network():
         sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(epochs))
         return sv
 
+    def movie(self, function, movie_name=None, start=0, stop=None, step=1,
+              loop=0, optimize=True, duration=100):
+        """
+        Make a movie from a playback function over the set of recorded weights.
+
+        function has signature: function(network, epoch) and should return
+        a PIL.Image.
+        """
+        from IPython.display import HTML
+        if stop is None:
+            stop = len(self.history)
+        epochs = sorted(self.weight_history.keys())
+        frames = []
+        indices = []
+        for index in range(start, stop, step):
+            self.set_weights_from_history(index, epochs)
+            frames.append(function(self, epochs[index]))
+            indices.append(index)
+        if stop - 1 not in indices:
+            self.set_weights_from_history(stop - 1, epochs)
+            frames.append(function(self, epochs[stop - 1]))
+        if movie_name is None:
+            movie_name = "%s-movie.gif" % self.name.replace(" ", "_")
+        if frames:
+            frames[0].save(movie_name, save_all=True, append_images=frames[1:],
+                           optimize=optimize, loop=loop, duration=duration)
+            data = open(movie_name, "rb").read()
+            data = base64.b64encode(data)
+            if not isinstance(data, str):
+                data = data.decode("latin1")
+            return HTML("""<img src="data:image/gif;base64,{0}" alt="{1}">""".format(html.escape(data), movie_name))
+
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         """
         Create an SVG of the network given some inputs.
@@ -1426,7 +1458,7 @@ class Network():
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
-                            interactive=True, scatter=None, symbols=None):
+                            interactive=True, scatter=None, symbols=None, format="svg"):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1440,7 +1472,6 @@ class Network():
         assert self[to_layer] is not None, "unknown layer: %s" % (to_layer,)
         assert type(to_unit) is int, "expected an int for the %s unit but got %s" % (to_layer, to_unit)
         assert 0 <= to_unit < self[to_layer].size, "no such %s layer unit: %d" % (to_layer, to_unit)
-
         if colormap is None: colormap = get_colormap()
         if plt is None:
             raise Exception("matplotlib was not loaded")
@@ -1502,10 +1533,19 @@ class Network():
         else:
             from IPython.display import SVG
             bytes = io.BytesIO()
-            plt.savefig(bytes, format='svg')
-            img_bytes = bytes.getvalue()
-            plt.close(fig)
-            return SVG(img_bytes.decode())
+            if format == "svg":
+                plt.savefig(bytes, format="svg")
+                plt.close(fig)
+                img_bytes = bytes.getvalue()
+                return SVG(img_bytes.decode())
+            elif format == "pil":
+                plt.savefig(bytes, format="png")
+                plt.close(fig)
+                bytes.seek(0)
+                pil_image = PIL.Image.open(bytes)
+                return pil_image
+            else:
+                raise Exception("format must be 'svg' or 'pil'")
         # optionally print out a table of activation values
         if show_values:
             s = '\n'
@@ -1527,7 +1567,7 @@ class Network():
 
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
                            cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
-                           interactive=True):
+                           interactive=True, format="svg"):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
         or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
         value of the weight matrix is used. wrange overrides provided wmin/wmax values. ticks
@@ -1616,10 +1656,19 @@ class Network():
         else:
             from IPython.display import SVG
             bytes = io.BytesIO()
-            plt.savefig(bytes, format='svg')
-            img_bytes = bytes.getvalue()
-            plt.close(fig)
-            return SVG(img_bytes.decode())
+            if format == "svg":
+                plt.savefig(bytes, format="svg")
+                plt.close(fig)
+                img_bytes = bytes.getvalue()
+                return SVG(img_bytes.decode())
+            elif format == "pil":
+                plt.savefig(bytes, format="png")
+                plt.close(fig)
+                bytes.seek(0)
+                pil_image = PIL.Image.open(bytes)
+                return pil_image
+            else:
+                raise Exception("format must be 'svg' or 'pil'")
 
     def show_unit_weights(self, layer_name, unit, vshape=None, ascii=False):
         if self[layer_name] is None:
@@ -1670,7 +1719,8 @@ class Network():
         return [epoch[metric] if metric in epoch else None for epoch in self.history]
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
-             label=None, symbols=None, title=None, return_fig_ax=False, fig_ax=None, interactive=True):
+             label=None, symbols=None, title=None, return_fig_ax=False, fig_ax=None,
+             interactive=True, format="svg"):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -1747,12 +1797,21 @@ class Network():
         else:
             from IPython.display import SVG
             bytes = io.BytesIO()
-            plt.savefig(bytes, format='svg')
-            img_bytes = bytes.getvalue()
-            plt.close(fig)
-            return SVG(img_bytes.decode())
+            if format == "svg":
+                plt.savefig(bytes, format="svg")
+                plt.close(fig)
+                img_bytes = bytes.getvalue()
+                return SVG(img_bytes.decode())
+            elif format == "pil":
+                plt.savefig(bytes, format="png")
+                plt.close(fig)
+                bytes.seek(0)
+                pil_image = PIL.Image.open(bytes)
+                return pil_image
+            else:
+                raise Exception("format must be 'svg' or 'pil'")
 
-    def plot_loss_acc(self, callback=None, interactive=True):
+    def plot_loss_acc(self, callback=None, interactive=True, format="svg"):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
         #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
