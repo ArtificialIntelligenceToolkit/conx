@@ -442,9 +442,9 @@ class Network():
         from IPython.display import HTML
         if len(self.weight_history) == 0:
             raise Exception("network wasn't trained with record=True; please train again")
-        if stop is None:
-            stop = len(self.history)
         epochs = sorted(self.weight_history.keys())
+        if stop is None:
+            stop = len(epochs)
         frames = []
         indices = []
         for index in range(start, stop, step):
