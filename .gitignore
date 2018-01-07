@@ -97,3 +97,4 @@ docs/source/*.png
 docs/source/*.md
 tmp/
 Makefile
+notebooks/*.conx/*

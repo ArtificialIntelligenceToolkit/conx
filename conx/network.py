@@ -1172,7 +1172,7 @@ class Network():
         >>> net = Network("Weight as Image Test", 2, 2, 5)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.get_weights_as_image("hidden") # doctest: +ELLIPSIS
-        <PIL.Image.Image image mode=RGBA size=2x2 at ...
+        <PIL.Image.Image image mode=RGBA size=2x2 at ...>
         """
         from matplotlib import cm
         weights = [layer.get_weights() for layer in self.model.layers
