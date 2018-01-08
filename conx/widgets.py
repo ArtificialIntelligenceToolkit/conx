@@ -180,7 +180,7 @@ class Dashboard(VBox):
         config = self.make_config()
         super().__init__([config, controls, self.net_svg, self.output])
 
-    def dataset_move(self, position):
+    def goto(self, position):
         if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
             return
         if self.control_select.value == "Train":
@@ -396,10 +396,10 @@ class Dashboard(VBox):
                                   value=self.net.config["svg_height"]/780.0)
 
         ## Hook them up:
-        button_begin.on_click(lambda button: self.dataset_move("begin"))
-        button_end.on_click(lambda button: self.dataset_move("end"))
-        button_next.on_click(lambda button: self.dataset_move("next"))
-        button_prev.on_click(lambda button: self.dataset_move("prev"))
+        button_begin.on_click(lambda button: self.goto("begin"))
+        button_end.on_click(lambda button: self.goto("end"))
+        button_next.on_click(lambda button: self.goto("next"))
+        button_prev.on_click(lambda button: self.goto("prev"))
         self.button_play.on_click(self.toggle_play)
         self.control_slider.observe(self.update_slider_control, names='value')
         refresh_button.on_click(lambda widget: (self.update_control_slider(),
