@@ -103,6 +103,7 @@ class _BaseLayer():
         self.input_names = []
         self.feature = 0
         self.keras_layer = None
+        self.max_draw_units = 20
         # used to determine image ranges:
         self.activation = params.get("activation", None) # make a copy, if one, and str
         if not isinstance(self.activation, str):
@@ -272,6 +273,7 @@ class _BaseLayer():
         import keras.backend as K
         from matplotlib import cm
         import PIL
+        import PIL.ImageDraw
         if self.vshape and self.vshape != self.shape:
             vector = vector.reshape(self.vshape)
         if len(vector.shape) > 2:
@@ -316,8 +318,24 @@ class _BaseLayer():
             cm_hot = cm.get_cmap("RdGy")
         vector = cm_hot(vector)
         vector = np.uint8(vector * 255)
-        image = PIL.Image.fromarray(vector)
-        image = image.resize((new_height, new_width))
+        if max(vector.shape) <= self.max_draw_units:
+            # Need to make it bigger, to draw circles:
+            ## Make this value too small, and borders are blocky;
+            ## too big and borders are too thin
+            scale = int(250 / max(vector.shape))
+            size = size * scale
+            image = PIL.Image.new('RGBA', (new_height * scale, new_width * scale), color="white")
+            draw = PIL.ImageDraw.Draw(image)
+            for row in range(vector.shape[1]):
+                for col in range(vector.shape[0]):
+                    ## upper-left, lower-right:
+                    draw.ellipse((row * size, col * size,
+                                  (row + 1) * size - 1, (col + 1) * size - 1),
+                                 fill=tuple(vector[col][row]),
+                                 outline='black')
+        else:
+            image = PIL.Image.fromarray(vector)
+            image = image.resize((new_height, new_width))
         return image
 
     def scale_output_for_image(self, vector, minmax, truncate=False):

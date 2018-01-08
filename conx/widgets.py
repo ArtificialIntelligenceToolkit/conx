@@ -402,7 +402,9 @@ class Dashboard(VBox):
         button_prev.on_click(lambda button: self.dataset_move("prev"))
         self.button_play.on_click(self.toggle_play)
         self.control_slider.observe(self.update_slider_control, names='value')
-        refresh_button.on_click(lambda widget: (self.output.clear_output(), self.regenerate()))
+        refresh_button.on_click(lambda widget: (self.update_control_slider(),
+                                                self.output.clear_output(),
+                                                self.regenerate()))
         self.zoom_slider.observe(self.update_zoom_slider, names='value')
         self.position_text.observe(self.update_position_text, names='value')
         # Put them together:
