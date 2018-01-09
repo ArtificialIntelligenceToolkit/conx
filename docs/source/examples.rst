@@ -25,3 +25,4 @@ Examples
    PCA
    Under The Hood
    VisionQuest
+   TeacherRobot
