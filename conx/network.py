@@ -1483,7 +1483,8 @@ class Network():
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
-                            interactive=True, scatter=None, symbols=None, format="svg"):
+                            interactive=True, scatter=None, symbols=None, default_symbol="o",
+                            format="svg"):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1536,7 +1537,7 @@ class Network():
                 ys = [min(vector[1], act_max - .01) * ypixels for vector in data]
                 if label:
                     kwargs["label"] = label
-                symbol = get_symbol(label, symbols)
+                symbol = get_symbol(label, symbols, default_symbol)
                 if symbol:
                     args.append(symbol)
                 ax.plot(xs, ys, *args, **kwargs)
@@ -1744,7 +1745,7 @@ class Network():
         return [epoch[metric] if metric in epoch else None for epoch in self.history]
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
-             label=None, symbols=None, title=None, return_fig_ax=False, fig_ax=None,
+             label=None, symbols=None, default_symbol="-", title=None, return_fig_ax=False, fig_ax=None,
              interactive=True, format="svg"):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
@@ -1797,7 +1798,7 @@ class Network():
                 print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
             else:
                 next_label = label if label else metric
-                symbol = get_symbol(label, symbols, '-')
+                symbol = get_symbol(label, symbols, default_symbol)
                 ax.plot(x_values, y_values, symbol, label=next_label)
                 data_found = True
         if not data_found:
@@ -2765,8 +2766,8 @@ require(['base/js/namespace'], function(Jupyter) {
             >>> net.pf(range(10), precision=2)
             '[0,1,2,3,4,5,6,7,8,9]'
 
-            >>> net.pf([0]*10000)
-            '[0,0,0,..., 0,0,0]'
+            >>> net.pf([0]*10000) # doctest: +ELLIPSIS
+            '[0,0,0,...]'
         """
         if isinstance(vector, collections.Iterable):
             vector = list(vector)

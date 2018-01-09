@@ -277,8 +277,13 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
     create a new numpy array that scales the old values into the new_range.
 
     >>> import numpy as np
-    >>> rescale_numpy_array(np.array([0.1, 0.2, 0.3]), (0, 1), (0.5, 1.), float)
-    array([ 0.55,  0.6 ,  0.65])
+    >>> new_array = rescale_numpy_array(np.array([0.1, 0.2, 0.3]), (0, 1), (0.5, 1.), float)
+    >>> new_array[0]
+    0.55
+    >>> new_array[1]
+    0.6
+    >>> new_array[2]
+    0.65
     """
     assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range
@@ -436,8 +441,8 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
             raise Exception("format must be 'svg' or 'pil'")
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
-         label="", symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
-         interactive=True, format='svg'):
+         label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
+         interactive=True, format='svg', xs=None):
     """
     >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
     ...           ylabel="error",
@@ -458,12 +463,15 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
         data = [data]
     for (data_label, vectors) in data:
         kwargs = {}
-        args = [vectors]
+        if xs is not None:
+            args = [xs, vectors]
+        else:
+            args = [vectors]
         if label: ## override
             kwargs["label"] = label
         elif data_label:
             kwargs["label"] = data_label
-        symbol = get_symbol(kwargs.get("label", None), symbols)
+        symbol = get_symbol(kwargs.get("label", None), symbols, default_symbol)
         if symbol:
             args.append(symbol)
         plt.plot(*args, **kwargs)
@@ -612,7 +620,7 @@ def reset_plt_param(setting):
     plt.rcParams[setting] = CACHE_PARAMS[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
-            symbols=None, ymin=None, xmin=None, ymax=None, xmax=None,
+            symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
             interactive=True, format='svg'):
     """
     Create a scatter plot with series of (x,y) data.
@@ -635,7 +643,7 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
             kwargs["label"] = label
         elif data_label:
             kwargs["label"] = data_label
-        symbol = get_symbol(kwargs.get("label", None), symbols)
+        symbol = get_symbol(kwargs.get("label", None), symbols, default_symbol)
         if symbol:
             args.append(symbol)
         plt.plot(xs, ys, *args, **kwargs)
