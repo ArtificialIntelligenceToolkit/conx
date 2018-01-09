@@ -278,12 +278,8 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
 
     >>> import numpy as np
     >>> new_array = rescale_numpy_array(np.array([0.1, 0.2, 0.3]), (0, 1), (0.5, 1.), float)
-    >>> round(new_array[0], 2)
-    0.55
-    >>> round(new_array[1], 2)
-    0.6
-    >>> round(new_array[2], 2)
-    0.65
+    >>> ", ".join(["%.2f" % v for v in new_array])
+    '0.55, 0.60, 0.65'
     """
     assert isinstance(old_range, (tuple, list)) and isinstance(new_range, (tuple, list))
     old_min, old_max = old_range

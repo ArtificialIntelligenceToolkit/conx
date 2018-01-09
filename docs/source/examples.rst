@@ -19,3 +19,9 @@ Examples
    Plotting
    Robot Simulation
    DeepDreams
+   Auto-encoder with Conv2D
+   Experiments
+   MakingMovies
+   PCA
+   Under The Hood
+   VisionQuest
