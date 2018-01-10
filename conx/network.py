@@ -875,7 +875,7 @@ class Network():
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
-              plot=False, record=0, callbacks=None):
+              plot=False, record=0, callbacks=None, save=False):
         """
         Train the network.
 
@@ -1049,6 +1049,9 @@ class Network():
                 pc.on_epoch_end(-1)
             if handler.interrupted:
                 interrupted = True
+        if interrupted:
+            if verbose:
+                print("Interrupted! Cleaning up...")
         last_epoch = self.history[-1]
         if record:
             self.weight_history[self.epoch_count] = self.to_array()
@@ -1056,6 +1059,12 @@ class Network():
         if verbose:
             print("=" * 72)
             self.report_epoch(self.epoch_count, last_epoch)
+        if save:
+            if verbose:
+                print("Saving network... ", end="")
+            self.save()
+            if verbose:
+                print("Saved!")
         if interrupted:
             raise KeyboardInterrupt
         if verbose == 0:
@@ -2567,7 +2576,10 @@ require(['base/js/namespace'], function(Jupyter) {
         if dir is None:
             dir = "%s.conx" % self.name.replace(" ", "_")
         import shutil
-        shutil.rmtree(dir)
+        if os.path.isdir(dir):
+            shutil.rmtree(dir)
+        else:
+            print("Nothing to delete.")
 
     def load(self, dir=None):
         """
