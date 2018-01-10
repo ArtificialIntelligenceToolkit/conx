@@ -437,7 +437,7 @@ class Network():
             ...                                                           visualize=False, resize=(500, 100)),
             ...                 "/tmp/movie.gif")
             >>> img
-            <IPython.core.display.HTML object>
+            <IPython.core.display.Image object>
         """
         from IPython.display import Image
         if len(self.weight_history) == 0:
