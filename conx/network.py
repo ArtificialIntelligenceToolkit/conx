@@ -594,6 +594,18 @@ class Network():
             target_layers = [layer for layer in self.layers if layer.kind() == "output"]
             self.num_target_layers = len(target_layers)
             self.output_bank_order = [layer.name for layer in target_layers]
+            ## Set up a layer's input names, as best possible:
+            sequence = topological_sort(self, self.layers)
+            for layer in sequence:
+                if layer.kind() == 'input':
+                    layer.input_names = [layer.name]
+                else:
+                    if len(layer.incoming_connections) == 1:
+                        layer.input_names = layer.incoming_connections[0].input_names
+                    else:
+                        layer.input_names = [item for sublist in
+                                             [incoming.input_names for incoming in layer.incoming_connections]
+                                             for item in sublist]
 
     def summary(self):
         """
@@ -2544,6 +2556,8 @@ require(['base/js/namespace'], function(Jupyter) {
         Returns a textual description of the weights for the SVG tooltip.
         """
         retval = "Weights from %s to %s" % (layer1.name, layer2.name)
+        if self.model is None:
+            return retval
         for klayer in self.model.layers:
             if klayer.name == layer2.name:
                 weights = klayer.get_weights()
