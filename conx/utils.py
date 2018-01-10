@@ -616,7 +616,7 @@ def reset_plt_param(setting):
     plt.rcParams[setting] = CACHE_PARAMS[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
-            symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
+            symbols=None, default_symbol="o", ymin=None, xmin=None, ymax=None, xmax=None,
             interactive=True, format='svg'):
     """
     Create a scatter plot with series of (x,y) data.
