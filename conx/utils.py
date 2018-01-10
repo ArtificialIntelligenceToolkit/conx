@@ -378,26 +378,21 @@ def import_keras_model(model, network_name):
     return network
 
 def movie(function, movie_name="movie.gif", play_range=None,
-          loop=0, optimize=True, duration=100, return_it=True):
+          loop=0, optimize=True, duration=100, embed=False):
     """
     Make a movie from a function.
 
     function has signature: function(index) and should return
     a PIL.Image.
     """
-    from IPython.display import HTML
+    from IPython.display import Image
     frames = []
     for index in range(*play_range):
         frames.append(function(index))
     if frames:
         frames[0].save(movie_name, save_all=True, append_images=frames[1:],
                        optimize=optimize, loop=loop, duration=duration)
-        if return_it:
-            data = open(movie_name, "rb").read()
-            data = base64.b64encode(data)
-            if not isinstance(data, str):
-                data = data.decode("latin1")
-            return HTML("""<img src="data:image/gif;base64,{0}" alt="{1}">""".format(html.escape(data), movie_name))
+        return Image(url=movie_name, embed=embed)
 
 def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
            interactive=True, format='svg'):

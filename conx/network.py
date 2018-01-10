@@ -417,7 +417,7 @@ class Network():
         return sv
 
     def movie(self, function, movie_name=None, start=0, stop=None, step=1,
-              loop=0, optimize=True, duration=100, return_it=True):
+              loop=0, optimize=True, duration=100, embed=False):
         """
         Make a movie from a playback function over the set of recorded weights.
 
@@ -439,7 +439,7 @@ class Network():
             >>> img
             <IPython.core.display.HTML object>
         """
-        from IPython.display import HTML
+        from IPython.display import Image
         if len(self.weight_history) == 0:
             raise Exception("network wasn't trained with record=True; please train again")
         epochs = sorted(self.weight_history.keys())
@@ -459,12 +459,7 @@ class Network():
         if frames:
             frames[0].save(movie_name, save_all=True, append_images=frames[1:],
                            optimize=optimize, loop=loop, duration=duration)
-            if return_it:
-                data = open(movie_name, "rb").read()
-                data = base64.b64encode(data)
-                if not isinstance(data, str):
-                    data = data.decode("latin1")
-                return HTML("""<img src="data:image/gif;base64,{0}" alt="{1}">""".format(html.escape(data), movie_name))
+            return Image(url=movie_name, embed=embed)
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         """
