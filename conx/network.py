@@ -2100,7 +2100,7 @@ class Network():
             if max_vshape is None:
                 if t != 1:
                     max_vshape = t
-            elif t < max_vshape and t != 1:
+            elif t > max_vshape and t != 1:
                 max_vshape = t
         if max_vshape is None:
             return 2
