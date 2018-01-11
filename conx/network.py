@@ -2089,6 +2089,24 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % html.escape(data)
 
+    def _max_vshape(self):
+        """
+        Find the max vshape of all layers.
+        """
+        max_vshape = None
+        for layer in self.layers:
+            vshape = layer.vshape if layer.vshape else layer.shape
+            t = max(vshape)
+            if max_vshape is None:
+                if t != 1:
+                    max_vshape = t
+            elif t < max_vshape and t != 1:
+                max_vshape = t
+        if max_vshape is None:
+            return 2
+        else:
+            return max(max_vshape, 2)
+
     def build_struct(self, inputs, class_id, config):
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         ### find max_width, image_dims, and row_height
@@ -2134,11 +2152,21 @@ class Network():
                     image_pixels_per_unit = config["image_pixels_per_unit"]
                 ## First, try based on shape:
                 pwidth, pheight = np.array(image.size) * image_pixels_per_unit
-                if max(pwidth, pheight) < image_maxdim:
-                    width, height = pwidth, pheight
+                if self[layer_name].shape == (1,):
+                    divisor = self._max_vshape() # min dim of all layers
+                    width = image_maxdim/divisor
+                    height = image_maxdim/divisor
+                    ## make sure not too small:
+                    while width < 25:
+                        divisor -= 1
+                        width = image_maxdim/divisor
+                        height = image_maxdim/divisor
                 else:
-                    width, height = (int(width/max_dim * image_maxdim),
-                                     int(height/max_dim * image_maxdim))
+                    if max(pwidth, pheight) < image_maxdim:
+                        width, height = pwidth, pheight
+                    else:
+                        width, height = (int(width/max_dim * image_maxdim),
+                                         int(height/max_dim * image_maxdim))
                 # make sure not too small:
                 if min(width, height) < 25:
                     width, height = (image_maxdim, 25)
