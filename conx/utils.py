@@ -22,6 +22,7 @@ import PIL
 import base64
 import itertools
 import io
+import os
 import numpy as np
 from keras.utils import to_categorical
 import keras
@@ -378,7 +379,7 @@ def import_keras_model(model, network_name):
     return network
 
 def movie(function, movie_name="movie.gif", play_range=None,
-          loop=0, optimize=True, duration=100, embed=False):
+          loop=0, optimize=True, duration=100, embed=False, mp4=True):
     """
     Make a movie from a function.
 
@@ -392,7 +393,10 @@ def movie(function, movie_name="movie.gif", play_range=None,
     if frames:
         frames[0].save(movie_name, save_all=True, append_images=frames[1:],
                        optimize=optimize, loop=loop, duration=duration)
-        return Image(url=movie_name, embed=embed)
+        if mp4 is False:
+            return Image(url=movie_name, embed=embed)
+        else:
+            return gif2mp4(movie_name)
 
 def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
            interactive=True, format='svg'):
@@ -675,6 +679,21 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
             raise Exception("format must be 'svg' or 'pil'")
     reset_plt_param('figure.figsize')
     return result
+
+def gif2mp4(filename):
+    """
+    Convert an animated gif into a mp4, to show with controls.
+    """
+    from IPython.display import HTML
+    if filename.endswith(".gif"):
+        filename = filename[:-4]
+    if os.path.exists(filename + ".mp4"):
+        os.remove(filename + ".mp4")
+    retval = os.system("""ffmpeg -i {0}.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" {0}.mp4""".format(filename))
+    if retval == 0:
+        return HTML("""<video src='{0}.mp4' controls></video>""".format(filename))
+    else:
+        print("error running ffmpeg; see console log message")
 
 class PCA():
     """

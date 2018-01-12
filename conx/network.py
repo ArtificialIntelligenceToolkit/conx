@@ -417,7 +417,7 @@ class Network():
         return sv
 
     def movie(self, function, movie_name=None, start=0, stop=None, step=1,
-              loop=0, optimize=True, duration=100, embed=False):
+              loop=0, optimize=True, duration=100, embed=False, mp4=True):
         """
         Make a movie from a playback function over the set of recorded weights.
 
@@ -459,7 +459,10 @@ class Network():
         if frames:
             frames[0].save(movie_name, save_all=True, append_images=frames[1:],
                            optimize=optimize, loop=loop, duration=duration)
-            return Image(url=movie_name, embed=embed)
+            if mp4 is False:
+                return Image(url=movie_name, embed=embed)
+            else:
+                return gif2mp4(movie_name)
 
     def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
         """
