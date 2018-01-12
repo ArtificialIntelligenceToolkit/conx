@@ -435,7 +435,7 @@ class Network():
             >>> epochs, khistory = net.train(10, verbose=0, report_rate=1000, record=True)
             >>> img = net.movie(lambda net, epoch: net.propagate_to_image("hidden", [1, 1],
             ...                                                           visualize=False, resize=(500, 100)),
-            ...                 "/tmp/movie.gif")
+            ...                 "/tmp/movie.gif", mp4=False)
             >>> img
             <IPython.core.display.Image object>
         """
