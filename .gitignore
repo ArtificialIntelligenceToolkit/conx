@@ -95,6 +95,7 @@ docs/source/*.jpg
 docs/source/*.gif
 docs/source/*.png
 docs/source/*.md
+docs/source/_static/*.mp4
 tmp/
 Makefile
 notebooks/*.conx/*
