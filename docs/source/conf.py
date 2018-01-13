@@ -15,24 +15,38 @@ sys.path.insert(0, os.path.abspath('../..'))
 ## dependencies: get ../../notebooks/*.ipynb files
 
 print("Copying updated ../../notebooks/ files ...")
-for filename in (glob.glob("../../notebooks/*.ipynb") +
-                 glob.glob("../../*.md") +
-                 glob.glob("../../notebooks/*.gif") +
-                 glob.glob("../../notebooks/*.jpg") +
-                 glob.glob("../../notebooks/*.png")):
-    path, dst = os.path.split(filename)
-    if os.path.isfile(dst): # dst exists here
-        dst_time = os.path.getmtime(dst)
-        src_time = os.path.getmtime(filename)
-        if src_time > dst_time: # the src time > dst time
-            copy_it = True # it is updated
+
+def copyfiles(filenames, destination):
+    for filename in filenames:
+        path, dst = os.path.split(filename)
+        dst = os.path.join(destination, dst)
+        if os.path.isfile(dst): # dst exists here
+            dst_time = os.path.getmtime(dst)
+            src_time = os.path.getmtime(filename)
+            if src_time > dst_time: # the src time > dst time
+                copy_it = True # it is updated
+            else:
+                copy_it = False # not updated
         else:
-            copy_it = False # not updated
-    else:
-        copy_it = True # doesn't exist
-    if copy_it:
-        shutil.copyfile(filename, dst)
-        print("   ", dst)
+            copy_it = True # doesn't exist
+        if copy_it:
+            shutil.copyfile(filename, dst)
+            print("   ", dst)
+            if filename.endswith(".ipynb"):
+                os.system("""sed -i "s/video src='\\(.*\\)\\.mp4'/video src='\\_static\\/\\1\\.mp4'/g" "%s" """ % dst)
+
+copyfiles(glob.glob("../../notebooks/*.ipynb") +
+          glob.glob("../../*.md") +
+          glob.glob("../../notebooks/*.gif") +
+          glob.glob("../../notebooks/*.jpg") +
+          glob.glob("../../notebooks/*.png"), "./")
+
+try:
+    os.system("mkdir _static")
+except:
+    pass
+
+copyfiles(glob.glob("../../notebooks/*.mp4"), "./_static/")
 
 # -- General configuration ------------------------------------------------
 
