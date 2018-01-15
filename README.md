@@ -84,7 +84,7 @@ On Linux:
 sudo apt install ffmpeg
 # or perhaps:
 sudo yum install ffmpeg
-``
+```
 
 ### Use with Jupyter Notebooks
 
