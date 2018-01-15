@@ -1,6 +1,6 @@
 # Conx Neural Networks
 
-## Deep Learning for Simple Folk
+## The on-ramp to Deep Learning
 
 Built in Python 3 on Keras 2.
 
