@@ -434,7 +434,7 @@ class Network():
             >>> net.dataset.load(ds)
             >>> epochs, khistory = net.train(10, verbose=0, report_rate=1000, record=True)
             >>> img = net.movie(lambda net, epoch: net.propagate_to_image("hidden", [1, 1],
-            ...                                                           visualize=False, resize=(500, 100)),
+            ...                                                           resize=(500, 100)),
             ...                 "/tmp/movie.gif", mp4=False)
             >>> img
             <IPython.core.display.Image object>
@@ -738,7 +738,7 @@ class Network():
             correct.append(all(row))
         return correct
 
-    def train_one(self, inputs, targets, batch_size=32):
+    def train_one(self, inputs, targets, batch_size=32, visualize=False):
         """
         Train on one input/target pair.
 
@@ -827,9 +827,9 @@ class Network():
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
         ## history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
-        outputs = self.propagate(inputs, batch_size=batch_size, visualize=False)
+        outputs = self.propagate(inputs, batch_size=batch_size, visualize=visualize)
         errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
-        if self.visualize and get_ipython():
+        if visualize:
             if self.config["show_targets"]:
                 self.display_component([targets], "targets") # FIXME: use output layers' minmax
             if self.config["show_errors"]:
@@ -1245,7 +1245,7 @@ class Network():
                    if layer_name == layer.name][0]
         return [m.tolist() for m in weights]
 
-    def propagate(self, input, batch_size=32, visualize=None):
+    def propagate(self, input, batch_size=32, visualize=False):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
@@ -1263,7 +1263,6 @@ class Network():
         >>> len(net.propagate({"input": [1, 1]}))
         5
         """
-        visualize = visualize if visualize is not None else self.visualize
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -1286,23 +1285,16 @@ class Network():
             shapes = [self[layer_name].shape for layer_name in self.output_bank_order]
             ## FIXME: may not be able to reshape; dynamically changing output
             outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
-        if visualize and get_ipython():
-            if not self._comm:
-                from ipykernel.comm import Comm
-                self._comm = Comm(target_name='conx_svg_control')
-            if self._comm.kernel:
-                for layer in self.layers:
-                    if layer.visible and layer.model:
-                        image = self.propagate_to_image(layer.name, input, batch_size, visualize=False)
-                        data_uri = self._image_to_uri(image)
-                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+        if visualize:
+            for layer in self.layers:
+                if layer.visible and layer.model:
+                    self.propagate_to(layer.name, input, batch_size, visualize=visualize)
         return outputs
 
-    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32, visualize=None):
+    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32, visualize=False):
         """
         Propagate activations from the given layer name to the output layers.
         """
-        visualize = visualize if visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if isinstance(input, dict):
@@ -1339,7 +1331,7 @@ class Network():
             inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
             ## FYI: outputs not shaped
-        if visualize and get_ipython():
+        if visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -1377,11 +1369,10 @@ class Network():
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
-    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=None):
+    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=False):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
         """
-        visualize = visualize if visualize is not None else self.visualize
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if isinstance(inputs, dict):
@@ -1398,7 +1389,7 @@ class Network():
                       self._get_sorted_input_names(self[layer_name].input_names)]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
         ## output shaped below:
-        if visualize and get_ipython():
+        if visualize:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -1406,7 +1397,7 @@ class Network():
             if self._comm.kernel:
                 for layer in self.layers:
                     if layer.visible and layer.model is not None:
-                        out = self.propagate_to(layer.name, inputs, visualize=False)
+                        out = self.propagate_to(layer.name, inputs) # recursive, but no visualize here, just activations
                         image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
                         data_uri = self._image_to_uri(image)
                         self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
@@ -1426,7 +1417,8 @@ class Network():
         return (isinstance(output_shape, tuple) and len(output_shape) == 4)
 
 
-    def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0, html=True, size=None, display=True):
+    def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
+                              html=True, size=None, display=True, visualize=False):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1444,7 +1436,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1464,7 +1456,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=False)
+                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1480,7 +1472,7 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           visualize=None):
+                           visualize=False):
         """
         Gets an image of activations at a layer.
         """
@@ -1503,7 +1495,7 @@ class Network():
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
                             interactive=True, scatter=None, symbols=None, default_symbol="o",
-                            format="svg"):
+                            format="svg", visualize=False):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1540,7 +1532,7 @@ class Network():
                 vector = copy.copy(ovector)
                 vector[ix] = x
                 vector[iy] = y
-                activations = self.propagate_from(from_layer, vector, to_layer, visualize=False)
+                activations = self.propagate_from(from_layer, vector, to_layer, visualize=visualize)
                 mat[row,col] = activations[to_unit]
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
@@ -2142,7 +2134,7 @@ class Network():
                         in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
                         v = in_layer.make_dummy_vector()
                 if self[layer_name].model:
-                    image = self.propagate_to_image(layer_name, v, visualize=False)
+                    image = self.propagate_to_image(layer_name, v)
                 else:
                     image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 (width, height) = image.size
@@ -2482,9 +2474,6 @@ require(['base/js/namespace'], function(Jupyter) {
         if any([(layer.kind() == "unconnected") for layer in self.layers]):
             #raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
             return None
-        #if self.model is None:
-        #    raise Exception("can't build display before Network.compile(...) as been run")
-        self.visualize = False # so we don't try to update previously drawn images
         # defaults:
         config = copy.copy(self.config)
         config.update(opts)
@@ -2525,7 +2514,6 @@ require(['base/js/namespace'], function(Jupyter) {
                 t = templates[template_name]
                 svg += t.format(**dict)
         svg += """</svg>"""
-        self.visualize = True
         if get_ipython():
             self._initialize_javascript()
         return svg

@@ -818,7 +818,7 @@ class PCA():
                 category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
             else:
                 category = label
-            hid = network.propagate_to(bank, input_vector, visualize=False)
+            hid = network.propagate_to(bank, input_vector)
             hid_prime = self.transform_one(hid, scale)
             if category not in categories:
                 categories[category] = []
