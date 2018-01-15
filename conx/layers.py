@@ -329,7 +329,7 @@ class _BaseLayer():
             for row in range(vector.shape[1]):
                 for col in range(vector.shape[0]):
                     ## upper-left, lower-right:
-                    draw.ellipse((row * size, col * size,
+                    draw.rectangle((row * size, col * size,
                                   (row + 1) * size - 1, (col + 1) * size - 1),
                                  fill=tuple(vector[col][row]),
                                  outline='black')
