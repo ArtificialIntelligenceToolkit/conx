@@ -66,6 +66,26 @@ On MacOS, you may also need to render the SVG visualizations:
 brew install cairo
 ```
 
+To make MP4 movies, you will need the `ffmpeg` executable installed and available on your default path.
+
+On MacOS, you could use:
+
+```bash
+brew install ffmpeg
+```
+
+On Windows:
+
+See, for example, https://github.com/adaptlearning/adapt_authoring/wiki/Installing-FFmpeg
+
+On Linux:
+
+```bash
+sudo apt install ffmpeg
+# or perhaps:
+sudo yum install ffmpeg
+``
+
 ### Use with Jupyter Notebooks
 
 To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
