@@ -374,7 +374,7 @@ class Dataset():
         self._inputs = []
         self._targets = []
         self._labels = []
-        self._targets_range = (0,0)
+        self._targets_range = []
         self._split = 0
         self._default_inputs = [(None,)]
         self._default_targets = [(None,)]
@@ -625,15 +625,15 @@ class Dataset():
 
     def _cache_values(self):
         if len(self.inputs) > 0:
-            self._inputs_range = (min([x.min() for x in self._inputs]),
-                                  max([x.max() for x in self._inputs]))
+            self._inputs_range = list(zip([x.min() for x in self._inputs],
+                                          [x.max() for x in self._inputs]))
         else:
-            self._inputs_range = (0,0)
+            self._inputs_range = []
         if len(self.targets) > 0:
-            self._targets_range = (min([x.min() for x in self._targets]),
-                                   max([x.max() for x in self._targets]))
+            self._targets_range = list(zip([x.min() for x in self._targets],
+                                           [x.max() for x in self._targets]))
         else:
-            self._targets_range = (0,0)
+            self._targets_range = []
         ## Set shape cache:
         if len(self._inputs) > 0:
             self._default_inputs = [x[0].shape for x in self._inputs]
@@ -642,6 +642,8 @@ class Dataset():
         # Final checks:
         if len(self.inputs) != len(self.targets):
             raise Exception("WARNING: inputs/targets lengths do not match")
+        if self.network:
+            self.network.test_dataset_ranges()
 
     def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """
@@ -736,6 +738,8 @@ class Dataset():
         if size != 0:
             print('   shape  : %s' % self.targets.shape)
             print('   range  : %s' % (self._targets_range,))
+        if self.network:
+            self.network.test_dataset_ranges()
 
     def rescale_inputs(self, bank_index, old_range, new_range, new_dtype):
         """

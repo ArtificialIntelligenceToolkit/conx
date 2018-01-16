@@ -882,6 +882,24 @@ class Network():
             results.update({"val_"+k: v for k, v in zip(self.model.metrics_names, test_metrics)})
         return results
 
+    def test_dataset_ranges(self):
+        """
+        Test the dataset ranges to see if in range of activation functions.
+        """
+        for index in range(len(self.output_bank_order)):
+            layer_name = self.output_bank_order[index]
+            if self[layer_name].activation == "linear":
+                continue
+            lmin, lmax = self[layer_name].get_act_minmax()
+            # test dataset min to see if in range of act output:
+            if not (lmin <= self.dataset._targets_range[index][0] <= lmax):
+                print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with minimum value of targets" %
+                      (layer_name, self[layer_name].activation), file=sys.stderr)
+            # test dataset min to see if in range of act output:
+            if not (lmin <= self.dataset._targets_range[index][1] <= lmax):
+                print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with maximum value of targets" %
+                      (layer_name, self[layer_name].activation), file=sys.stderr)
+
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
@@ -928,6 +946,8 @@ class Network():
             raise Exception("bad report rate: %s" % (report_rate,))
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
             raise Exception("bad batch size: %s" % (batch_size,))
+        ## Test for targets in range of activation function:
+        self.test_dataset_ranges()
         if epochs == 0: return
         if len(self.dataset.inputs) == 0:
             print("No training data available")
