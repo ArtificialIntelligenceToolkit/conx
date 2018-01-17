@@ -577,12 +577,49 @@ class Dataset():
                 self._labels[i] = np.append(self._labels[i], labels[i], 0)
         self._cache_values()
 
+    def datasets(self=None):
+        """
+        Returns the list of available datasets.
+
+        Can be called on the Dataset class.
+
+        >>> len(Dataset.datasets())
+        6
+
+        >>> ds = Dataset()
+        >>> len(ds.datasets())
+        6
+        """
+        if self is None:
+            self = Dataset()
+        return sorted(self.DATASETS.keys())
+
     def get(self, dataset_name=None, *args, **kwargs):
         """
         Get a known dataset by name.
+
+        Can be called on the Dataset class. If it is, returns a new
+        Dataset instance.
+
+        >>> ds = Dataset.get("mnist")
+        >>> len(ds.inputs)
+        70000
+
+        >>> ds = Dataset()
+        >>> ds.get("mnist")
+        >>> len(ds.targets)
+        70000
+        >>> ds.targets[0]
+        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
         """
+        return_it = False
+        if isinstance(self, str):
+            dataset_name, self = self, Dataset()
+            return_it = True
         if dataset_name in self.DATASETS:
             self.DATASETS[dataset_name](self, *args, **kwargs)
+            if return_it:
+                return self
         else:
             raise Exception(
                 ("unknown dataset name '%s': should be one of %s" %
