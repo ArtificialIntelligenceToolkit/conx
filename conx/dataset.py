@@ -601,7 +601,8 @@ class Dataset():
         Can be called on the Dataset class. If it is, returns a new
         Dataset instance.
 
-        >>> ds = Dataset.get("mnist")
+        >>> ds = Dataset.get("mnist") # doctest: +ELLIPSIS
+        ...
         >>> len(ds.inputs)
         70000
 
