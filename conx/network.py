@@ -55,23 +55,22 @@ except:
 #------------------------------------------------------------------------
 
 class ReportCallback(Callback):
-    def __init__(self, network, report_rate, mpl_backend, record):
+    def __init__(self, network, verbose, report_rate, mpl_backend, record):
         # mpl_backend is matplotlib backend
         super().__init__()
         self.network = network
+        self.verbose = verbose
         self.report_rate = report_rate
         self.mpl_backend = mpl_backend
         self.in_console = self.network.in_console(mpl_backend)
         self.record = record
 
     def on_epoch_end(self, epoch, logs=None):
-        #print("in ReportCallback with epoch = %d" % epoch)
         self.network.history.append(logs)
         self.network.epoch_count += 1
-        #print("epoch_count is now", self.network.epoch_count)
-        #print("history is now", self.network.history)
-        #print("ReportCallback got:", epoch, logs)
-        if self.in_console and (epoch+1) % self.report_rate == 0:
+        if (self.verbose > 0 and
+            self.in_console and
+            (epoch+1) % self.report_rate == 0):
             self.network.report_epoch(self.network.epoch_count, logs)
         if self.record != 0 and (epoch+1) % self.record == 0:
             self.network.weight_history[self.network.epoch_count] = self.network.to_array()
@@ -88,7 +87,6 @@ class PlotCallback(Callback):
         self.figure = None
 
     def on_epoch_end(self, epoch, logs=None):
-        #print("in PlotCallback with epoch = %d" % epoch)
         if epoch == -1:
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
@@ -490,15 +488,15 @@ class Network():
             'TkAgg' - console with Tk
             'Qt5Agg' - console with Qt
             'MacOSX' - mac console
-            'module://ipykernel.pylab.backend_inline` - default for notebook
-                          and non-console, and when using %matplotlib inline
-            'NbAgg` - notebook, using %matplotlib notebook
+            'module://ipykernel.pylab.backend_inline' - default for notebook and
+                non-console, and when using %matplotlib inline
+            'NbAgg' - notebook, using %matplotlib notebook
 
         Here, None means not plotting, or just use text.
 
         NOTE: if you are running ipython without a DISPLAY with the QT
-        background, you may wish to:
-            export QT_QPA_PLATFORM='offscreen'
+              background, you may wish to:
+                  * export QT_QPA_PLATFORM='offscreen'
         """
         return mpl_backend not in [
             'module://ipykernel.pylab.backend_inline',
@@ -932,7 +930,7 @@ class Network():
             use_validation_to_stop (bool): If `True`, then accuracy and error will
                 use the validation set rather than the training set.
             plot (bool): If `True`, then the feedback will be shown in graphical form.
-            record (int): If `record != 0`, the weights will be saved every record
+            record (int): If 'record != 0', the weights will be saved every record
                 number of epochs.
             callbacks (list): A list of (str, function) where str is 'on_batch_begin',
                 'on_batch_end', 'on_epoch_begin', 'on_epoch_end', 'on_train_begin',
@@ -1072,9 +1070,9 @@ class Network():
         if self.in_console(mpl_backend) and verbose > 0:
             self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
-        kcallbacks=[
+        kcallbacks = [
             History(),
-            ReportCallback(self, report_rate, mpl_backend, record),
+            ReportCallback(self, verbose, report_rate, mpl_backend, record),
         ]
         if accuracy is not None:
             kcallbacks.append(StoppingCriteria("acc", ">=", accuracy, use_validation_to_stop))
@@ -1958,7 +1956,7 @@ class Network():
         """
         Check and compile the network.
 
-        See https://keras.io/ `Model.compile()` method for more details.
+        See https://keras.io/ `Model.compile` method for more details.
         """
         ## Error checking:
         if len(self.layers) == 0:

@@ -36,10 +36,19 @@ conx\.utils module
     :undoc-members:
     :show-inheritance:
 
-conx\.wdigets module
+conx\.widgets module
 --------------------
 
 .. automodule:: conx.widgets
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+conx\.activations module
+------------------------
+
+.. automodule:: conx.activations
     :members:
     :undoc-members:
     :show-inheritance:
