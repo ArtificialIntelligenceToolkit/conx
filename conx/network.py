@@ -485,18 +485,20 @@ class Network():
         to notebook, or other non-console system.
 
         Possible values:
-            'TkAgg' - console with Tk
-            'Qt5Agg' - console with Qt
-            'MacOSX' - mac console
-            'module://ipykernel.pylab.backend_inline' - default for notebook and
-                non-console, and when using %matplotlib inline
-            'NbAgg' - notebook, using %matplotlib notebook
+            * 'TkAgg' - console with Tk
+            * 'Qt5Agg' - console with Qt
+            * 'MacOSX' - mac console
+            * 'module://ipykernel.pylab.backend_inline' - default for notebook and
+              non-console, and when using %matplotlib inline
+            * 'NbAgg' - notebook, using %matplotlib notebook
 
         Here, None means not plotting, or just use text.
 
-        NOTE: if you are running ipython without a DISPLAY with the QT
-              background, you may wish to:
-                  * export QT_QPA_PLATFORM='offscreen'
+        Note:
+            If you are running ipython without a DISPLAY with the QT
+            background, you may wish to:
+
+            export QT_QPA_PLATFORM='offscreen'
         """
         return mpl_backend not in [
             'module://ipykernel.pylab.backend_inline',
