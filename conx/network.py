@@ -912,14 +912,48 @@ class Network():
         Normally, it will check training info to stop, unless you
         use_validation_to_stop = True.
 
-        >>> net = Network("Train Test", 1, 3, 1)
-        >>> net.compile(error="mse", optimizer="rmsprop")
-        >>> net.dataset.add([0.0], [1.0])
-        >>> net.dataset.add([1.0], [0.0])
-        >>> net.train()  # doctest: +ELLIPSIS
-        Evaluating initial training metrics...
-        Training...
-        ...
+        Arguments:
+            epochs (int): Maximum number of epochs (sweeps) through
+                training data.
+            accuracy (float): Value of correctness (0.0 - 1.0) to attain in
+                order to stop. Depends on tolerance to determine accuracy.
+            error (float): Error to attain in order to stop. Depends on error
+                function given in `Network.compile`.
+            batch_size (int): Size of batch to train on.
+            report_rate (int): Rate of feedback on learning, in epochs.
+            verbose (int): Level of feedback on training. verbose=0 gives no
+                feedback, but returns (epoch_count, result)
+            kverbose (int): Level of feedback from Keras.
+            shuffle (bool): Should the data be shuffled?
+            tolerance (float): The maximum difference between target and output
+                that should be considered correct.
+            class_weight (float):
+            sample_weight (float):
+            use_validation_to_stop (bool): If `True`, then accuracy and error will
+                use the validation set rather than the training set.
+            plot (bool): If `True`, then the feedback will be shown in graphical form.
+            record (int): If `record != 0`, the weights will be saved every record
+                number of epochs.
+            callbacks (list): A list of (str, function) where str is 'on_batch_begin',
+                'on_batch_end', 'on_epoch_begin', 'on_epoch_end', 'on_train_begin',
+                or 'on_train_end', and function takes a network, and other
+                parameters, depending on str.
+            save (bool): If `True`, then the network is saved at end, whether
+                interrupted or not.
+
+        Returns:
+            tuple: (epoch_count, result) if verbose == 0
+            None: if verbose != 0
+
+        Examples:
+            >>> net = Network("Train Test", 1, 3, 1)
+            >>> net.compile(error="mse", optimizer="rmsprop")
+            >>> net.dataset.add([0.0], [1.0])
+            >>> net.dataset.add([1.0], [0.0])
+            >>> net.train()  # doctest: +ELLIPSIS
+            Evaluating initial training metrics...
+            Training...
+            ...
         """
         self.train_options = {
             "epochs": epochs,
@@ -936,6 +970,7 @@ class Network():
             "plot": plot,
             "record": record,
             "callbacks": callbacks,
+            "save": save,
             }
         if plot:
             import matplotlib
@@ -2811,7 +2846,7 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         Pretty-format a vector. Returns string.
 
-        Parameters:
+        Arguments:
             vector (list): The first parameter.
             precision (int): Number of decimal places to show for each
                 value in vector.
