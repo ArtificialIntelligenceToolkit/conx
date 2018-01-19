@@ -34,6 +34,7 @@ import copy
 import sys
 import io
 import os
+import re
 from typing import Any
 
 import PIL
@@ -1850,13 +1851,14 @@ class Network():
         if len(self.history) == 0:
             print("No history available")
             return
+        available_metrics = self.get_metrics()
         if metrics is None:
             metrics = ['loss']
         elif metrics is '?':
-            print("Available metrics:", ", ".join(self.get_metrics()))
+            print("Available metrics:", ", ".join(available_metrics))
             return
         elif metrics == 'all':
-            metrics = self.get_metrics()
+            metrics = available_metrics
         elif isinstance(metrics, str):
             metrics = [metrics]
         elif isinstance(metrics, (list, tuple)):
@@ -1864,6 +1866,13 @@ class Network():
         else:
             print("metrics: expected a list or a string but got %s" % (metrics,))
             return
+        ## Check metrics, and expand regular expressions:
+        proposed_metrics = metrics
+        metrics = []
+        for metric in proposed_metrics:
+            for available_metric in available_metrics:
+                if re.match(metric, available_metric) is not None:
+                    metrics.append(available_metric)
         if fig_ax:
             fig, ax = fig_ax
         else:
