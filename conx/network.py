@@ -831,7 +831,10 @@ class Network():
         errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
         if visualize:
             if self.config["show_targets"]:
-                self.display_component([targets], "targets")
+                if len(self.output_bank_order) == 1:
+                    self.display_component([targets], "targets")
+                else:
+                    self.display_component(targets, "targets")
             if self.config["show_errors"]:
                 if len(self.output_bank_order) == 1:
                     self.display_component([errors], "errors", minmax=(-1, 1))

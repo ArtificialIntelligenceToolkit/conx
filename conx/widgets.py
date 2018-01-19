@@ -278,7 +278,10 @@ class Dashboard(VBox):
                     self.net.propagate_to_features(self.feature_bank.value, self.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
-                    self.net.display_component([self.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                    if len(self.net.output_bank_order) == 1:
+                        self.net.display_component([self.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                    else:
+                        self.net.display_component(self.dataset.train_targets[self.control_slider.value], "targets", minmax=(-1, 1))
                 if self.net.config["show_errors"]:
                     if len(self.net.output_bank_order) == 1:
                         errors = np.array(output) - np.array(self.dataset.train_targets[self.control_slider.value])
