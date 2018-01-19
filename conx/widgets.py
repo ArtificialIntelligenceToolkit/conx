@@ -280,8 +280,14 @@ class Dashboard(VBox):
                 if self.net.config["show_targets"]:
                     self.net.display_component([self.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
                 if self.net.config["show_errors"]:
-                    errors = np.array(output) - np.array(self.dataset.train_targets[self.control_slider.value])
-                    self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                    if len(self.net.output_bank_order) == 1:
+                        errors = np.array(output) - np.array(self.dataset.train_targets[self.control_slider.value])
+                        self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                    else:
+                        errors = []
+                        for bank in range(len(self.net.output_bank_order)):
+                            errors.append( np.array(output[bank]) - np.array(self.dataset.train_targets[self.control_slider.value][bank]))
+                        self.net.display_component(errors, "errors", minmax=(-1, 1))
             elif self.control_select.value == "Test" and len(self.dataset.test_targets) > 0:
                 self.total_text.value = "of %s" % len(self.dataset.test_inputs)
                 output = self.net.propagate(self.dataset.test_inputs[self.control_slider.value], visualize=True)
@@ -291,8 +297,14 @@ class Dashboard(VBox):
                 if self.net.config["show_targets"]:
                     self.net.display_component([self.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
                 if self.net.config["show_errors"]:
-                    errors = np.array(output) - np.array(self.dataset.test_targets[self.control_slider.value])
-                    self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                    if len(self.net.output_bank_order) == 1:
+                        errors = np.array(output) - np.array(self.dataset.test_targets[self.control_slider.value])
+                        self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                    else:
+                        errors = []
+                        for bank in range(len(self.net.output_bank_order)):
+                            errors.append( np.array(output[bank]) - np.array(self.dataset.test_targets[self.control_slider.value][bank]))
+                        self.net.display_component(errors, "errors", minmax=(-1, 1))
 
     def train_one(self, button):
         if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:

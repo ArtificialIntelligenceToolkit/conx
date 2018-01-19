@@ -153,9 +153,6 @@ class DataVector():
         [(2, 5)]
         >>> net.dataset.targets.shape
         [(784,)]
-        >>> net.dataset.targets.reshape(0, (28, 28, 1))
-        >>> net.dataset.targets.shape
-        [(28, 28, 1)]
         >>> net.dataset.targets.shape = (28 * 28,)
         >>> net.dataset.targets.shape
         [(784,)]
@@ -193,9 +190,6 @@ class DataVector():
         >>> net.dataset.add([0] * 10, [0] * 28 * 28)
         >>> net.dataset.targets.shape
         [(784,)]
-        >>> net.dataset.targets.reshape(0, (28, 28))
-        >>> net.dataset.targets.shape
-        [(28, 28)]
         >>> net.dataset.inputs.shape
         [(10,)]
         >>> net.dataset.inputs.reshape(0, (2, 5))
@@ -584,11 +578,11 @@ class Dataset():
         Can be called on the Dataset class.
 
         >>> len(Dataset.datasets())
-        6
+        7
 
         >>> ds = Dataset()
         >>> len(ds.datasets())
-        6
+        7
         """
         if self is None:
             self = Dataset()

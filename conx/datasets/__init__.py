@@ -10,3 +10,5 @@ from ._cifar100 import cifar100
 from .cmu_faces import cmu_faces_full_size
 from .cmu_faces import cmu_faces_half_size
 from .cmu_faces import cmu_faces_quarter_size
+
+from._gridfonts import gridfonts

@@ -831,9 +831,15 @@ class Network():
         errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
         if visualize:
             if self.config["show_targets"]:
-                self.display_component([targets], "targets") # FIXME: use output layers' minmax
+                self.display_component([targets], "targets")
             if self.config["show_errors"]:
-                self.display_component([errors], "errors", minmax=(-1, 1))
+                if len(self.output_bank_order) == 1:
+                    self.display_component([errors], "errors", minmax=(-1, 1))
+                else:
+                    errors = []
+                    for bank in range(len(self.output_bank_order)):
+                        errors.append( np.array(outputs[bank]) - np.array(targets[bank]))
+                    self.display_component(errors, "errors", minmax=(-1, 1))
         return (outputs, errors)
 
     def retrain(self, **overrides):
@@ -886,6 +892,12 @@ class Network():
         """
         Test the dataset ranges to see if in range of activation functions.
         """
+        if len(self.dataset.targets) == 0:
+            return # nothing to test
+        for index in range(len(self.dataset._targets)):
+            if len(self.dataset._targets[index].shape) > 2:
+                print("WARNING: network '%s' target bank #%s has a multi-dimensional shape, which is not allowed" %
+                      (self.name, index), file=sys.stderr)
         for index in range(len(self.output_bank_order)):
             layer_name = self.output_bank_order[index]
             if self[layer_name].activation == "linear":
