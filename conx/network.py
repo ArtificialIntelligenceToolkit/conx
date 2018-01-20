@@ -1600,7 +1600,7 @@ class Network():
                 # (x,y) corresponds to lower left corner point of pixel
                 x = xmin + xstep*col
                 y = ymin + ystep*row
-                vector = copy.copy(ovector)
+                vector = copy.deepcopy(ovector)
                 vector[ix] = x
                 vector[iy] = y
                 activations = self.propagate_from(from_layer, vector, to_layer, visualize=visualize)
