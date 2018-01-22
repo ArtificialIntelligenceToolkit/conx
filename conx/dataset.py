@@ -578,11 +578,11 @@ class Dataset():
         Can be called on the Dataset class.
 
         >>> len(Dataset.datasets())
-        7
+        8
 
         >>> ds = Dataset()
         >>> len(ds.datasets())
-        7
+        8
         """
         if self is None:
             self = Dataset()
