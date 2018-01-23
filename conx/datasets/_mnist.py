@@ -29,5 +29,15 @@ def mnist(dataset):
     labels = np.concatenate((y_train,y_test))
     targets = to_categorical(labels)
     labels = np.array([str(label) for label in labels], dtype=str)
-    dataset.load_direct([inputs], [targets], [labels])
+    dataset.name = "MNIST"
+    dataset.description = """
+Original source: http://yann.lecun.com/exdb/mnist/
 
+The MNIST database of handwritten digits, available from this page,
+has 70,000 examples. It is a subset of a larger set available from
+NIST. The digits have been size-normalized and centered in a
+fixed-size image.  It is a good database for people who want to try
+learning techniques and pattern recognition methods on real-world data
+while spending minimal efforts on preprocessing and formatting.
+"""
+    dataset.load_direct([inputs], [targets], [labels])

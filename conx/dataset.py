@@ -286,18 +286,31 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
-    def __init__(self, network=None,
+    def __init__(self,
+                 network=None,
+                 name=None,
+                 description=None,
                  default_inputs=None,
                  default_targets=None):
         """
-        Dataset constructor requires a network or (default_inputs and default_targets).
+        Dataset constructor.
 
-        defaults are given as a list of tuple shapes, one shape per bank.
+        You either:
+
+        * give a network
+        * give default_inputs and default_targets as list of shapes
+        * or assume that there are one input bank and one
+          target bank.
+
+        Defaults inputs and targets are given as a list of tuple shapes,
+        one shape per bank.
         """
+        self.network = network
+        self.name = name
+        self.description = description
         self.DATASETS = {name: function for (name, function) in
                          inspect.getmembers(conx.datasets, inspect.isfunction)}
         self.clear()
-        self.network = network
         if default_inputs is not None:
             self._default_inputs = default_inputs
         if default_targets is not None:
@@ -755,23 +768,41 @@ class Dataset():
         self._cache_values()
         print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
+    def _repr_markdown_(self):
+        return self.make_summary()
+
+    def __repr__(self):
+        return self.make_summary()
+
+    def make_summary(self):
+        retval = ""
+        if self.name is not None:
+            retval += "**Dataset name: %s**\n" % self.name
+        if self.description is not None:
+            retval += self.description
+            retval += "\n"
+        size, num_train, num_test = self._get_split_sizes()
+        retval += '**Dataset Split**:\n'
+        retval += '   * training  : %d\n' % (num_train,)
+        retval += '   * testing   : %d\n' % (num_test,)
+        retval += '   * total     : %d\n\n' % (size,)
+        retval += '**Input Summary**:\n'
+        if size != 0:
+            retval += '   * shape  : %s\n' % self.inputs.shape
+            retval += '   * range  : %s\n\n' % (self._inputs_range,)
+        retval += '**Target Summary**:\n'
+        if size != 0:
+            retval += '   * shape  : %s\n' % self.targets.shape
+            retval += '   * range  : %s\n\n' % (self._targets_range,)
+        if self.network:
+            self.network.test_dataset_ranges()
+        return retval
+
     def summary(self):
         """
         Print out a summary of the dataset.
         """
-        size, num_train, num_test = self._get_split_sizes()
-        print('Input Summary:')
-        print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
-        if size != 0:
-            print('   shape  : %s' % self.inputs.shape)
-            print('   range  : %s' % (self._inputs_range,))
-        print('Target Summary:')
-        print('   count  : %d (%d for training, %s for testing)' % (size, num_train, num_test))
-        if size != 0:
-            print('   shape  : %s' % self.targets.shape)
-            print('   range  : %s' % (self._targets_range,))
-        if self.network:
-            self.network.test_dataset_ranges()
+        return display(self)
 
     def rescale_inputs(self, bank_index, old_range, new_range, new_dtype):
         """

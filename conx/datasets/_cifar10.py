@@ -10,4 +10,16 @@ def cifar10(dataset):
     labels = np.array([str(label[0]) for label in labels], dtype=str)
     inputs = inputs.astype('float32')
     inputs /= 255
+    dataset.name = "CIFAR-10"
+    dataset.description = """
+Original source: https://www.cs.toronto.edu/~kriz/cifar.html
+
+The CIFAR-10 dataset consists of 60000 32x32 colour images in 10
+classes, with 6000 images per class.
+
+The classes are completely mutually exclusive. There is no overlap
+between automobiles and trucks. "Automobile" includes sedans, SUVs,
+things of that sort. "Truck" includes only big trucks. Neither
+includes pickup trucks.
+"""
     dataset.load_direct([inputs], [targets], [labels])

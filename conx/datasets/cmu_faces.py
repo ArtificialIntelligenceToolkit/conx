@@ -4,18 +4,30 @@ def cmu_faces_full_size(dataset, path="cmu_faces_full_size.npz"):
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_full_size.npz")
+    dataset.name = "CMU Faces, full-size"
+    dataset.description = """
+Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
+"""
     process_face_data(dataset, inputs, labels)
 
 def cmu_faces_quarter_size(dataset, path="cmu_faces_quarter_size.npz"):
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_quarter_size.npz")
+    dataset.name = "CMU Faces, quarter-size"
+    dataset.description = """
+Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
+"""
     process_face_data(dataset, inputs, labels)
 
 def cmu_faces_half_size(dataset, path="cmu_faces_half_size.npz"):
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_half_size.npz")
+    dataset.name = "CMU Faces, half-size"
+    dataset.description = """
+Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
+"""
     process_face_data(dataset, inputs, labels)
 
 def process_face_data(dataset, inputs, labels):
@@ -38,4 +50,3 @@ def create_pose_targets(labels):
     make_target_vector = lambda x: [int(x == name) for name in pose_names]
     poses = [s.split('_')[1] for s in labels]
     return np.array([make_target_vector(p) for p in poses]).astype('uint8')
-        
