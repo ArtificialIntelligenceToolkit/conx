@@ -1,6 +1,6 @@
 # Conx Neural Networks
 
-## The on-ramp to Deep Learning
+## The On-Ramp to Deep Learning
 
 Built in Python 3 on Keras 2.
 
@@ -42,7 +42,14 @@ Creates dynamic, rendered visualizations like this:
 
 `conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
 
-**Note**: you may need to use pip3, or admin privileges (eg, sudo), or a user environment.
+On Linux, you may need to install `libffi` and `libffi-dev` first. For example, on Ubuntu or other Debian-based system:
+
+```bash
+sudo apt install libffi-dev libffi6
+```
+Next, we use `pip` to install the Python packages. 
+
+**Note**: you may need to use `pip3`, or admin privileges (eg, sudo), or install into a user environment.
 
 ```bash
 pip install conx -U
@@ -54,7 +61,7 @@ You will need to decide whether to use Theano, TensorFlow, or CNTK. Pick one. Se
 pip install theano
 ```
 
-or
+**or**
 
 ```bash
 pip install tensorflow
