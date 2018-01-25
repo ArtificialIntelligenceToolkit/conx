@@ -38,6 +38,21 @@ ERROR_COLORMAP = "seismic_r"
 def set_colormap(s):
     """
     Set the global colormap for displaying all network activations.
+
+    Arguments:
+        s (str) - valid name of a matplotlib colormap.
+
+    See also:
+        AVAILABLE_COLORMAPS - complete list of valid colormap names
+
+    Examples:
+        >>> cm = get_colormap()
+        >>> set_colormap(AVAILABLE_COLORMAPS[0])
+        >>> cm != get_colormap()
+        True
+        >>> set_colormap(cm)
+        >>> cm == get_colormap()
+        True
     """
     global CURRENT_COLORMAP
     assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
@@ -46,6 +61,21 @@ def set_colormap(s):
 def set_error_colormap(s):
     """
     Set the error color map for display error values.
+
+    Arguments:
+        s (str) - valid name of a matplotlib colormap.
+
+    See also:
+        AVAILABLE_COLORMAPS - complete list of valid colormap names
+
+    Examples:
+        >>> cm = get_error_colormap()
+        >>> set_error_colormap(AVAILABLE_COLORMAPS[0])
+        >>> cm == get_error_colormap()
+        False
+        >>> set_error_colormap(cm)
+        >>> cm != get_error_colormap()
+        False
     """
     global ERROR_COLORMAP
     assert s in AVAILABLE_COLORMAPS, "Unknown colormap: %s" % s
@@ -54,12 +84,36 @@ def set_error_colormap(s):
 def get_error_colormap():
     """
     Get the global error colormap.
+
+    Returns:
+        The valid name of the global error colormap.
+
+    Examples:
+        >>> cm = get_error_colormap()
+        >>> set_error_colormap(AVAILABLE_COLORMAPS[0])
+        >>> cm != get_error_colormap()
+        True
+        >>> set_error_colormap(cm)
+        >>> cm == get_error_colormap()
+        True
     """
     return ERROR_COLORMAP
 
 def get_colormap():
     """
     Get the global colormap.
+
+    Returns:
+        The valid name of the global colormap.
+
+    Examples:
+        >>> cm = get_colormap()
+        >>> set_colormap(AVAILABLE_COLORMAPS[0])
+        >>> cm == get_colormap()
+        False
+        >>> set_colormap(cm)
+        >>> cm != get_colormap()
+        False
     """
     return CURRENT_COLORMAP
 
@@ -71,17 +125,28 @@ def choice(seq=None, p=None):
     Get a random choice from sequence, optionally given a probability
     distribution.
 
-    >>> choice(1)
-    0
+    Arguments:
+        seq - a list of choices, or None if choices are range(len(p))
+        p - a list of probabilities, or None if even chance
 
-    >>> choice([42])
-    42
+    Returns:
+        One of the choices, picked with given probabilty.
 
-    >>> choice("abcde", p=[0, 1, 0, 0, 0])
-    'b'
+    Examples:
+        >>> choice(1)
+        0
 
-    >>> choice(p=[0, 0, 1, 0, 0])
-    2
+        >>> choice([42])
+        42
+
+        >>> choice("abcde", p=[0, 1, 0, 0, 0])
+        'b'
+
+        >>> choice(p=[0, 0, 1, 0, 0])
+        2
+
+        >>> choice("aaaaa")
+        'a'
     """
     if seq is None and p is None:
         raise Exception("seq and p can't both be None")
@@ -104,17 +169,34 @@ def frange(start, stop=None, step=1.0):
 
     May not be exactly correct due to rounding issues.
 
-    >>> len(frange(-1, 1, .1))
-    20
+    Arguments:
+        start (float or int) - start of range, or stop of
+            if stop not given
+        stop (float, int, or None) - end of range or None, if
+            start is the stop of range
+        step (float) - the step size
+
+    Returns:
+        A list of floats.
+
+    Examples:
+        >>> len(frange(-1, 1, .1))
+        20
     """
     if stop is None:
         stop = start
         start = 0.0
-    return np.arange(start, stop, step)
+    return np.arange(start, stop, step).tolist()
 
 def argmax(seq):
     """
     Find the index of the maximum value in seq.
+
+    Arguments:
+        seq (list) - sequence of numbers
+
+    Returns:
+        The index of maximum value in list.
 
     >>> argmax([0.1, 0.2, 0.3, 0.1])
     2
@@ -123,18 +205,46 @@ def argmax(seq):
 
 def image2array(image):
     """
-    Convert an image filename or PIL.Image into a numpy array.
+    Convert an image filename or PIL.Image into a matrix (list of
+    lists).
+
+
+    >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
+    ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
+    >>> image = array2image(m)
+    >>> np.array(image).tolist()
+    [[[0, 255, 255], [255, 0, 0]], [[0, 255, 255], [255, 0, 0]]]
+    >>> image2array(image)
+    [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]], [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
+
     """
     if isinstance(image, str):
         image = PIL.Image.open(image)
-    return np.array(image, "float32") / 255.0
+    return (np.array(image, "float32") / 255.0).tolist()
 
-def array2image(array, scale=1.0):
+def array2image(array, scale=1.0, shape=None):
     """
-    Convert an array (with shape) to a PIL. Image.
+    Convert a matrix (with shape, or given shape) to a PIL.Image.
+
+    >>> m = [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]],
+    ...      [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
+    >>> image = array2image(m)
+    >>> np.array(image).tolist()
+    [[[255, 255, 255], [0, 0, 0]], [[0, 0, 0], [255, 255, 255]]]
+    >>> image2array(image)
+    [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
+
+    >>> m = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+    ...      0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+    >>> array2image(m, shape=(2, 2, 3))       # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGB size=2x2 at ...>
     """
     array = np.array(array) # let's make sure
     array =  (array * 255).astype("uint8")
+    if shape is not None:
+        array = array.reshape(shape)
+    if len(array.shape) == 3 and array.shape[-1] == 1:
+        array = array.reshape((array.shape[0], array.shape[1]))
     image = PIL.Image.fromarray(array)
     if scale != 1.0:
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
@@ -439,6 +549,12 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
          interactive=True, format='svg', xs=None):
     """
+    Create a line or scatter plot given the y-coordinates of a set of 
+    lines.
+
+    You may provide the x-coordinates if they are not linear starting
+    with 0.
+
     >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
     ...           ylabel="error",
     ...           xlabel="hello", interactive=False)
@@ -449,6 +565,7 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
     ...           xlabel="hello", interactive=False)
     >>> p
     <IPython.core.display.SVG object>
+
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
@@ -511,6 +628,8 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
 def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel="", ylabel="", title="",
             resolution=None, out_min=None, out_max=None, colormap=None, interactive=True, format='svg'):
     """
+    Create a heatmap plot given a matrix, or a function.
+
     >>> import math
     >>> def function(x, y):
     ...     return math.sqrt(x ** 2 + y ** 2)
