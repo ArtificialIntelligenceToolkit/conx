@@ -1045,9 +1045,32 @@ def get_shape(form):
     else:
         return (form, [0]) # scalar
 
+def reshape(matrix, new_shape):
+    """
+    Given a list of lists of ... and a new_shape, reformat the
+    matrix in the new shape.
+
+    >>> m = [[[1, 2, 3]], [[4, 5, 6]]]
+    >>> shape(m)
+    (2, 1, 3)
+    >>> m1 = reshape(m, 6)
+    >>> shape(m1)
+    (6,)
+    >>> m2 = reshape(m, (3, 2))
+    >>> shape(m2)
+    (3, 2)
+    >>> m2
+    [[1, 2], [3, 4], [5, 6]]
+    """
+    if isinstance(new_shape, int):
+        new_shape = (new_shape,)
+    matrix = np.array(matrix)
+    return matrix.reshape(new_shape).tolist()
+
 def shape(item):
     """
-    Shortcut for get_shape(get_form(item)).
+    Given a matrix or vector, return the shape as a tuple
+    of dimensions.
 
     >>> shape([1])
     (1,)
@@ -1069,6 +1092,9 @@ class Experiment():
     Run a series of experiments.
 
     function() should take any options, and return a network.
+
+    Arguments:
+        * name (str) - name of the experiment. Used in saving/loading
 
     >>> from conx import Network
     >>> def function(optimizer, activation, **options):
@@ -1099,12 +1125,50 @@ class Experiment():
         self.cache = {}
 
     def run(self, function, trials=1, dir="./", save=True, cache=False, **options):
-        """
-        Run a set of experiments, varying parameters.
+        """Run a set of experiments, varying parameters.
 
-        If save == True, then the networks will be saved to disk.
+        Arguments:
+            * function - callable that takes options, returns category (str) and a `Network`
+            * trials (int) - count to run this set of experiments
+            * dir (str) - directory to story results
+            * save (bool) - if True, then the networks will be saved to disk
+            * cache (bool) - if True, then the networks will be saved in memory
 
-        If cache == True, then the networks will be saved in memory.
+        The experiment name is compose of Experiment.name + trial
+        number + experiment number.  For example, the first experiment
+        in the below example is: "Test1-00001-00001".  The last
+        experiment is "Test1-00005-00002".
+
+        Experiment.cache is a dictionary mapping experiment name
+        (directory) to network for each experiment.
+
+        Experiment.results is a list of (category, name) for each experiment.
+
+        Example:
+            >>> from conx import Network
+            >>> net = Network("Sample - empty")
+            >>> exp = Experiment("Test1")
+            >>> exp.run(lambda var: (var, net),
+            ...         trials=5,
+            ...         save=False,
+            ...         cache=True,
+            ...         var=["OPTION1", "OPTION2"])
+            >>> len(exp.results) == 10
+            True
+            >>> len(exp.cache) == 10
+            True
+            >>> "./Test1-00001-00001" in exp.cache.keys()
+            True
+            >>> "./Test1-00005-00002" in exp.cache.keys()
+            True
+            >>> exp.results[0][0] == "OPTION1"
+            True
+            >>> exp.results[0][1] == "./Test1-00001-00001"
+            True
+            >>> exp.results[-1][1] == "./Test1-00005-00002"
+            True
+            >>> exp.results[-1][0] == "OPTION2"
+            True
         """
         options = sorted(options.items())
         keys = [option[0] for option in options]
