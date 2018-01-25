@@ -47,6 +47,10 @@ class DataVector():
         >>> net.compile(error="mse", optimizer="adam")
         >>> ds = net.dataset
         >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.split(1)
         >>> ds.inputs[0]
         [1.0, 2.0, 3.0]
         >>> ds.inputs[0][1]
@@ -55,25 +59,104 @@ class DataVector():
         [4.0, 5.0]
         >>> ds.targets[0][1]
         5.0
+        >>> ds.inputs[:] == [x for x in ds.inputs]
+        True
+        >>> ds.targets[:] == [x for x in ds.targets]
+        True
+        >>> ds.test_inputs[:] == [x for x in ds.test_inputs]
+        True
+        >>> ds.train_inputs[:] == [x for x in ds.train_inputs]
+        True
+        >>> ds.test_targets[:] == [x for x in ds.test_targets]
+        True
+        >>> ds.train_targets[:] == [x for x in ds.train_targets]
+        True
+
+        >>> ds = Dataset()
+        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.split(1)
+        >>> ds.inputs[0]
+        [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
+        >>> ds.inputs[0][1]
+        [1.0, 2.0, 3.0]
+        >>> ds.inputs[0][1][1]
+        2.0
+        >>> ds.targets[0]
+        [[4.0, 5.0], [4.0, 5.0]]
+        >>> ds.targets[0][1]
+        [4.0, 5.0]
+        >>> ds.targets[0][1][1]
+        5.0
+        >>> ds.inputs[:] == [x for x in ds.inputs]
+        True
+        >>> ds.targets[:] == [x for x in ds.targets]
+        True
+        >>> ds.test_inputs[:] == [x for x in ds.test_inputs]
+        True
+        >>> ds.train_inputs[:] == [x for x in ds.train_inputs]
+        True
+        >>> ds.test_targets[:] == [x for x in ds.test_targets]
+        True
+        >>> ds.train_targets[:] == [x for x in ds.train_targets]
+        True
         """
         if self.item == "targets":
-            return self.dataset._get_target(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_target(i) for i in
+                        range(len(self.dataset.targets))[pos]]
+            else:
+                return self.dataset._get_target(pos)
         elif self.item == "labels":
-            return self.dataset._get_label(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_label(i) for i in
+                        range(len(self.dataset.labels))[pos]]
+            else:
+                return self.dataset._get_label(pos)
         elif self.item == "test_labels":
-            return self.dataset._get_test_label(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_test_label(i) for i in
+                        range(len(self.dataset.test_labels))[pos]]
+            else:
+                return self.dataset._get_test_label(pos)
         elif self.item == "train_labels":
-            return self.dataset._get_train_label(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_train_label(i) for i in
+                        range(len(self.dataset.train_labels))[pos]]
+            else:
+                return self.dataset._get_train_label(pos)
         elif self.item == "inputs":
-            return self.dataset._get_input(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_input(i) for i in
+                        range(len(self.dataset.inputs))[pos]]
+            else:
+                return self.dataset._get_input(pos)
         elif self.item == "test_inputs":
-            return self.dataset._get_test_input(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_test_input(i) for i in
+                        range(len(self.dataset.test_inputs))[pos]]
+            else:
+                return self.dataset._get_test_input(pos)
         elif self.item == "train_inputs":
-            return self.dataset._get_train_input(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_train_input(i) for i in
+                        range(len(self.dataset.train_inputs))[pos]]
+            else:
+                return self.dataset._get_train_input(pos)
         elif self.item == "test_targets":
-            return self.dataset._get_test_target(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_test_target(i) for i in
+                        range(len(self.dataset.test_targets))[pos]]
+            else:
+                return self.dataset._get_test_target(pos)
         elif self.item == "train_targets":
-            return self.dataset._get_train_target(pos)
+            if isinstance(pos, slice):
+                return [self.dataset._get_train_target(i) for i in
+                        range(len(self.dataset.train_targets))[pos]]
+            else:
+                return self.dataset._get_train_target(pos)
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
@@ -909,13 +992,10 @@ class Dataset():
         format it in the human API.
         """
         size = self._get_size()
-        if isinstance(i, slice):
-            if not (i.start <= size and i.stop < size):
-                raise Exception("input slice %s is out of bounds" % (i,))
+        if not 0 <= i < size:
+            raise Exception("input index %d is out of bounds" % (i,))
         else:
-            if not 0 <= i < size:
-                raise Exception("input index %d is out of bounds" % (i,))
-        data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
+            data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
         if self._num_input_banks() == 1:
             return data[0]
         else:
@@ -927,12 +1007,8 @@ class Dataset():
         format it in the human API.
         """
         size = self._get_size()
-        if isinstance(i, slice):
-            if not (i.start <= size and i.stop < size):
-                raise Exception("target slice %s is out of bounds" % (i,))
-        else:
-            if not 0 <= i < size:
-                raise Exception("target index %d is out of bounds" % (i,))
+        if not 0 <= i < size:
+            raise Exception("target index %d is out of bounds" % (i,))
         data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
@@ -945,12 +1021,8 @@ class Dataset():
         format it in the human API.
         """
         size = self._get_size()
-        if isinstance(i, slice):
-            if i.start is not None and i.stop is not None and not (i.start <= size and i.stop < size):
-                raise Exception("label slice %s is out of bounds" % (i,))
-        else:
-            if not 0 <= i < size:
-                raise Exception("label index %d is out of bounds" % (i,))
+        if not 0 <= i < size:
+            raise Exception("label index %d is out of bounds" % (i,))
         data = [self._labels[b][i] for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
