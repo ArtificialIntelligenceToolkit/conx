@@ -546,9 +546,6 @@ class Dashboard(VBox):
         self.layer_feature.value = layer.feature
         self._ignore_layer_updates = False
 
-
-
-
 @register("CameraWidget")
 class CameraWidget(DOMWidget):
     """Represents a media source."""

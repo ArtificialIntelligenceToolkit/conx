@@ -107,21 +107,22 @@ def test_dataset2():
     net.dataset.slice(100)
     assert net is not None
 
-
-## FIXME: doesn't work
-# def test_images():
-#     net = Network("MNIST")
-#     net.load_mnist()
-#     net.add(Layer("input", shape=784, vshape=(28, 28), colormap="hot", minmax=(0,1)))
-#     net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-#     net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-#     net.add(Layer("output", shape=10, activation='softmax'))
-#     net.connect('input', 'hidden1')
-#     net.connect('hidden1', 'hidden2')
-#     net.connect('hidden2', 'output')
-#     net.compile(optimizer="adam", error="binary_crossentropy")
-#     svg = net.build_svg() ## FAIL!
-#     assert svg is not None
+def test_images():
+    net = Network("MNIST")
+    net.dataset.get("mnist")
+    assert net.dataset.inputs.shape == [(28,28,1)]
+    net.add(Layer("input", shape=(28, 28, 1), colormap="hot", minmax=(0,1)))
+    net.add(FlattenLayer("flatten"))
+    net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+    net.add(Layer("output", shape=10, activation='softmax'))
+    net.connect('input', 'flatten')
+    net.connect('flatten', 'hidden1')
+    net.connect('hidden1', 'hidden2')
+    net.connect('hidden2', 'output')
+    net.compile(optimizer="adam", error="binary_crossentropy")
+    svg = net.build_svg()
+    assert svg is not None
 
 def test_cifar10():
     """
@@ -153,7 +154,12 @@ def test_cifar10():
     net.compile(error='categorical_crossentropy',
                 optimizer=opt)
     net.dataset.get("cifar10")
-    net.dashboard()
+    widget = net.dashboard()
+    widget.goto("begin")
+    widget.goto("next")
+    widget.goto("end")
+    widget.goto("prev")
+    widget.prop_one()
     net.dataset.slice(10)
     net.dataset.shuffle()
     net.dataset.split(.5)
