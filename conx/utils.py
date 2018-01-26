@@ -27,6 +27,12 @@ import numpy as np
 from keras.utils import to_categorical
 import keras
 import matplotlib.pyplot as plt
+from urllib.parse import urlparse
+import requests
+import zipfile
+import tqdm
+import os
+import re
 
 #------------------------------------------------------------------------
 # configuration constants
@@ -119,6 +125,52 @@ def get_colormap():
 
 #------------------------------------------------------------------------
 # utility functions
+
+def download(url, directory="./", force=False):
+    """
+    Download a file into a local directory.
+
+    Arguments:
+        url (str) - the URL of file to download
+        directory (str) - directory to download file into
+        force (bool) - to force a new download
+
+    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md", "/tmp/testme", force=True) # doctest: +ELLIPSIS
+    Downloading ...
+    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md", "/tmp/testme") # doctest: +ELLIPSIS
+    Using cached ...
+    """
+    if not os.path.exists(directory) or force:
+        print("Downloading %s to '%s'..." % (url, directory))
+        os.makedirs(directory, exist_ok=True)
+        result = urlparse(url)
+        filename = result.path.split("/")[-1]
+        response = requests.get(url, stream=True)
+        total_length = response.headers.get('content-length')
+        bar = tqdm.tqdm_notebook(total=int(total_length))
+        file_path = os.path.join(directory, filename)
+        with open(file_path, 'wb') as f:
+            for data in response.iter_content(chunk_size=4096):
+                f.write(data)
+                bar.update(4096)
+        if file_path.endswith(".zip"):
+            zip_ref = zipfile.ZipFile(file_path, 'r')
+            zip_ref.extractall(directory)
+            print("Downloaded files available:")
+            for name in zip_ref.namelist():
+                print("    ", os.path.join(directory, name))
+            zip_ref.close()
+    else:
+        print("Using cached %s in '%s'..." % (url, directory))
+        result = urlparse(url)
+        filename = result.path.split("/")[-1]
+        file_path = os.path.join(directory, filename)
+        if file_path.endswith(".zip"):
+            print("Downloaded files available:")
+            zip_ref = zipfile.ZipFile(file_path, 'r')
+            for name in zip_ref.namelist():
+                print("    ", os.path.join(directory, name))
+    print("Done!")
 
 def choice(seq=None, p=None):
     """
