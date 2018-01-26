@@ -7,3 +7,5 @@ IPython
 h5py
 sklearn
 svgwrite
+tqdm
+requests
