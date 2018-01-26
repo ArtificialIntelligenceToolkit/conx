@@ -161,7 +161,6 @@ class Dashboard(VBox):
         self.player = _Player(self, play_rate)
         self.player.start()
         self.net = net
-        self.dataset = net.dataset
         self._width = width
         self._height = height
         ## Global widgets:
@@ -181,12 +180,12 @@ class Dashboard(VBox):
         super().__init__([config, controls, self.net_svg, self.output])
 
     def goto(self, position):
-        if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+        if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             return
         if self.control_select.value == "Train":
-            length = len(self.dataset.train_inputs)
+            length = len(self.net.dataset.train_inputs)
         elif self.control_select.value == "Test":
-            length = len(self.dataset.test_inputs)
+            length = len(self.net.dataset.test_inputs)
         #### Position it:
         if position == "begin":
             self.control_slider.value = 0
@@ -205,7 +204,7 @@ class Dashboard(VBox):
         self.position_text.value = self.control_slider.value
 
     def update_control_slider(self, change=None):
-        if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+        if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             self.total_text.value = "of 0"
             self.control_slider.value = 0
             self.position_text.value = 0
@@ -216,28 +215,28 @@ class Dashboard(VBox):
                     child.disabled = True
             return
         if self.control_select.value == "Test":
-            self.total_text.value = "of %s" % len(self.dataset.test_inputs)
-            minmax = (0, max(len(self.dataset.test_inputs) - 1, 0))
+            self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
+            minmax = (0, max(len(self.net.dataset.test_inputs) - 1, 0))
             if minmax[0] <= self.control_slider.value <= minmax[1]:
                 pass # ok
             else:
                 self.control_slider.value = 0
             self.control_slider.min = minmax[0]
             self.control_slider.max = minmax[1]
-            if len(self.dataset.test_inputs) == 0:
+            if len(self.net.dataset.test_inputs) == 0:
                 disabled = True
             else:
                 disabled = False
         elif self.control_select.value == "Train":
-            self.total_text.value = "of %s" % len(self.dataset.train_inputs)
-            minmax = (0, max(len(self.dataset.train_inputs) - 1, 0))
+            self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
+            minmax = (0, max(len(self.net.dataset.train_inputs) - 1, 0))
             if minmax[0] <= self.control_slider.value <= minmax[1]:
                 pass # ok
             else:
                 self.control_slider.value = 0
             self.control_slider.min = minmax[0]
             self.control_slider.max = minmax[1]
-            if len(self.dataset.train_inputs) == 0:
+            if len(self.net.dataset.train_inputs) == 0:
                 disabled = True
             else:
                 disabled = False
@@ -260,64 +259,64 @@ class Dashboard(VBox):
             self.control_slider.value = change["new"]["value"]
 
     def get_current_input(self):
-        if self.control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-            return self.dataset.train_inputs[self.control_slider.value]
-        elif self.control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-            return self.dataset.test_inputs[self.control_slider.value]
+        if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
+            return self.net.dataset.train_inputs[self.control_slider.value]
+        elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
+            return self.net.dataset.test_inputs[self.control_slider.value]
 
     def update_slider_control(self, change):
-        if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+        if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             self.total_text.value = "of 0"
             return
         if change["name"] == "value":
             self.position_text.value = self.control_slider.value
-            if self.control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-                self.total_text.value = "of %s" % len(self.dataset.train_inputs)
-                output = self.net.propagate(self.dataset.train_inputs[self.control_slider.value], visualize=True)
+            if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
+                self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
+                output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value], visualize=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
-                    self.net.propagate_to_features(self.feature_bank.value, self.dataset.train_inputs[self.control_slider.value],
+                    self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
                     if len(self.net.output_bank_order) == 1:
-                        self.net.display_component([self.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                        self.net.display_component([self.net.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
                     else:
-                        self.net.display_component(self.dataset.train_targets[self.control_slider.value], "targets", minmax=(-1, 1))
+                        self.net.display_component(self.net.dataset.train_targets[self.control_slider.value], "targets", minmax=(-1, 1))
                 if self.net.config["show_errors"]:
                     if len(self.net.output_bank_order) == 1:
-                        errors = np.array(output) - np.array(self.dataset.train_targets[self.control_slider.value])
+                        errors = np.array(output) - np.array(self.net.dataset.train_targets[self.control_slider.value])
                         self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
                     else:
                         errors = []
                         for bank in range(len(self.net.output_bank_order)):
-                            errors.append( np.array(output[bank]) - np.array(self.dataset.train_targets[self.control_slider.value][bank]))
+                            errors.append( np.array(output[bank]) - np.array(self.net.dataset.train_targets[self.control_slider.value][bank]))
                         self.net.display_component(errors, "errors", minmax=(-1, 1))
-            elif self.control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-                self.total_text.value = "of %s" % len(self.dataset.test_inputs)
-                output = self.net.propagate(self.dataset.test_inputs[self.control_slider.value], visualize=True)
+            elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
+                self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
+                output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value], visualize=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
-                    self.net.propagate_to_features(self.feature_bank.value, self.dataset.test_inputs[self.control_slider.value],
+                    self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.test_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
-                    self.net.display_component([self.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                    self.net.display_component([self.net.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
                 if self.net.config["show_errors"]:
                     if len(self.net.output_bank_order) == 1:
-                        errors = np.array(output) - np.array(self.dataset.test_targets[self.control_slider.value])
+                        errors = np.array(output) - np.array(self.net.dataset.test_targets[self.control_slider.value])
                         self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
                     else:
                         errors = []
                         for bank in range(len(self.net.output_bank_order)):
-                            errors.append( np.array(output[bank]) - np.array(self.dataset.test_targets[self.control_slider.value][bank]))
+                            errors.append( np.array(output[bank]) - np.array(self.net.dataset.test_targets[self.control_slider.value][bank]))
                         self.net.display_component(errors, "errors", minmax=(-1, 1))
 
     def train_one(self, button):
-        if len(self.dataset.inputs) == 0 or len(self.dataset.targets) == 0:
+        if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             return
-        if self.control_select.value == "Train" and len(self.dataset.train_targets) > 0:
-            outputs = self.train_one(self.dataset.train_inputs[self.control_slider.value],
-                                     self.dataset.train_targets[self.control_slider.value])
-        elif self.control_select.value == "Test" and len(self.dataset.test_targets) > 0:
-            outputs = self.train_one(self.dataset.test_inputs[self.control_slider.value],
-                                     self.dataset.test_targets[self.control_slider.value])
+        if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
+            outputs = self.train_one(self.net.dataset.train_inputs[self.control_slider.value],
+                                     self.net.dataset.train_targets[self.control_slider.value])
+        elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
+            outputs = self.train_one(self.net.dataset.test_inputs[self.control_slider.value],
+                                     self.net.dataset.test_targets[self.control_slider.value])
 
     def toggle_play(self, button):
         ## toggle
@@ -399,14 +398,14 @@ class Dashboard(VBox):
             self.button_play,
             refresh_button
         ], layout=Layout(width='100%', height="50px"))
-        length = (len(self.dataset.train_inputs) - 1) if len(self.dataset.train_inputs) > 0 else 0
+        length = (len(self.net.dataset.train_inputs) - 1) if len(self.net.dataset.train_inputs) > 0 else 0
         self.control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
                                    min=0,
                                    max=max(length, 0),
                                    value=0,
                                    layout=Layout(width='100%'))
-        self.total_text = Label(value="of %s" % len(self.dataset.train_inputs), layout=Layout(width="100px"))
+        self.total_text = Label(value="of %s" % len(self.net.dataset.train_inputs), layout=Layout(width="100px"))
         self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
                                   value=self.net.config["svg_height"]/780.0)
 

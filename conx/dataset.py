@@ -208,7 +208,7 @@ class DataVector():
             if len(self.dataset.targets) > 0:
                 return self.dataset._targets[bank_index].shape[1:]
             else:
-                return self.dataset._default_targets[bank_index]
+                return self.dataset._target_shapes[bank_index]
         elif self.item in ["inputs", "test_inputs", "train_inputs"]:
             if bank_index is None:
                 return [self.get_shape(i) for i in range(self.dataset._num_input_banks())]
@@ -217,7 +217,7 @@ class DataVector():
             if len(self.dataset.inputs) > 0:
                 return self.dataset._inputs[bank_index].shape[1:]
             else:
-                return self.dataset._default_targets[bank_index]
+                return self.dataset._target_shapes[bank_index]
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
@@ -373,15 +373,15 @@ class Dataset():
                  network=None,
                  name=None,
                  description=None,
-                 default_inputs=None,
-                 default_targets=None):
+                 input_shapes=None,
+                 target_shapes=None):
         """
         Dataset constructor.
 
         You either:
 
         * give a network
-        * give default_inputs and default_targets as list of shapes
+        * give input_shapes and target_shapes as list of shapes
         * or assume that there are one input bank and one
           target bank.
 
@@ -394,10 +394,10 @@ class Dataset():
         self.DATASETS = {name: function for (name, function) in
                          inspect.getmembers(conx.datasets, inspect.isfunction)}
         self.clear()
-        if default_inputs is not None:
-            self._default_inputs = default_inputs
-        if default_targets is not None:
-            self._default_targets = default_targets
+        if input_shapes is not None:
+            self._input_shapes = input_shapes
+        if target_shapes is not None:
+            self._target_shapes = target_shapes
 
     def __getattr__(self, item):
         """
@@ -443,7 +443,7 @@ class Dataset():
                     shape = self.network[layer_name].shape
                     inputs.append(np.random.rand(*shape) * diff + frange[0])
             else:
-                for shape in self._default_inputs:
+                for shape in self._input_shapes:
                     inputs.append(np.random.rand(*shape) * diff + frange[0])
         ## targets:
         targets = []
@@ -453,7 +453,7 @@ class Dataset():
                     shape = self.network[layer_name].shape
                     targets.append(np.random.rand(*shape) * diff + frange[0])
             else:
-                for shape in self._default_targets:
+                for shape in self._target_shapes:
                     targets.append(np.random.rand(*shape) * diff + frange[0])
         self.load(list(zip(inputs, targets)))
 
@@ -466,8 +466,8 @@ class Dataset():
         self._labels = []
         self._targets_range = []
         self._split = 0
-        self._default_inputs = [(None,)]
-        self._default_targets = [(None,)]
+        self._input_shapes = [(None,)]
+        self._target_shapes = [(None,)]
 
     def add(self, inputs, targets):
         """
@@ -764,9 +764,9 @@ class Dataset():
             self._targets_range = []
         ## Set shape cache:
         if len(self._inputs) > 0:
-            self._default_inputs = [x[0].shape for x in self._inputs]
+            self._input_shapes = [x[0].shape for x in self._inputs]
         if len(self._targets) > 0:
-            self._default_targets = [x[0].shape for x in self._targets]
+            self._target_shapes = [x[0].shape for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
             raise Exception("WARNING: inputs/targets lengths do not match")
@@ -860,7 +860,7 @@ class Dataset():
     def make_summary(self):
         retval = ""
         if self.name is not None:
-            retval += "**Dataset name: %s**\n" % self.name
+            retval += "**Dataset name**: %s\n\n" % self.name
         if self.description is not None:
             retval += self.description
             retval += "\n"
@@ -1127,7 +1127,7 @@ class Dataset():
         if self.network and self.network.num_input_layers != 0 :
             return self.network.num_input_layers
         else:
-            return len(self._default_inputs)
+            return len(self._input_shapes)
 
     def _num_target_banks(self):
         """
@@ -1139,7 +1139,7 @@ class Dataset():
         if self.network and self.network.num_target_layers:
             return self.network.num_target_layers
         else:
-            return len(self._default_targets)
+            return len(self._target_shapes)
 
     def _get_size(self):
         """

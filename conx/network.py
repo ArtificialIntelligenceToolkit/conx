@@ -2174,7 +2174,7 @@ class Network():
                 vshape = layer.get_output_shape()
             if vshape is None:
                 vshape = (1,)
-            t = max(vshape)
+            t = max([(x if x is not None else 0) for x in vshape])
             if max_vshape is None:
                 if t != 1:
                     max_vshape = t

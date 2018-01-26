@@ -8,21 +8,23 @@ Examples
    XOR
    ActivationFunctions
    Datasets
+   Plotting
    Autoencoder
    MNIST
    Predicting and Generating Texts
    Face recognition
+   RecommendingMovies
    LSTM
    CIFAR10_CNN
-   WorkingWithKeras
+   Gridfonts
    Camera
-   Plotting
    Robot Simulation
+   Extrapolation1
+   VisionQuest
    DeepDreams
    Auto-encoder with Conv2D
    Experiments
    MakingMovies
    PCA
    Under The Hood
-   VisionQuest
-   Extrapolation1
+   WorkingWithKeras
