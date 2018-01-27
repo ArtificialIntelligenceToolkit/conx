@@ -57,6 +57,39 @@ class _Player(threading.Thread):
         self.can_run.set()
 
 class SequenceViewer(VBox):
+    """
+    SequenceViewer
+
+    Arguments:
+        title (str) - Title of sequence
+        function (callable) - takes an index 0 to length - 1. Function should
+            a displayable or list of displayables
+        length (int) - total number of frames in sequence
+        play_rate (float) - seconds to wait between frames when auto-playing.
+            Optional. Default is 0.5 seconds.
+
+    >>> ## For testing:
+    >>> class Dummy:
+    ...     def update(self, result):
+    ...         return result
+    >>> def function(index):
+    ...     return ["dummy"]
+    >>> sv = SequenceViewer("Title", function, 10)
+    >>> ## Do this manually for testing:
+    >>> sv.initialize()
+    dummy
+    >>> ## Testing:
+    >>> sv.displayers = [Dummy()]
+    >>> print("Testing"); sv.goto("begin") # doctest: +ELLIPSIS
+    Testing...
+    >>> print("Testing"); sv.goto("end") # doctest: +ELLIPSIS
+    Testing...
+    >>> print("Testing"); sv.goto("prev") # doctest: +ELLIPSIS
+    Testing...
+    >>> print("Testing"); sv.goto("next") # doctest: +ELLIPSIS
+    Testing...
+
+    """
     def __init__(self, title, function, length, play_rate=0.5):
         self.player = _Player(self, play_rate)
         self.player.start()
@@ -308,16 +341,6 @@ class Dashboard(VBox):
                             errors.append( np.array(output[bank]) - np.array(self.net.dataset.test_targets[self.control_slider.value][bank]))
                         self.net.display_component(errors, "errors", minmax=(-1, 1))
 
-    def train_one(self, button):
-        if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
-            return
-        if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
-            outputs = self.train_one(self.net.dataset.train_inputs[self.control_slider.value],
-                                     self.net.dataset.train_targets[self.control_slider.value])
-        elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
-            outputs = self.train_one(self.net.dataset.test_inputs[self.control_slider.value],
-                                     self.net.dataset.test_targets[self.control_slider.value])
-
     def toggle_play(self, button):
         ## toggle
         if self.button_play.description == "Play":
@@ -547,7 +570,12 @@ class Dashboard(VBox):
 
 @register("CameraWidget")
 class CameraWidget(DOMWidget):
-    """Represents a media source."""
+    """
+    Represents a media source.
+
+    >>> cam = CameraWidget()
+    <IPython.core.display.Javascript object>
+    """
     _view_module = Unicode('camera').tag(sync=True)
     _view_name = Unicode('CameraView').tag(sync=True)
     _model_module = Unicode('camera').tag(sync=True)
