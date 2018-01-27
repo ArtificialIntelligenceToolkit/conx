@@ -265,38 +265,6 @@ class DataVector():
             raise Exception("unknown vector: %s" % (self.item,))
         self.dataset._cache_values()
 
-    def flatten(self, bank_index=None):
-        """
-        >>> from conx import Network
-        >>> net = Network("Test 2", 10, 2, 3, 28 * 28)
-        >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add([0] * 10, [0] * 28 * 28)
-        >>> net.dataset.targets.shape
-        [(784,)]
-        >>> net.dataset.inputs.shape
-        [(10,)]
-        >>> net.dataset.inputs.reshape(0, (2, 5))
-        >>> net.dataset.inputs.shape
-        [(2, 5)]
-        """
-        if self.item == "targets":
-            if bank_index is None: # flatten all
-                self.dataset._targets = [[c.flatten() for c in row] for row in self.dataset._targets]
-            else:
-                self.dataset._targets[bank_index] = self.dataset._targets[bank_index].flatten()
-        elif self.item == "inputs":
-            if bank_index is None:
-                self.dataset._inputs = [[c.flatten() for c in row] for row in self.dataset._inputs]
-            else:
-                self.dataset._inputs[bank_index] = self.dataset._inputs[bank_index].flatten()
-        elif self.item in ["test_targets", "train_targets"]:
-            raise Exception("unable to flatten vector '%s';  call dataset.targets.flatten(), and re-split" % (self.item,))
-        elif self.item in ["test_inputs", "train_inputs"]:
-            raise Exception("unable to flatten vector '%s'; call dataset.inputs.flatten(), and re-split" % (self.item,))
-        else:
-            raise Exception("unknown vector: %s" % (self.item,))
-        self.dataset._cache_values()
-
     def __len__(self):
         """
         >>> from conx import Network

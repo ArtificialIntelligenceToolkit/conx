@@ -1334,6 +1334,8 @@ class Network():
         >>> len(net.propagate({"input": [1, 1]}))
         5
         """
+        if self.model is None:
+            raise Exception("Need to compile network first")
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -1674,7 +1676,7 @@ class Network():
             print(s)
 
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
-                           cmap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
+                           colormap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
                            interactive=True, format="svg"):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
         or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
@@ -1734,7 +1736,7 @@ class Network():
             raise Exception("wrange: expected a pair of numbers but got %s" % (wrange,))
         else: # wrange overrides provided wmin/wmax values
             wmin, wmax = wrange
-            return self.plot_layer_weights(layer_name, units, None, wmin, wmax, cmap, vshape,
+            return self.plot_layer_weights(layer_name, units, None, wmin, wmax, colormap, vshape,
                                            cbar, ticks, figsize)
         if wmin >= wmax:
             raise Exception("specified weight range is empty")
@@ -1750,7 +1752,7 @@ class Network():
             ax.axis('off')
             ax.set_title('weights to %s[%d]' % (layer_name, unit))
             im = scaled_W[unit,:].reshape((rows, cols))
-            axim = ax.imshow(im, cmap=cmap, vmin=0, vmax=1)
+            axim = ax.imshow(im, cmap=colormap, vmin=0, vmax=1)
         if cbar:
             tick_locations = np.linspace(0, 1, ticks)
             tick_values = tick_locations * (wmax - wmin) + wmin
@@ -2163,27 +2165,15 @@ class Network():
             data = data.decode("latin1")
         return "data:image/gif;base64,%s" % html.escape(data)
 
-    def _max_vshape(self):
+    def vshape(self, layer_name):
         """
-        Find the max vshape of all layers.
+        Find the vshape of layer.
         """
-        max_vshape = None
-        for layer in self.layers:
-            vshape = layer.vshape if layer.vshape else layer.shape if layer.shape else None
-            if vshape is None:
-                vshape = layer.get_output_shape()
-            if vshape is None:
-                vshape = (1,)
-            t = max([(x if x is not None else 0) for x in vshape])
-            if max_vshape is None:
-                if t != 1:
-                    max_vshape = t
-            elif t > max_vshape and t != 1:
-                max_vshape = t
-        if max_vshape is None:
-            return 2
-        else:
-            return max(max_vshape, 2)
+        layer = self[layer_name]
+        vshape = layer.vshape if layer.vshape else layer.shape if layer.shape else None
+        if vshape is None:
+            vshape = layer.get_output_shape()
+        return vshape
 
     def build_struct(self, inputs, class_id, config):
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
@@ -2218,7 +2208,6 @@ class Network():
                     image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
-                max_dim = max(width, height)
                 ### Layer settings:
                 if self[layer_name].image_maxdim:
                     image_maxdim = self[layer_name].image_maxdim
@@ -2229,25 +2218,38 @@ class Network():
                 else:
                     image_pixels_per_unit = config["image_pixels_per_unit"]
                 ## First, try based on shape:
-                pwidth, pheight = np.array(image.size) * image_pixels_per_unit
-                if self[layer_name].shape == (1,):
-                    divisor = self._max_vshape() # min dim of all layers
-                    width = image_maxdim/divisor
-                    height = image_maxdim/divisor
-                    ## make sure not too small:
-                    while width < 25:
-                        divisor -= 1
-                        width = image_maxdim/divisor
-                        height = image_maxdim/divisor
-                else:
-                    if max(pwidth, pheight) < image_maxdim:
-                        width, height = pwidth, pheight
+                #pwidth, pheight = np.array(image.size) * image_pixels_per_unit
+
+                vshape = self.vshape(layer_name)
+                if len(vshape) is None:
+                    pass # leave it define by image
+                elif len(vshape) == 1:
+                    if vshape[0] is not None:
+                        width = vshape[0] * image_pixels_per_unit
+                        height = image_pixels_per_unit
+                elif len(vshape) >= 2:
+                    if vshape[0] is not None:
+                        height = vshape[0] * image_pixels_per_unit
+                        if vshape[1] is not None:
+                            width = vshape[1] * image_pixels_per_unit
                     else:
-                        width, height = (int(width/max_dim * image_maxdim),
-                                         int(height/max_dim * image_maxdim))
-                # make sure not too small:
-                if min(width, height) < 25:
-                    width, height = (image_maxdim, 25)
+                        if len(vshape) > 2:
+                            if vshape[1] is not None:
+                                height = vshape[1] * image_pixels_per_unit
+                                width = vshape[2] * image_pixels_per_unit
+                        elif vshape[1] is not None: # flatten
+                            width = vshape[1] * image_pixels_per_unit
+                            height = image_pixels_per_unit
+                ## make sure not too small:
+                if width < image_pixels_per_unit:
+                    width = image_pixels_per_unit
+                if height < image_pixels_per_unit:
+                    height = image_pixels_per_unit
+                ## make sure not too big:
+                if height > image_maxdim:
+                    height = image_maxdim
+                if width > image_maxdim:
+                    width = image_maxdim
                 image_dims[layer_name] = (width, height)
                 total_width += width + config["hspace"] # space between
                 max_height = max(max_height, height)
