@@ -126,7 +126,7 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
-def download(url, directory="./", force=False):
+def download(url, directory="./", force=False, unzip=True):
     """
     Download a file into a local directory.
 
@@ -134,43 +134,61 @@ def download(url, directory="./", force=False):
         url (str) - the URL of file to download
         directory (str) - directory to download file into
         force (bool) - to force a new download
+        unzip (bool) - unzip .zip file; use unzip=True with force=True to re-unzip
 
-    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md", "/tmp/testme", force=True) # doctest: +ELLIPSIS
+    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md",
+    ...          "/tmp/testme", force=True) # doctest: +ELLIPSIS
     Downloading ...
-    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md", "/tmp/testme") # doctest: +ELLIPSIS
+    >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md",
+    ...          "/tmp/testme") # doctest: +ELLIPSIS
     Using cached ...
     """
-    if not os.path.exists(directory) or force:
-        print("Downloading %s to '%s'..." % (url, directory))
+    result = urlparse(url)
+    filename = result.path.split("/")[-1]
+    file_path = os.path.join(directory, filename)
+    ## First, download the file:
+    if not os.path.isfile(file_path) or force:
+        print("Downloading %s to '%s'..." % (url, file_path))
         os.makedirs(directory, exist_ok=True)
-        result = urlparse(url)
-        filename = result.path.split("/")[-1]
         response = requests.get(url, stream=True)
         total_length = response.headers.get('content-length')
         bar = tqdm.tqdm_notebook(total=int(total_length))
-        file_path = os.path.join(directory, filename)
         with open(file_path, 'wb') as f:
             for data in response.iter_content(chunk_size=4096):
                 f.write(data)
                 bar.update(4096)
-        if file_path.endswith(".zip"):
-            zip_ref = zipfile.ZipFile(file_path, 'r')
-            zip_ref.extractall(directory)
-            print("Downloaded files available:")
-            for name in zip_ref.namelist():
-                print("    ", os.path.join(directory, name))
-            zip_ref.close()
+        print("Done!")
     else:
-        print("Using cached %s in '%s'..." % (url, directory))
-        result = urlparse(url)
-        filename = result.path.split("/")[-1]
-        file_path = os.path.join(directory, filename)
-        if file_path.endswith(".zip"):
-            print("Downloaded files available:")
-            zip_ref = zipfile.ZipFile(file_path, 'r')
+        print("Using cached %s as '%s'." % (url, file_path))
+    ## Now, if it is a zip file, check to unzip:
+    if file_path.endswith(".zip") and os.path.isfile(file_path):
+        zip_ref = zipfile.ZipFile(file_path, 'r')
+        # first, count existing unzipped files:
+        total_count = 0
+        for name in zip_ref.namelist():
+            total_count += 1
+        # next, report existing:
+        if unzip:
+            print("Unzipping files...")
             for name in zip_ref.namelist():
-                print("    ", os.path.join(directory, name))
-    print("Done!")
+                name_path = os.path.join(directory, name)
+                if not os.path.exists(name_path) or force:
+                    zip_ref.extract(name, directory)
+            print ("Done!")
+        else:
+            print("Not unzipping files.")
+        print("Items available from downloaded zip file:")
+        exist_count = 0
+        for name in zip_ref.namelist():
+            name_path = os.path.join(directory, name)
+            if os.path.exists(name_path):
+                print("    ", name_path)
+                exist_count += 1
+        print("Available: %s of %s." % (exist_count, total_count))
+        if exist_count != total_count:
+            print("Deleted: %s. Use download(..., unzip=True) restore them" %
+                  (total_count - exist_count,))
+        zip_ref.close()
 
 def choice(seq=None, p=None):
     """
@@ -601,7 +619,7 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
          interactive=True, format='svg', xs=None):
     """
-    Create a line or scatter plot given the y-coordinates of a set of 
+    Create a line or scatter plot given the y-coordinates of a set of
     lines.
 
     You may provide the x-coordinates if they are not linear starting
