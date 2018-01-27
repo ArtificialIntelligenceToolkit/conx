@@ -73,11 +73,11 @@ class SequenceViewer(VBox):
     ...     def update(self, result):
     ...         return result
     >>> def function(index):
-    ...     return ["dummy"]
+    ...     return [None]
     >>> sv = SequenceViewer("Title", function, 10)
     >>> ## Do this manually for testing:
     >>> sv.initialize()
-    dummy
+    None
     >>> ## Testing:
     >>> sv.displayers = [Dummy()]
     >>> print("Testing"); sv.goto("begin") # doctest: +ELLIPSIS
