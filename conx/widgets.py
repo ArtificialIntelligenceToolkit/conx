@@ -68,10 +68,6 @@ class SequenceViewer(VBox):
         play_rate (float) - seconds to wait between frames when auto-playing.
             Optional. Default is 0.5 seconds.
 
-    >>> ## For testing:
-    >>> class Dummy:
-    ...     def update(self, result):
-    ...         return result
     >>> def function(index):
     ...     return [None]
     >>> sv = SequenceViewer("Title", function, 10)
@@ -79,6 +75,9 @@ class SequenceViewer(VBox):
     >>> sv.initialize()
     None
     >>> ## Testing:
+    >>> class Dummy:
+    ...     def update(self, result):
+    ...         return result
     >>> sv.displayers = [Dummy()]
     >>> print("Testing"); sv.goto("begin") # doctest: +ELLIPSIS
     Testing...

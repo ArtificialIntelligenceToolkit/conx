@@ -403,7 +403,28 @@ class Network():
         """
         Playback a function over the set of recorded weights.
 
-        function has signature: function(network, epoch)
+        function has signature: function(network, epoch) and returns
+           a displayable, or list of displayables.
+
+        Example:
+        >>> net = Network("Playback Test", 2, 2, 1, activation="sigmoid")
+        >>> net.compile(error="mse", optimizer="sgd")
+        >>> net.dataset.load([
+        ...                   [[0, 0], [0]],
+        ...                   [[0, 1], [1]],
+        ...                   [[1, 0], [1]],
+        ...                   [[1, 1], [0]]])
+        >>> results = net.train(10, record=True, verbose=0)
+        >>> def function(network, epoch):
+        ...     return None
+        >>> sv = net.playback(function)
+        >>> ## Testing:
+        >>> class Dummy:
+        ...     def update(self, result):
+        ...         return result
+        >>> sv.displayers = [Dummy()]
+        >>> print("Testing"); sv.goto("end") # doctest: +ELLIPSIS
+        Testing...
         """
         from .widgets import SequenceViewer
         if len(self.weight_history) == 0:
@@ -677,6 +698,38 @@ class Network():
               tolerance=None, force=False,
               show_inputs=True, show_outputs=True,
               filter="all", interactive=True):
+        """
+
+        >>> net = Network("Playback Test", 2, 2, 1, activation="sigmoid")
+        >>> net.compile(error="mse", optimizer="sgd")
+        >>> net.dataset.load([
+        ...                   [[0, 0], [0]],
+        ...                   [[0, 1], [1]],
+        ...                   [[1, 0], [1]],
+        ...                   [[1, 1], [0]]])
+        >>> array = net.to_array()
+        >>> net.from_array(np.zeros(len(array)))  ## Zero-out weights
+        >>> net._test(net.dataset._inputs, net.dataset._targets, "TEST")
+        ========================================================
+        Testing TEST with tolerance None...
+        Total count: 4
+              correct: 0
+              incorrect: 4
+        Total percentage correct: 0.0
+        >>> net._test(net.dataset._inputs, net.dataset._targets, "TEST", show=True)
+        ========================================================
+        Testing TEST with tolerance None...
+        # | inputs | targets | outputs | result
+        ---------------------------------------
+        0 | [[0.00,0.00]] | [[0.00]] | [0.50] | X
+        1 | [[0.00,1.00]] | [[1.00]] | [0.50] | X
+        2 | [[1.00,0.00]] | [[1.00]] | [0.50] | X
+        3 | [[1.00,1.00]] | [[0.00]] | [0.50] | X
+        Total count: 4
+              correct: 0
+              incorrect: 4
+        Total percentage correct: 0.0
+        """
         if interactive:
             print("=" * 56)
             print("Testing %s with tolerance %.6s..." % (dataset, tolerance))
