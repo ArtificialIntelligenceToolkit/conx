@@ -501,6 +501,15 @@ class Network():
             opts["svg_height"] = height
         return HTML(self.build_svg(class_id=class_id, inputs=inputs, opts=opts))
 
+    def render(self, height="780px", opts={}):
+        """
+        Render the network as an SVG image.
+        """
+        from IPython.display import HTML
+        if height is not None:
+            opts["svg_height"] = height
+        return HTML(self.build_svg(opts=opts))
+
     def in_console(self, mpl_backend: str) -> bool:
         """
         Return True if running connected to a console; False if connected
@@ -2256,7 +2265,10 @@ class Network():
                         in_layer = [layer for layer in self.layers if layer.kind() == "input"][0]
                         v = in_layer.make_dummy_vector()
                 if self[layer_name].model:
-                    image = self.propagate_to_image(layer_name, v)
+                    try:
+                        image = self.propagate_to_image(layer_name, v)
+                    except:
+                        image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 else:
                     image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 (width, height) = image.size

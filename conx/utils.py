@@ -536,16 +536,37 @@ def import_keras_model(model, network_name):
             #clayer.params = layer.get_config()
             clayer.k = clayer.make_input_layer_k()
             clayer.keras_layer = clayer.k
+        elif clayer_class.__name__ in ["DenseLayer", "Dense", "Layer"]:
+            config = layer.get_config()
+            for key in list(config.keys()):
+                if isinstance(config[key], dict):
+                    del config[key]
+            shape = config["units"]
+            del config["units"]
+            name = config["name"]
+            del config["name"]
+            clayer = clayer_class(name, shape, **config)
+            clayer.k = layer
+            clayer.keras_layer = layer
         else:
-            clayer = clayer_class(**layer.get_config())
+            config = layer.get_config()
+            for key in list(config.keys()):
+                if isinstance(config[key], dict):
+                    del config[key]
+            clayer = clayer_class(**config)
             clayer.k = layer
             clayer.keras_layer = layer
         network.add(clayer)
     # Next, connect them up:
     for layer_from in model.layers:
-        for node in layer.outbound_nodes:
-            network.connect(layer_from, node.outbound_layer.name)
-            print("connecting:", layer_from, node.outbound_layer.name)
+        if hasattr(layer, "outbound_nodes"):
+            for node in layer.outbound_nodes:
+                network.connect(layer_from, node.outbound_layer.name)
+                print("connecting:", layer_from, node.outbound_layer.name)
+        elif hasattr(layer, "_outbound_nodes"):
+            for node in layer._outbound_nodes:
+                network.connect(layer_from, node.outbound_layer.name)
+                print("connecting:", layer_from, node.outbound_layer.name)
     # Connect them all up, and set input banks:
     network.connect()
     for clayer in network.layers:
