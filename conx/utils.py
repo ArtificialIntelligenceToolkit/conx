@@ -666,6 +666,124 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
         else:
             raise Exception("format must be 'svg' or 'pil'")
 
+def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="",
+           ylabel="", zlabel="", title="", label="", symbols=None,
+           default_symbol=None, ymin=None, xmin=None, ymax=None,
+           xmax=None, interactive=True, format='svg', colormap=None,
+           linewidth=0, antialiased=False, mode="surface"):
+    """
+    function is a function(x,y) or list of ["Label", [(x,y,z)]].
+
+    Arguments:
+        mode (str) - "surface", "wireframe", "scatter"
+        function (list or callable) - function is a list of
+            ["Label", [(x,y,z)]], or a function(x,y) that
+            returns z
+
+    >>> plot3D([["Test1", [[0, 0, 1], [0, 1, 0]]]], mode="scatter",
+    ...        interactive=False)
+    <IPython.core.display.SVG object>
+
+    >>> plot3D((lambda x,y: x ** 2 + y ** 2),
+    ...        (-1,1,.1), (-1,1,.1),
+    ...        mode="surface",
+    ...        interactive=False)
+    <IPython.core.display.SVG object>
+
+    >>> plot3D((lambda x,y: x ** 2 + y ** 2),
+    ...        (-1,1,.1), (-1,1,.1),
+    ...        mode="wireframe",
+    ...        interactive=False)
+    <IPython.core.display.SVG object>
+    """
+    ## needed to get 3d projection:
+    from mpl_toolkits.mplot3d import Axes3D
+    if plt is None:
+        raise Exception("matplotlib was not loaded")
+    set_plt_param('figure.figsize', (width, height))
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    # Plot the surface.
+    if mode == "surface" or mode == "wireframe":
+        X = frange(*x_range)
+        Y = frange(*y_range)
+        X, Y  = np.meshgrid(X, Y)
+        Z = np.zeros(X.shape)
+        for i in range(len(X)):
+            for j in range(len(X[0])):
+                Z[i][j] = function(X[i][j], Y[i][j])
+        if mode == "surface":
+            kwargs = {}
+            ax.plot_surface(X, Y, Z, cmap=colormap,
+                            linewidth=linewidth,
+                            antialiased=antialiased, **kwargs)
+        elif mode == "wireframe":
+            kwargs = {}
+            if label:
+                kwargs["label"] = label
+            ax.plot_wireframe(X, Y, Z, linewidth=linewidth, **kwargs)
+            if label:
+                ax.legend()
+    elif mode == "scatter":
+        any_label = False
+        for data_label, data in function:
+            kwargs = {}
+            args = []
+            if label:
+                kwargs["label"] = label
+                any_label = True
+            elif data_label:
+                kwargs["label"] = data_label
+                any_label = True
+            symbol = get_symbol(kwargs.get("label", None), symbols, default_symbol)
+            if symbol:
+                args.append(symbol)
+            X = [d[0] for d in data]
+            Y = [d[1] for d in data]
+            Z = [d[2] for d in data]
+            ax.scatter(X, Y, Z, *args, **kwargs)
+        if any_label:
+            ax.legend()
+    else:
+        raise Exception("invalid mode")
+    if xlabel:
+        plt.xlabel(xlabel)
+    if zlabel:
+        ax.set_zlabel(zlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    if title:
+        plt.title(title)
+    if ymin is not None:
+        plt.ylim(ymin=ymin)
+    if ymax is not None:
+        plt.ylim(ymax=ymax)
+    if xmin is not None:
+        plt.xlim(xmin=xmin)
+    if xmax is not None:
+        plt.xlim(xmax=xmax)
+    if interactive:
+        plt.show(block=False)
+        result = None
+    else:
+        from IPython.display import SVG
+        bytes = io.BytesIO()
+        if format == "svg":
+            plt.savefig(bytes, format="svg")
+            plt.close(fig)
+            img_bytes = bytes.getvalue()
+            result = SVG(img_bytes.decode())
+        elif format == "pil":
+            plt.savefig(bytes, format="png")
+            plt.close(fig)
+            bytes.seek(0)
+            pil_image = PIL.Image.open(bytes)
+            result = pil_image
+        else:
+            raise Exception("format must be 'svg' or 'pil'")
+    reset_plt_param('figure.figsize')
+    return result
+
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
          interactive=True, format='svg', xs=None):
