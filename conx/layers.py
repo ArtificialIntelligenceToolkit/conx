@@ -32,6 +32,7 @@ import sys
 import inspect
 import html
 import copy
+import sys
 import re
 import os
 
@@ -42,6 +43,7 @@ from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nad
                               TFOptimizer)
 
 from .utils import *
+from .utils import _ItemSummary
 
 #------------------------------------------------------------------------
 ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
@@ -185,13 +187,29 @@ class _BaseLayer():
 
     def summary(self):
         """
+        Print out a summary of the network.
+        """
+        return _ItemSummary(self)
+
+    def print_summary(self, fp=sys.stdout):
+        """
         Print out a representation of the layer.
         """
-        print("    Layer name: '%s' (%s)" % (self.name, self.kind()))
-        print("        VShape:", self.vshape)
-        print("        Dropout:", self.dropout)
+        print("    * **Layer name**             : '%s' (%s)" % (self.name, self.kind()), file=fp)
+        if self.vshape:
+            print("        * **Visual shape**       :", self.vshape, file=fp)
+        if self.dropout:
+            print("        * **Dropout percent**    :", self.dropout, file=fp)
         if len(self.outgoing_connections) > 0:
-            print("        Connected to:", [layer.name for layer in self.outgoing_connections])
+            print("        * **Connected to**       :", ", ".join(
+                [repr(layer.name) for layer in self.outgoing_connections]), file=fp)
+        if self.keras_layer:
+            print("        * **Parameters**         : {:,}".format(self.keras_layer.count_params()), file=fp)
+            try:
+                output_shape = self.keras_layer.output_shape
+            except AttributeError:
+                output_shape = 'multiple'
+            print("        * **Output shape**       :", output_shape, file=fp)
 
     def kind(self):
         """
@@ -489,13 +507,15 @@ class Layer(_BaseLayer):
         return "<Layer name='%s', shape=%s, act='%s'>" % (
             self.name, self.shape, self.activation)
 
-    def summary(self):
+    def print_summary(self, fp=sys.stdout):
         """
         Print a summary of the dense/input layer.
         """
-        super().summary()
-        print("        Activation function:", self.activation)
-        print("        Dropout percent:", self.dropout)
+        super().print_summary(fp)
+        if self.activation:
+            print("        * **Activation function**:", self.activation, file=fp)
+        if self.dropout:
+            print("        * **Dropout percent**    :", self.dropout, file=fp)
 
     def make_keras_function(self):
         """

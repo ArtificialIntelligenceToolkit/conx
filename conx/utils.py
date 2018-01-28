@@ -124,7 +124,37 @@ def get_colormap():
     return CURRENT_COLORMAP
 
 #------------------------------------------------------------------------
+# utility classes
+
+class _ItemSummary():
+    def __init__(self, item):
+        self.item = item
+
+    def __repr__(self):
+        fp = io.StringIO()
+        self.item.print_summary(fp)
+        return fp.getvalue()
+
+    def _repr_markdown_(self):
+        fp = io.StringIO()
+        self.item.print_summary(fp)
+        return fp.getvalue()
+
+#------------------------------------------------------------------------
 # utility functions
+
+def count_params(weights):
+    """
+    Count the total number of scalars composing the weights.
+
+    Arguments
+        weights: An iterable containing the weights on which to compute params
+
+    Returns:
+        The total number of scalars composing the weights
+    """
+    import keras.backend as K
+    return int(np.sum([K.count_params(p) for p in set(weights)]))
 
 def download(url, directory="./", force=False, unzip=True):
     """
