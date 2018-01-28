@@ -1378,7 +1378,7 @@ class Network():
                    if layer_name == layer.name][0]
         return [m.tolist() for m in weights]
 
-    def propagate(self, input, batch_size=32, visualize=False):
+    def propagate(self, input, batch_size=32, visualize=False, raw=False):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
@@ -1404,13 +1404,17 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
-        if self.num_input_layers == 1:
+        if raw:
+            outputs = self.model.predict(np.array(input), batch_size=batch_size)
+        elif self.num_input_layers == 1:
             outputs = self.model.predict(np.array([input]), batch_size=batch_size)
         else:
             inputs = [np.array([x], "float32") for x in input]
             outputs = self.model.predict(inputs, batch_size=batch_size)
         ## Shape the outputs:
-        if self.num_target_layers == 1:
+        if raw:
+            pass
+        elif self.num_target_layers == 1:
             shape = self[self.output_bank_order[0]].shape
             try:
                 outputs = outputs[0].reshape(shape).tolist()
@@ -1423,10 +1427,11 @@ class Network():
         if visualize:
             for layer in self.layers:
                 if layer.visible and layer.model:
-                    self.propagate_to(layer.name, input, batch_size, visualize=visualize)
+                    self.propagate_to(layer.name, input, batch_size, visualize=visualize, raw=raw)
         return outputs
 
-    def propagate_from(self, layer_name, input, output_layer_names=None, batch_size=32, visualize=False):
+    def propagate_from(self, layer_name, input, output_layer_names=None,
+                       batch_size=32, visualize=False, raw=False):
         """
         Propagate activations from the given layer name to the output layers.
         """
@@ -1463,7 +1468,10 @@ class Network():
                                                                                            outputs=k)
             # Now we should be able to get the prop_from model:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
-            inputs = np.array([input])
+            if raw:
+                pass
+            else:
+                inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
             ## FYI: outputs not shaped
         if visualize:
@@ -1480,7 +1488,9 @@ class Network():
                         image = layer.make_image(vector, config=self.config)
                         data_uri = self._image_to_uri(image)
                         self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
-        if len(output_layer_names) == 1:
+        if raw:
+            return outputs
+        elif len(output_layer_names) == 1:
             return outputs[0]
         else:
             return outputs
@@ -1504,9 +1514,16 @@ class Network():
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
-    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=False):
+    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=False, raw=False):
         """
         Computes activation at a layer. Side-effect: updates visualized SVG.
+
+        Arguments:
+            layer_name (str) - name of layer to propagate activations to
+            inputs - list of numbers, vector to propagate
+            batch_size (int) - size of batch
+            visualize (bool) - send images to notebook SVG images
+            raw (bool) - if True, don't process inputs or outputs
         """
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
@@ -1516,7 +1533,9 @@ class Network():
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
             inputs = image2array(inputs)
-        if self.num_input_layers == 1:
+        if raw:
+            outputs = self[layer_name].model.predict(np.array(inputs), batch_size=batch_size)
+        elif self.num_input_layers == 1:
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
         else:
             # get just inputs for this layer, in order:
@@ -1532,11 +1551,13 @@ class Network():
             if self._comm.kernel:
                 for layer in self.layers:
                     if layer.visible and layer.model is not None:
-                        out = self.propagate_to(layer.name, inputs) # recursive, but no visualize here, just activations
+                        out = self.propagate_to(layer.name, inputs, raw=raw) # recursive, but no visualize here, just activations
                         image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
                         data_uri = self._image_to_uri(image)
                         self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
+        if raw:
+            return outputs
         shape = self[layer_name].shape
         if shape and all([isinstance(v, numbers.Integral) for v in shape]):
             try:
@@ -1553,7 +1574,7 @@ class Network():
 
 
     def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
-                              html=True, size=None, display=True, visualize=False):
+                              html=True, size=None, display=True, visualize=False, raw=False):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1571,7 +1592,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize)
+                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1591,7 +1612,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize)
+                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1607,7 +1628,7 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           visualize=False):
+                           visualize=False, raw=False):
         """
         Gets an image of activations at a layer.
         """
@@ -1617,7 +1638,7 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
-        outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize)
+        outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize, raw=raw)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
         if resize is not None:
