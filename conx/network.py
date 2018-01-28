@@ -211,16 +211,22 @@ class Network():
 
         >>> net = Network("XOR2")
         >>> net.add(Layer("input", 2))
+        'input'
         >>> net.add(Layer("hidden", 5))
+        'hidden'
         >>> net.add(Layer("output", 2))
+        'output'
         >>> net.connect()
         >>> len(net.layers)
         3
 
         >>> net = Network("XOR3")
         >>> net.add(Layer("input", 2))
+        'input'
         >>> net.add(Layer("hidden", 5))
+        'hidden'
         >>> net.add(Layer("output", 2))
+        'output'
         >>> net.connect("input", "hidden")
         >>> net.connect("hidden", "output")
         >>> len(net.layers)
@@ -546,16 +552,23 @@ class Network():
         Arguments:
             layer: A layer instance.
 
+        Returns:
+            layer_name (str) - name of layer added
+
         Examples:
             >>> net = Network("XOR2")
             >>> net.add(Layer("input", 2))
+            'input'
             >>> len(net.layers)
             1
 
             >>> net = Network("XOR3")
             >>> net.add(Layer("input", 2))
+            'input'
             >>> net.add(Layer("hidden", 5))
+            'hidden'
             >>> net.add(Layer("output", 2))
+            'output'
             >>> len(net.layers)
             3
 
@@ -564,8 +577,18 @@ class Network():
         """
         if layer.name in self.layer_dict:
             raise Exception("duplicate layer name '%s'" % layer.name)
+        ## Automatic layer naming by pattern:
+        if "%d" in layer.name:
+            layer_names = [layer.name for layer in self.layers]
+            i = 1
+            while (layer.name % i) in layer_names:
+                i += 1
+            layer.name = layer.name % i
+            if hasattr(layer, "params") and "name" in layer.params:
+                layer.params["name"] = layer.name
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
+        return layer.name
 
     def connect(self, from_layer_name : str=None, to_layer_name : str=None):
         """
@@ -584,8 +607,11 @@ class Network():
         Examples:
             >>> net = Network("XOR2")
             >>> net.add(Layer("input", 2))
+            'input'
             >>> net.add(Layer("hidden", 5))
+            'hidden'
             >>> net.add(Layer("output", 2))
+            'output'
             >>> net.connect()
             >>> [layer.name for layer in net["input"].outgoing_connections]
             ['hidden']
@@ -848,13 +874,20 @@ class Network():
 
             >>> from conx import Network, Layer, SGD, Dataset
             >>> net = Network("XOR2")
-            >>> net.add(Layer("input1", shape=1))
-            >>> net.add(Layer("input2", shape=1))
-            >>> net.add(Layer("hidden1", shape=2, activation="sigmoid"))
-            >>> net.add(Layer("hidden2", shape=2, activation="sigmoid"))
+            >>> net.add(Layer("input%d", shape=1))
+            'input1'
+            >>> net.add(Layer("input%d", shape=1))
+            'input2'
+            >>> net.add(Layer("hidden%d", shape=2, activation="sigmoid"))
+            'hidden1'
+            >>> net.add(Layer("hidden%d", shape=2, activation="sigmoid"))
+            'hidden2'
             >>> net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
-            >>> net.add(Layer("output1", shape=1, activation="sigmoid"))
-            >>> net.add(Layer("output2", shape=1, activation="sigmoid"))
+            'shared-hidden'
+            >>> net.add(Layer("output%d", shape=1, activation="sigmoid"))
+            'output1'
+            >>> net.add(Layer("output%d", shape=1, activation="sigmoid"))
+            'output2'
             >>> net.connect("input1", "hidden1")
             >>> net.connect("input2", "hidden2")
             >>> net.connect("hidden1", "shared-hidden")
@@ -2180,9 +2213,12 @@ class Network():
                     if self.debug: print("single input", layer.incoming_connections[0])
                     k = layer.incoming_connections[0].k
                     layer.input_names = layer.incoming_connections[0].input_names
-                else: # multiple inputs, need to merge
+                else: # multiple inputs, some type of merge:
                     if self.debug: print("Merge detected!", [l.name for l in layer.incoming_connections])
-                    k = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
+                    if layer.handle_merge:
+                        k = layer.make_keras_function()
+                    else:
+                        k = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
                     # flatten:
                     layer.input_names = [item for sublist in
                                          [incoming.input_names for incoming in layer.incoming_connections]

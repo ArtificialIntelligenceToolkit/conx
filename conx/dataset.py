@@ -174,8 +174,11 @@ class DataVector():
         >>> from conx import Network, Layer
         >>> net = Network("Get Shape")
         >>> net.add(Layer("input1", 5))
+        'input1'
         >>> net.add(Layer("input2", 6))
+        'input2'
         >>> net.add(Layer("output", 3))
+        'output'
         >>> net.connect("input1", "output")
         >>> net.connect("input2", "output")
         >>> net.compile(optimizer="adam", error="mse")

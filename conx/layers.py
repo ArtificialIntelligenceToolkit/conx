@@ -92,6 +92,7 @@ class _BaseLayer():
         self.name = name
         self.params = params
         self.args = args
+        self.handle_merge = False
         params["name"] = name
         self.shape = None
         self.vshape = None
@@ -456,8 +457,11 @@ class Layer(_BaseLayer):
         >>> from conx import Network
         >>> net = Network("XOR2")
         >>> net.add(Layer("input", 2))
+        'input'
         >>> net.add(Layer("hidden", 5))
+        'hidden'
         >>> net.add(Layer("output", 2))
+        'output'
         >>> net.connect()
         >>> net["input"].kind()
         'input'
@@ -572,6 +576,40 @@ class ImageLayer(Layer):
                           self.depth)
         return PIL.Image.fromarray(v)
 
+class AddLayer(_BaseLayer):
+    """
+    A class to connect to for <adding networks together.
+    """
+    def __init__(self, name, **params):
+        _state = {
+            "class": "AddLayer",
+            "name": name,
+            "params": copy.copy(params),
+        }
+        super().__init__(name)
+        self._state = _state
+        self.handle_merge = True
+        self.layers = []
+
+    def __repr__(self):
+        return "<AddLayer name='%s'>" % (self.name,)
+
+    def make_keras_functions(self):
+        return [lambda k: k]
+
+    def make_keras_function(self):
+        from keras.layers import Add as KerasAdd
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return KerasAdd(**self.params)(layers)
+
+    def on_connect(self, relation, other_layer):
+        """
+        relation is "to"/"from" indicating which layer self is.
+        """
+        if relation == "to":
+            ## other_layer must be an Input layer
+            self.layers.append(other_layer)
+
 class EmbeddingLayer(Layer):
     """
     A class for embeddings. WIP.
@@ -631,7 +669,7 @@ def process_class_docstring(docstring):
 ## Al of these will have _BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
-    if name in ["Embedding", "Input", "Dense", "TimeDistributed"]: continue
+    if name in ["Embedding", "Input", "Dense", "TimeDistributed", "Add"]: continue
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         docstring = obj.__doc__
