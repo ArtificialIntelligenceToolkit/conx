@@ -580,21 +580,23 @@ class AddLayer(_BaseLayer):
     """
     A class to connect to for <adding networks together.
     """
+    CLASS = keras.layers.Add
     def __init__(self, name, **params):
+        self.layers = []
         _state = {
             "class": "AddLayer",
             "name": name,
+            "layers": self.layers,
             "params": copy.copy(params),
         }
         super().__init__(name)
         self._state = _state
         self.handle_merge = True
-        self.layers = []
-
-    def __repr__(self):
-        return "<AddLayer name='%s'>" % (self.name,)
 
     def make_keras_functions(self):
+        """
+        This keras function just returns the Tensor.
+        """
         return [lambda k: k]
 
     def make_keras_function(self):

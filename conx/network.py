@@ -1596,12 +1596,11 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             # Update path from input to output
             if self._comm.kernel:
-                for layer in self.layers:
-                    if layer.visible and layer.model is not None:
-                        out = self.propagate_to(layer.name, inputs, raw=raw) # recursive, but no visualize here, just activations
-                        image = self[layer.name].make_image(np.array(out), config=self.config) # single vector, as an np.array
-                        data_uri = self._image_to_uri(image)
-                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                layer = self[layer_name]
+                if layer.visible and layer.model is not None:
+                    image = self[layer.name].make_image(np.array(outputs), config=self.config) # single vector, as an np.array
+                    data_uri = self._image_to_uri(image)
+                    self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
         if raw:
             return outputs
