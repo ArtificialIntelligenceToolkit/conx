@@ -9,3 +9,4 @@ sklearn
 svgwrite
 tqdm
 requests
+pydot

@@ -18,3 +18,4 @@ jupyter_sphinx
 sphinxcontrib-napoleon
 recommonmark
 metakernel
+pydot
