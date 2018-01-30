@@ -1598,7 +1598,7 @@ class Network():
             if self._comm.kernel:
                 layer = self[layer_name]
                 if layer.visible and layer.model is not None:
-                    image = self[layer.name].make_image(np.array(outputs), config=self.config) # single vector, as an np.array
+                    image = self.propagate_to_image(layer_name, inputs, raw=raw)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
