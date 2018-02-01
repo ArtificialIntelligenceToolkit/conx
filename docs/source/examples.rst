@@ -16,6 +16,7 @@ Examples
    RecommendingMovies
    LSTM
    CIFAR10_CNN
+   AlphaZero
    Gridfonts
    Camera
    Robot Simulation
