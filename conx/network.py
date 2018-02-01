@@ -938,7 +938,12 @@ class Network():
         ## history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, visualize=visualize)
-        errors = (np.array(outputs) - np.array(targets)).tolist() # FYI: multi outputs
+        if len(self.output_bank_order) == 1:
+            errors = (np.array(outputs) - np.array(targets)).tolist()
+        else:
+            errors = []
+            for bank in range(len(self.output_bank_order)):
+                errors.append((np.array(outputs[bank]) - np.array(targets[bank])).tolist())
         if visualize:
             if self.config["show_targets"]:
                 if len(self.output_bank_order) == 1:
