@@ -3023,6 +3023,33 @@ require(['base/js/namespace'], function(Jupyter) {
             separator=",",
             max_line_width=79).replace("\n", "")
 
+    def get_weights(self):
+        """
+        Get the weights from the model.
+        Return as a list.
+
+        >>> net = Network("Weight Get Test", 2, 2, 1, activation="sigmoid")
+        >>> net.compile(error="mse", optimizer="sgd")
+        >>> len(net.get_weights())
+        3
+        """
+        weights = []
+        for i in range(len(self.model.layers)):
+            w = self.model.layers[i].get_weights()
+            weights.append(w)
+        return weights
+
+    def set_weights(self, weights):
+        """
+        Set the model's weights.
+
+        >>> net = Network("Weight Set Test", 2, 2, 1, activation="sigmoid")
+        >>> net.compile(error="mse", optimizer="sgd")
+        >>> net.set_weights(net.get_weights())
+        """
+        for i in range(len(self.model.layers)):
+            self.model.layers[i].set_weights(weights[i])
+
     def to_array(self) -> list:
         """
         Get the weights of a network as a flat, one-dimensional list.
