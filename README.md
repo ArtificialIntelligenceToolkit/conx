@@ -97,7 +97,7 @@ sudo yum install ffmpeg
 
 ## Troubleshooting
 
-1. If you have a problem after installing matplotlib with pip, and you already have matplotlib install (say, with apt) remove the apt installed version.
+1. If you have a problem after installing matplotlib with pip, and you already have matplotlib installed (say, with apt) you may want to remove the apt-installed version of matplotlib.
 
 ## Use with Jupyter Notebooks
 
