@@ -23,9 +23,8 @@ manipulating a set of inputs/targets.
 """
 
 import numpy as np
-import copy
-import numbers
-import inspect
+import copy, numbers, inspect, sys
+from IPython.display import display
 
 from .utils import *
 import conx.datasets
@@ -885,9 +884,9 @@ class Dataset():
         if len(self._labels) != 0:
             self._labels = [self._labels[b][permutation] for b in range(self._num_target_banks())]
 
-    def split(self, split=0.50):
-        """Splits the inputs/targets into training and validation sets. The
-        split keyword parameter specifies what portion of the dataset
+    def split(self, split=None):
+        """Splits the inputs/targets into training and validation sets.
+        The split keyword parameter specifies what portion of the dataset
         to use for validation. It can be a fraction in the range
         [0,1), or an integer number of patterns from 0 to the dataset
         size, or 'all'. For example, a split of 0.25 reserves the last
@@ -896,6 +895,9 @@ class Dataset():
         case in which the entire dataset is used for both training and
         validation.
         """
+        if split is None:
+            size, num_train, num_test = self._get_split_sizes()
+            return (num_train, num_test)
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
         if split == 'all':
@@ -935,27 +937,43 @@ class Dataset():
             test_targets.append(targets[size - num_test:])
         return (train_inputs, train_targets), (test_inputs, test_targets)
 
-    def chop(self, retain=0.5):
-        """Chop off the inputs/targets and reset split, test data. Retains
-        only the specified portion of the original dataset patterns,
-        starting from the beginning. retain can be a fraction in the
-        range 0-1, or an integer number of patterns to retain.
+    def chop(self, amount):
+        """Chop off the specified amount of input and target patterns from the
+        dataset, starting from the end. Amount can be a fraction in the range
+        0-1, or an integer number of patterns to drop.
+        >>> dataset = Dataset()
+        >>> dataset.get("mnist")
+        >>> len(dataset)
+        70000
+        >>> dataset.chop(10000)
+        >>> len(dataset)
+        60000
+        >>> dataset.split(0.25)
+        >>> dataset.split()
+        (45000, 15000)
+        >>> dataset.chop(0.10)
+        >>> dataset.split()
+        (54000, 0)
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
-        if isinstance(retain, numbers.Integral):
-            if not 0 <= retain <= len(self.inputs):
-                raise Exception("out of range: %d" % retain)
-        elif isinstance(retain, numbers.Real):
-            if not 0.0 <= retain <= 1.0:
-                raise Exception("not in the interval [0,1]: %s" % retain)
-            retain = int(len(self.inputs) * retain)
+        if isinstance(amount, numbers.Integral):
+            if not 0 <= amount < len(self.inputs):
+                raise Exception("out of range: %d" % amount)
+        elif isinstance(amount, numbers.Real):
+            if not 0 <= amount < 1:
+                raise Exception("not in the interval [0,1): %s" % amount)
+            amount = int(len(self.inputs) * amount)
         else:
-            raise Exception("invalid value: %s" % retain)
-        self._inputs = [self._inputs[b][:retain] for b in range(self._num_input_banks())]
-        self._targets = [self._targets[b][:retain] for b in range(self._num_target_banks())]
+            raise Exception("invalid value: %s" % (amount,))
+        new_size = self._get_size() - amount
+        self._inputs = [self._inputs[b][:new_size] for b in range(self._num_input_banks())]
+        self._targets = [self._targets[b][:new_size] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
-            self._labels = [self._labels[b][:retain] for b in range(self._num_target_banks())]
+            self._labels = [self._labels[b][:new_size] for b in range(self._num_target_banks())]
+        if self._split > 0:
+            print("Warning: dataset split reset to 0", file=sys.stderr)
+        self._split = 0
 
     def _get_input(self, i):
         """
