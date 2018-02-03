@@ -339,8 +339,6 @@ class Network():
             "outgoing_connections": {layer.name: [layer2.name for layer2 in layer.outgoing_connections]
                                      for layer in self.layers},
             "config": self.config,
-            "compiled": self.model is not None,
-            "compile_options": self.compile_options,
         }
 
     def __setstate__(self, state):
@@ -352,8 +350,6 @@ class Network():
         for layer_from in self.layers:
             for layer_to in state["outgoing_connections"][layer_from.name]:
                 self.connect(layer_from.name, layer_to)
-        if state["compiled"]:
-            self.compile(**state["compile_options"])
 
     def _get_tolerance(self):
         return K.get_value(self._tolerance)
