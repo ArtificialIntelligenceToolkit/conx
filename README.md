@@ -40,6 +40,8 @@ Creates dynamic, rendered visualizations like this:
 
 ## Install
 
+Rather than installing conx, consider using our [mybinder](https://mybinder.org/v2/gh/Calysto/conx/master?filepath=binder%2Findex.ipynb) in-the-cloud version. Availability may be limited due to demand.
+
 `conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
 
 On Linux, you may need to install `libffi` and `libffi-dev` first. For example, on Ubuntu or other Debian-based system:
@@ -93,7 +95,11 @@ sudo apt install ffmpeg
 sudo yum install ffmpeg
 ```
 
-### Use with Jupyter Notebooks
+## Troubleshooting
+
+1. If you have a problem after installing matplotlib with pip, and you already have matplotlib install (say, with apt) remove the apt installed version.
+
+## Use with Jupyter Notebooks
 
 To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
 
@@ -128,11 +134,4 @@ To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.
 ## Examples
 
 See the [notebooks folder](https://github.com/Calysto/conx/tree/master/notebooks) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
-
-## Differences with Keras
-
-1. Conx does not allow targets to be a single value. Keras will
-automatically turn single values into a onehot encoded vectors. In
-conx, you should just convert such "labels" into their encodings
-before training.
 
