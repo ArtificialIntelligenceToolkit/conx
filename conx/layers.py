@@ -142,7 +142,14 @@ class _BaseLayer():
             self.visible = visible
 
         if 'colormap' in params:
-            self.colormap = params['colormap']
+            if isinstance(colormap, (tuple, list)):
+                if len(colormap) != 3:
+                    raise Exception("Invald colormap form: requires (colormap_name, vmin, vmax)")
+                else:
+                    self.colormap = colormap[0]
+                    self.minmax = colormap[1:]
+            else:
+                self.colormap = params['colormap']
             del params["colormap"] # drop those that are not Keras parameters
 
         if 'minmax' in params:
@@ -257,6 +264,15 @@ class _BaseLayer():
         else:
             return "[%s]" % program
 
+    def get_colormap(self):
+        if self.__class__.__name__ == "FlattenLayer":
+            if self.colormap is None:
+                return self.incoming_connections[0].get_colormap()
+            else:
+                return self.colormap
+        else:
+            return get_colormap() if self.colormap is None else self.colormap
+
     # class: _BaseLayer
     def make_image(self, vector, colormap=None, config={}):
         """
@@ -301,7 +317,7 @@ class _BaseLayer():
         new_width = vector.shape[0] * size # in, pixels
         new_height = vector.shape[1] * size # in, pixels
         if colormap is None:
-            colormap = get_colormap() if self.colormap is None else self.colormap
+            colormap = self.get_colormap()
         try:
             cm_hot = cm.get_cmap(colormap)
         except:
