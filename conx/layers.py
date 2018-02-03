@@ -578,13 +578,13 @@ class ImageLayer(Layer):
 
 class AddLayer(_BaseLayer):
     """
-    A class to connect to for <adding networks together.
+    A Layer for adding the output vectors of multiple layers together.
     """
     CLASS = keras.layers.Add
     def __init__(self, name, **params):
         self.layers = []
         _state = {
-            "class": "AddLayer",
+            "class": self.__class__.__name__,
             "name": name,
             "layers": self.layers,
             "params": copy.copy(params),
@@ -600,9 +600,9 @@ class AddLayer(_BaseLayer):
         return [lambda k: k]
 
     def make_keras_function(self):
-        from keras.layers import Add as KerasAdd
+        from keras.layers import Add
         layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
-        return KerasAdd(**self.params)(layers)
+        return Add(**self.params)(layers)
 
     def on_connect(self, relation, other_layer):
         """
@@ -611,6 +611,68 @@ class AddLayer(_BaseLayer):
         if relation == "to":
             ## other_layer must be an Input layer
             self.layers.append(other_layer)
+
+class SubtractLayer(AddLayer):
+    """
+    A layer for subtracting the output vectors of layers.
+    """
+    CLASS = keras.layers.Subtract
+    def make_keras_function(self):
+        from keras.layers import Substract
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Subtract(**self.params)(layers)
+
+class MultiplyLayer(AddLayer):
+    """
+    A layer for multiplying the output vectors of layers
+    together.
+    """
+    CLASS = keras.layers.Multiply
+    def make_keras_function(self):
+        from keras.layers import Multiply
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Multiply(**self.params)(layers)
+
+class AverageLayer(AddLayer):
+    """
+    A layer for averaging the output vectors of layers
+    together.
+    """
+    CLASS = keras.layers.Average
+    def make_keras_function(self):
+        from keras.layers import Average
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Average(**self.params)(layers)
+
+class MaximumLayer(AddLayer):
+    """
+    A layer for finding the maximum values of layers.
+    """
+    CLASS = keras.layers.Maximum
+    def make_keras_function(self):
+        from keras.layers import Maximum
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Maximum(**self.params)(layers)
+
+class ConcatenateLayer(AddLayer):
+    """
+    A layer for sticking layers together.
+    """
+    CLASS = keras.layers.Concatenate
+    def make_keras_function(self):
+        from keras.layers import Concatenate
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Concatenate(**self.params)(layers)
+
+class DotLayer(AddLayer):
+    """
+    A layer for computing the dot product between layers.
+    """
+    CLASS = keras.layers.Dot
+    def make_keras_function(self):
+        from keras.layers import Dot
+        layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
+        return Dot(**self.params)(layers)
 
 class EmbeddingLayer(Layer):
     """
@@ -671,7 +733,9 @@ def process_class_docstring(docstring):
 ## Al of these will have _BaseLayer as their superclass:
 keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
-    if name in ["Embedding", "Input", "Dense", "TimeDistributed", "Add"]: continue
+    if name in ["Embedding", "Input", "Dense", "TimeDistributed",
+                "Add", "Subtract", "Multiply", "Average",
+                "Maximum", "Concatenate", "Dot"]: continue
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         docstring = obj.__doc__
