@@ -92,11 +92,11 @@ class PlotCallback(Callback):
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
-            self.network.plot_loss_acc(self, interactive=True)
+            self.network.plot_results(self, interactive=True)
             if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
-            self.network.plot_loss_acc(self, interactive=True)
+            self.network.plot_results(self, interactive=True)
 
 class FunctionCallback(Callback):
     """
@@ -2061,7 +2061,7 @@ class Network():
             else:
                 raise Exception("format must be 'svg' or 'pil'")
 
-    def plot_loss_acc(self, callback=None, interactive=True, format="svg"):
+    def plot_results(self, callback=None, interactive=True, format="svg"):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
         #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
