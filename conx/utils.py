@@ -126,20 +126,6 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility classes
 
-class _ItemSummary():
-    def __init__(self, item):
-        self.item = item
-
-    def __repr__(self):
-        fp = io.StringIO()
-        self.item.print_summary(fp)
-        return fp.getvalue()
-
-    def _repr_markdown_(self):
-        fp = io.StringIO()
-        self.item.print_summary(fp)
-        return fp.getvalue()
-
 #------------------------------------------------------------------------
 # utility functions
 

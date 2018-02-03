@@ -45,7 +45,6 @@ from keras.callbacks import Callback, History
 import keras.backend as K
 
 from .utils import *
-from .utils import _ItemSummary
 from .layers import Layer
 from .dataset import Dataset
 
@@ -672,24 +671,10 @@ class Network():
         """
         Print out a summary of the network.
         """
-        return _ItemSummary(self)
-
-    def print_summary(self, fp=sys.stdout):
-        import keras.backend as K
-        print("## Network Summary", file=fp)
-        print("* **Network name**:", self.name, file=fp)
-        for layer in self.layers:
-            layer.print_summary(fp)
         if self.model:
-            if hasattr(self.model, '_collected_trainable_weights'):
-                trainable_count = count_params(self.model._collected_trainable_weights)
-            else:
-                trainable_count = count_params(self.model.trainable_weights)
-            non_trainable_count = int(
-                np.sum([K.count_params(p) for p in set(self.model.non_trainable_weights)]))
-            print('* **Trainable parameters**    : {:,}'.format(trainable_count), file=fp)
-            print('* **Non-trainable parameters**: {:,}'.format(non_trainable_count), file=fp)
-            print('* **Total parameters**        : {:,}'.format(trainable_count + non_trainable_count), file=fp)
+            self.model.summary()
+        else:
+            print("Compile network in order to see summary.")
 
     def reset(self, clear=False, **overrides):
         """
@@ -3053,8 +3038,9 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             for i in range(len(self.model.layers)):
                 if self.model.layers[i].name == layer_name:
-                    temp = np.array(self.model.layers[i].get_weights())
-                    self.model.layers[i].set_weights(np.array(weights).reshape(temp.shape))
+                    w = [np.array(x) for x in
+                         self.model.layers[i].get_weights()]
+                    self.model.layers[i].set_weights(w)
 
     def to_array(self) -> list:
         """

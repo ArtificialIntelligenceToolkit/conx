@@ -43,7 +43,6 @@ from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nad
                               TFOptimizer)
 
 from .utils import *
-from .utils import _ItemSummary
 
 #------------------------------------------------------------------------
 ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
@@ -185,32 +184,6 @@ class _BaseLayer():
 
     def __repr__(self):
         return "<%s name='%s'>" % (self.CLASS.__name__, self.name)
-
-    def summary(self):
-        """
-        Print out a summary of the network.
-        """
-        return _ItemSummary(self)
-
-    def print_summary(self, fp=sys.stdout):
-        """
-        Print out a representation of the layer.
-        """
-        print("    * **Layer name**             : '%s' (%s)" % (self.name, self.kind()), file=fp)
-        if self.vshape:
-            print("        * **Visual shape**       :", self.vshape, file=fp)
-        if self.dropout:
-            print("        * **Dropout percent**    :", self.dropout, file=fp)
-        if len(self.outgoing_connections) > 0:
-            print("        * **Connected to**       :", ", ".join(
-                [repr(layer.name) for layer in self.outgoing_connections]), file=fp)
-        if self.keras_layer:
-            print("        * **Parameters**         : {:,}".format(self.keras_layer.count_params()), file=fp)
-            try:
-                output_shape = self.keras_layer.output_shape
-            except AttributeError:
-                output_shape = 'multiple'
-            print("        * **Output shape**       :", output_shape, file=fp)
 
     def kind(self):
         """
