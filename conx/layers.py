@@ -686,5 +686,9 @@ for (name, obj) in inspect.getmembers(keras_module):
                                   {"CLASS": obj,
                                    "__doc__": docstring})
 
-DenseLayer = Layer # for consistency
-InputLayer = Layer # for consistency
+# for consistency:
+DenseLayer = Layer
+InputLayer = Layer
+AdditionLayer = AddLayer
+SubtractionLayer = SubtractLayer
+MultiplicationLayer = MultiplyLayer
