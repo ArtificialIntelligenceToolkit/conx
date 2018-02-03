@@ -95,10 +95,6 @@ sudo apt install ffmpeg
 sudo yum install ffmpeg
 ```
 
-## Troubleshooting
-
-1. If you have a problem after installing matplotlib with pip, and you already have matplotlib installed (say, with apt) you may want to remove the apt-installed version of matplotlib.
-
 ## Use with Jupyter Notebooks
 
 To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
@@ -118,7 +114,7 @@ conda install -c conda-forge ipywidgets
 
 Installing **ipywidgets** with conda will also enable the extension for you.
 
-### Changing Keras Backends
+### Setting the Keras Backend
 
 To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.json`, like:
 
@@ -130,6 +126,10 @@ To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.
     "floatx": "float32"
 }
 ```
+
+## Troubleshooting
+
+1. If you have a problem after installing matplotlib with pip, and you already have matplotlib installed (say, with apt) you may want to remove the apt-installed version of matplotlib.
 
 ## Examples
 
