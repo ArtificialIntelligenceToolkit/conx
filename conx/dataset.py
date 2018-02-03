@@ -942,7 +942,8 @@ class Dataset():
         dataset, starting from the end. Amount can be a fraction in the range
         0-1, or an integer number of patterns to drop.
         >>> dataset = Dataset()
-        >>> dataset.get("mnist")
+        >>> print("Downloading..."); dataset.get("mnist") # doctest: +ELLIPSIS
+        Downloading...
         >>> len(dataset)
         70000
         >>> dataset.chop(10000)
