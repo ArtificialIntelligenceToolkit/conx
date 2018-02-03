@@ -97,22 +97,17 @@ sudo yum install ffmpeg
 
 ## Use with Jupyter Notebooks
 
-To use the Network.dashboard() and camera functions, you will need to install and enable `ipywidgets`:
-
-With pip:
+To use the Network.dashboard() and camera functions, you will need to enable `ipywidgets`:
 
 ``` bash
-pip install ipywidgets
 jupyter nbextension enable --py widgetsnbextension
 ```
 
-With conda
+If you install via conda, then it will already be enabled:
 
 ``` bash
 conda install -c conda-forge ipywidgets
 ```
-
-Installing **ipywidgets** with conda will also enable the extension for you.
 
 ### Setting the Keras Backend
 
