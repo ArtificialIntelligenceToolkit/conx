@@ -309,11 +309,11 @@ class Dashboard(VBox):
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
-                    if len(self.net.output_bank_order) == 1:
+                    if len(self.net.output_bank_order) == 1: ## FIXME: use minmax of output bank
                         self.net.display_component([self.net.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
                     else:
                         self.net.display_component(self.net.dataset.train_targets[self.control_slider.value], "targets", minmax=(-1, 1))
-                if self.net.config["show_errors"]:
+                if self.net.config["show_errors"]: ## minmax is error
                     if len(self.net.output_bank_order) == 1:
                         errors = np.array(output) - np.array(self.net.dataset.train_targets[self.control_slider.value])
                         self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
@@ -328,9 +328,9 @@ class Dashboard(VBox):
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.test_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
-                if self.net.config["show_targets"]:
+                if self.net.config["show_targets"]: ## FIXME: use minmax of output bank
                     self.net.display_component([self.net.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
-                if self.net.config["show_errors"]:
+                if self.net.config["show_errors"]: ## minmax is error
                     if len(self.net.output_bank_order) == 1:
                         errors = np.array(output) - np.array(self.net.dataset.test_targets[self.control_slider.value])
                         self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
@@ -383,7 +383,9 @@ class Dashboard(VBox):
         if not colormap_name:
             colormap_name = get_colormap()
         layer = Layer("Colormap", 100)
-        image = layer.make_image(np.arange(-1, 1, .01), colormap_name,
+        minmax = layer.get_act_minmax()
+        image = layer.make_image(np.arange(minmax[0], minmax[1], .01),
+                                 colormap_name,
                                  {"pixels_per_unit": 1}).resize((300, 25))
         return image
 
@@ -428,7 +430,7 @@ class Dashboard(VBox):
                                    value=0,
                                    layout=Layout(width='100%'))
         self.total_text = Label(value="of %s" % len(self.net.dataset.train_inputs), layout=Layout(width="100px"))
-        self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.5, max=3,
+        self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.1, max=5,
                                   value=self.net.config["svg_height"]/780.0)
 
         ## Hook them up:
@@ -506,8 +508,10 @@ class Dashboard(VBox):
         self.layer_colormap.observe(self.update_layer, names='value')
         column2.append(self.layer_colormap)
         column2.append(self.layer_colormap_image)
-        self.layer_mindim = FloatText(description="Leftmost color maps to:", value=layer.minmax[0], style=style)
-        self.layer_maxdim = FloatText(description="Rightmost color maps to:", value=layer.minmax[1], style=style)
+        ## get dynamic minmax; if you change it it will set it in layer as override:
+        minmax = layer.get_act_minmax()
+        self.layer_mindim = FloatText(description="Leftmost color maps to:", value=minmax[0], style=style)
+        self.layer_maxdim = FloatText(description="Rightmost color maps to:", value=minmax[1], style=style)
         self.layer_mindim.observe(self.update_layer, names='value')
         self.layer_maxdim.observe(self.update_layer, names='value')
         column2.append(self.layer_mindim)
@@ -542,6 +546,7 @@ class Dashboard(VBox):
         ## can be done with a prop_one():
         if "color" in change["owner"].description.lower():
             ## Matches: Colormap, lefmost color, rightmost color
+            ## overriding dynamic minmax!
             layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
             layer.minmax = (self.layer_mindim.value, self.layer_maxdim.value)
             layer.colormap = self.layer_colormap.value if self.layer_colormap.value else None
@@ -562,8 +567,9 @@ class Dashboard(VBox):
         self.layer_visible_checkbox.value = layer.visible
         self.layer_colormap.value = layer.colormap if layer.colormap != "" else ""
         self.layer_colormap_image.value = """<img src="%s"/>""" % self.net._image_to_uri(self.make_colormap_image(layer.colormap))
-        self.layer_mindim.value = layer.minmax[0]
-        self.layer_maxdim.value = layer.minmax[1]
+        minmax = layer.get_act_minmax()
+        self.layer_mindim.value = minmax[0]
+        self.layer_maxdim.value = minmax[1]
         self.layer_feature.value = layer.feature
         self._ignore_layer_updates = False
 

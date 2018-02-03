@@ -92,6 +92,7 @@ class _BaseLayer():
         self.params = params
         self.args = args
         self.handle_merge = False
+        self.network = None
         params["name"] = name
         self.shape = None
         self.vshape = None
@@ -99,7 +100,7 @@ class _BaseLayer():
         self.image_pixels_per_unit = None
         self.visible = True
         self.colormap = None
-        self.minmax = (-1, 1)
+        self.minmax = None
         self.model = None
         self.decode_model = None
         self.input_names = []
@@ -293,10 +294,7 @@ class _BaseLayer():
                             args.append(s)
                             count += 1
             vector = vector[args]
-        minmax = config.get("minmax")
-        # if minmax is None:
-        #     minmax = self.get_minmax(vector)
-        vector = self.scale_output_for_image(vector, self.minmax, truncate=True)
+        vector = self.scale_output_for_image(vector, self.get_act_minmax(), truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         size = config["pixels_per_unit"]
@@ -347,42 +345,42 @@ class _BaseLayer():
             v = np.ones(100) * default_value
         else:
             v = np.ones(self.shape) * default_value
-        lo, hi = self.get_minmax(v)
+        lo, hi = self.get_act_minmax()
         v *= (lo + hi) / 2.0
         return v.tolist()
 
     def get_act_minmax(self):
         """
         Get the activation (output) min/max for a layer.
-        """
-        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
-        if self.activation in ["tanh"]:
-            return (-1,+1)
-        elif self.activation in ["sigmoid", "softmax"]:
-            return (0,+1)
-        elif self.activation in ["relu"]:
-            return (0,+2)
-        elif self.activation in ["linear"]:
-            return (-2,+2)
-        else: # activation in ["linear"] or otherwise
-            return (-1,+1)
 
-    def get_minmax(self, vector):
+        Note: +/- 2 represents infinity
         """
-        Get the min/max for an input vector to this
-        layer. Attempts to guess based on activation function.
-        """
-        if self.minmax:
+        if self.minmax is not None: ## allow override
             return self.minmax
-        # ('relu', 'sigmoid', 'linear', 'softmax', 'tanh')
-        if self.activation in ["tanh"]:
-            return (-1,+1)
-        elif self.activation in ["sigmoid", "softmax"]:
-            return (0,+1)
-        elif self.activation in ["relu"]:
-            return (0,vector.max())
-        else: # activation in ["linear"] or otherwise
-            return (-1,+1)
+        else:
+            if self.kind() == "input":
+                ## try to get from dataset
+                if self.network and self.network.dataset:
+                    bank_idx = self.network.input_bank_order.index(self.name)
+                    return self.network.dataset._inputs_range[bank_idx]
+                else:
+                    return (-1,+1)
+            else: ## try to get from activation function
+                if self.activation in ["tanh", 'softsign']:
+                    return (-1,+1)
+                elif self.activation in ["sigmoid",
+                                         "softmax",
+                                         'hard_sigmoid']:
+                    return (0,+1)
+                elif self.activation in ["relu", 'elu', 'softplus']:
+                    return (0,+2)
+                elif self.activation in ["selu", "linear"]:
+                    return (-2,+2)
+                else: # default, or unknown activation function
+                    ## Enhancement:
+                    ## Someday could sample the unknown activation function
+                    ## and provide reasonable values
+                    return (-2,+2)
 
     def get_output_shape(self):
         ## FIXME: verify this:
@@ -397,8 +395,17 @@ class _BaseLayer():
         """
         String (with newlines) for describing layer."
         """
+        def format_range(minmax):
+            minv, maxv = minmax
+            if minv <= -2:
+                minv = "-Infinity"
+            if maxv >= +2:
+                maxv = "+Infinity"
+            return "(%s, %s)" % (minv, maxv)
+
         kind = self.kind()
-        retval = "Layer: %s (%s)" % (self.name, kind)
+        retval = "Layer: %s (%s)" % (html.escape(self.name), kind)
+        retval += "\n output range: %s" % (format_range(self.get_act_minmax(),))
         if self.shape:
             retval += "\n shape = %s" % (self.shape, )
         if self.dropout:
@@ -410,8 +417,8 @@ class _BaseLayer():
         for key in self.params:
             if key in ["name"]:
                 continue
-            retval += "\n %s = %s" % (key, self.params[key])
-        return html.escape(retval)
+            retval += "\n %s = %s" % (key, html.escape(self.params[key]))
+        return retval
 
 class Layer(_BaseLayer):
     """

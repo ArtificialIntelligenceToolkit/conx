@@ -293,7 +293,6 @@ class Network():
             "border_color": "black",
             "show_targets": False,
             "show_errors": False,
-            "minmax": None,
             "pixels_per_unit": 1,
             "precision": 2,
             "svg_height": 780, # for svg
@@ -583,6 +582,8 @@ class Network():
                 layer.params["name"] = layer.name
         self.layers.append(layer)
         self.layer_dict[layer.name] = layer
+        ## Layers have link back to network
+        layer.network = self
         return layer.name
 
     def connect(self, from_layer_name : str=None, to_layer_name : str=None):
@@ -931,7 +932,7 @@ class Network():
                     self.display_component([targets], "targets")
                 else:
                     self.display_component(targets, "targets")
-            if self.config["show_errors"]:
+            if self.config["show_errors"]: ## min max is error:
                 if len(self.output_bank_order) == 1:
                     self.display_component([errors], "errors", minmax=(-1, 1))
                 else:
@@ -1541,13 +1542,12 @@ class Network():
         else:
             return outputs
 
-    def display_component(self, vector, component, **opts): #minmax=None, colormap=None):
+    def display_component(self, vector, component, **opts):
         """
         vector is a list, one each per output layer. component is "errors" or "targets"
         """
         config = copy.copy(self.config)
         config.update(opts)
-        ## FIXME: this doesn't work on multi-targets/outputs
         output_names = self.output_bank_order
         if self._comm.kernel:
             for (target, layer_name) in zip(vector, output_names):
@@ -1556,7 +1556,7 @@ class Network():
                     colormap = self[layer_name].colormap
                 else:
                     colormap = get_error_colormap()
-                image = self[layer_name].make_image(array, colormap, config) # minmax=minmax, colormap=colormap)
+                image = self[layer_name].make_image(array, colormap, config)
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
@@ -2164,6 +2164,8 @@ class Network():
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
+
+        ## FIXME: set minmx of layers based on previous output layer's activations
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
