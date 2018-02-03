@@ -1400,35 +1400,48 @@ class Network():
         image = image.resize((new_height, new_width))
         return image
 
-    def get_weights(self, layer_name):
+    def get_weights(self, layer_name=None):
         """
-        Get the weights from the model in an easy to read format.
+        Get the weights from a layer, or the entire model.
 
-        >>> net = Network("Weight Test", 2, 2, 5)
-        >>> net.compile(error="mse", optimizer="adam")
-        >>> len(net.get_weights("input"))
-        0
-        >>> len(net.get_weights("hidden"))
-        2
-        >>> shape(net.get_weights("hidden")[0])  ## weights
-        (2, 2)
-        >>> shape(net.get_weights("hidden")[1])  ## biases
-        (2,)
-        >>> len(net.get_weights("output"))
-        2
-        >>> shape(net.get_weights("output")[0])  ## weights
-        (2, 5)
-        >>> shape(net.get_weights("output")[1])  ## biases
-        (5,)
+        Examples:
+            >>> net = Network("Weight Test", 2, 2, 5)
+            >>> net.compile(error="mse", optimizer="adam")
+            >>> len(net.get_weights("input"))
+            0
+            >>> len(net.get_weights("hidden"))
+            2
+            >>> shape(net.get_weights("hidden")[0])  ## weights
+            (2, 2)
+            >>> shape(net.get_weights("hidden")[1])  ## biases
+            (2,)
+            >>> len(net.get_weights("output"))
+            2
+            >>> shape(net.get_weights("output")[0])  ## weights
+            (2, 5)
+            >>> shape(net.get_weights("output")[1])  ## biases
+            (5,)
+
+            >>> net = Network("Weight Get Test", 2, 2, 1, activation="sigmoid")
+            >>> net.compile(error="mse", optimizer="sgd")
+            >>> len(net.get_weights())
+            3
 
         See also:
             * `Network.to_array`
             * `Network.from_array`
             * `Network.get_weights_as_image`
         """
-        weights = [layer.get_weights() for layer in self.model.layers
-                   if layer_name == layer.name][0]
-        return [m.tolist() for m in weights]
+        if layer_name is not None:
+            weights = [layer.get_weights() for layer in self.model.layers
+                       if layer_name == layer.name][0]
+            return [m.tolist() for m in weights]
+        else:
+            weights = []
+            for i in range(len(self.model.layers)):
+                w = self.model.layers[i].get_weights()
+                weights.append(w)
+            return weights
 
     def propagate(self, input, batch_size=32, visualize=False, raw=False):
         """
@@ -3023,32 +3036,25 @@ require(['base/js/namespace'], function(Jupyter) {
             separator=",",
             max_line_width=79).replace("\n", "")
 
-    def get_weights(self):
+    def set_weights(self, weights, layer_name=None):
         """
-        Get the weights from the model.
-        Return as a list.
-
-        >>> net = Network("Weight Get Test", 2, 2, 1, activation="sigmoid")
-        >>> net.compile(error="mse", optimizer="sgd")
-        >>> len(net.get_weights())
-        3
-        """
-        weights = []
-        for i in range(len(self.model.layers)):
-            w = self.model.layers[i].get_weights()
-            weights.append(w)
-        return weights
-
-    def set_weights(self, weights):
-        """
-        Set the model's weights.
+        Set the model's weights, or a particular layer's weights.
 
         >>> net = Network("Weight Set Test", 2, 2, 1, activation="sigmoid")
         >>> net.compile(error="mse", optimizer="sgd")
         >>> net.set_weights(net.get_weights())
+
+        >>> hw = net.get_weights("hidden")
+        >>> net.set_weights(hw, "hidden")
         """
-        for i in range(len(self.model.layers)):
-            self.model.layers[i].set_weights(weights[i])
+        if layer_name is None:
+            for i in range(len(self.model.layers)):
+                self.model.layers[i].set_weights(weights[i])
+        else:
+            for i in range(len(self.model.layers)):
+                if self.model.layers[i].name == layer_name:
+                    temp = np.array(self.model.layers[i].get_weights())
+                    self.model.layers[i].set_weights(np.array(weights).reshape(temp.shape))
 
     def to_array(self) -> list:
         """
