@@ -358,7 +358,10 @@ class _BaseLayer():
         if self.minmax is not None: ## allow override
             return self.minmax
         else:
-            if self.kind() == "input":
+            if self.__class__.__name__ == "FlattenLayer":
+                in_layer = self.incoming_connections[0]
+                return in_layer.get_act_minmax()
+            elif self.kind() == "input":
                 ## try to get from dataset
                 if self.network and self.network.dataset:
                     bank_idx = self.network.input_bank_order.index(self.name)
