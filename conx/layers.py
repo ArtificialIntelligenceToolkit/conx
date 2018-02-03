@@ -142,14 +142,15 @@ class _BaseLayer():
             self.visible = visible
 
         if 'colormap' in params:
+            colormap = params["colormap"]
             if isinstance(colormap, (tuple, list)):
                 if len(colormap) != 3:
-                    raise Exception("Invald colormap form: requires (colormap_name, vmin, vmax)")
+                    raise Exception("Invalid colormap format: requires (colormap_name, vmin, vmax)")
                 else:
                     self.colormap = colormap[0]
                     self.minmax = colormap[1:]
             else:
-                self.colormap = params['colormap']
+                self.colormap = colormap
             del params["colormap"] # drop those that are not Keras parameters
 
         if 'minmax' in params:
