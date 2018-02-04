@@ -304,6 +304,8 @@ class Dashboard(VBox):
             self.position_text.value = self.control_slider.value
             if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
                 self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
+                if self.net.model is None:
+                    return
                 output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value], visualize=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
@@ -324,6 +326,8 @@ class Dashboard(VBox):
                         self.net.display_component(errors, "errors", minmax=(-1, 1))
             elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
                 self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
+                if self.net.model is None:
+                    return
                 output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value], visualize=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.test_inputs[self.control_slider.value],
@@ -363,9 +367,10 @@ class Dashboard(VBox):
         inputs = self.get_current_input()
         features = None
         if self.feature_bank.value in self.net.layer_dict.keys():
-            features = self.net.propagate_to_features(self.feature_bank.value, inputs,
-                                                      cols=self.feature_columns.value,
-                                                      scale=self.feature_scale.value, display=False)
+            if self.net.model is not None:
+                features = self.net.propagate_to_features(self.feature_bank.value, inputs,
+                                                          cols=self.feature_columns.value,
+                                                          scale=self.feature_scale.value, display=False)
         svg = """<p style="text-align:center">%s</p>""" % (self.net.build_svg(inputs=inputs),)
         if inputs is not None and features is not None:
             self.net_svg.value = """
