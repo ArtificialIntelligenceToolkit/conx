@@ -719,6 +719,9 @@ class Dataset():
         self._targets = [np.array(row[start:stop]) for row in self._targets]
         if len(self._labels) > 0:
             self._labels = [np.array(row[start:stop]) for row in self._labels]
+        if self._split > 0:
+            print("Warning: dataset split reset to 0", file=sys.stderr)
+        self._split = 0
         self._cache_values()
 
     def _cache_values(self):
