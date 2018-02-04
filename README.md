@@ -44,7 +44,9 @@ Rather than installing conx, consider using our [mybinder](https://mybinder.org/
 
 `conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
 
-On Linux, you may need to install `libffi` and `libffi-dev` first. For example, on Ubuntu or other Debian-based system:
+On Linux, you may need to install `libffi` and `libffi-dev` in order to render layers for the network display. If you attempt to display a network and it appears empty, or if you attempt to network.propagate_to_image() and it gives a PIL error, you need these libraries.
+
+On Ubuntu or other Debian-based system:
 
 ```bash
 sudo apt install libffi-dev libffi6
