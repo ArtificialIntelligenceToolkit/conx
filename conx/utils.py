@@ -289,6 +289,21 @@ def argmax(seq):
     """
     return np.argmax(seq)
 
+def crop_image(image, x1, y1, x2, y2):
+    """
+    Given an image an crop rectangle 
+    x1, y1, x2, y2, return the cropped image.
+
+
+    >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
+    ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
+    >>> image = array2image(m)
+    >>> crop_image(image, 0, 0, 1, 1) # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGB size=1x1 at ...>
+    """
+    from PIL import Image
+    return image.crop((x1, y1, x2, y2))
+
 def image2array(image):
     """
     Convert an image filename or PIL.Image into a matrix (list of
