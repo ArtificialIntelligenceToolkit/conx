@@ -384,7 +384,7 @@ class _BaseLayer():
                     bank_idx = self.network.input_bank_order.index(self.name)
                     return self.network.dataset._inputs_range[bank_idx]
                 else:
-                    return (-1,+1)
+                    return (-2,+2)
             else: ## try to get from activation function
                 if self.activation in ["tanh", 'softsign']:
                     return (-1,+1)

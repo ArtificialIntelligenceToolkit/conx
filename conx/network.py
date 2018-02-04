@@ -485,7 +485,7 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def snapshot(self, inputs=None, class_id=None, height="780px", opts={}):
+    def snapshot(self, inputs=None, height="780px", class_id=None, opts={}):
         """
         Create an SVG of the network given some inputs.
 
@@ -2941,6 +2941,71 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         from .widgets import Dashboard
         return Dashboard(self, width, height, play_rate)
+
+    def view(self, data="train", height="500px", **kwargs):
+        """
+        View a network and train or test data.
+
+        data (str) = "train" or "test"
+
+        Common settings:
+            show_targets (bool) - True will show target pattern
+            show_errors (bool) - Ture will show error pattern
+
+        Additional settings:
+            font_size
+            font_family
+            border_top
+            border_bottom
+            hspace
+            vspace
+            image_maxdim
+            image_pixels_per_unit
+            activation
+            arrow_color
+            arrow_width
+            border_width
+            border_color
+            pixels_per_unit
+            precision
+            svg_height
+        """
+        from IPython.display import clear_output
+
+        if data not in ["test", "train"]:
+            print("Invalid data to view; data should be 'train', or 'test'")
+            return
+        if len(self.dataset) == 0:
+            print("Please load a dataset")
+            return
+        if data == "test" and len(self.dataset.test_inputs) == 0:
+            print("Please split data")
+            return
+        for key in kwargs:
+            self.config[key] = kwargs[key]
+        current = 0
+        while True:
+            clear_output(wait=True)
+            if data == "train":
+                print("%s Training data #%d" % (self.name, current))
+                display(self.snapshot(net.dataset.train_inputs[current], height))
+                last = len(self.dataset.train_inputs) - 1
+            else:
+                print("%s Test data #%d" % (self.name, current))
+                display(self.snapshot(net.dataset.test_inputs[current], height))
+                last = len(self.dataset.test_inputs) - 1
+            retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
+            if retval.lower() in ["q", "quit"]:
+                return
+            elif retval == "":
+                current += 1
+            else:
+                try:
+                    current = int(retval)
+                except:
+                    print("Invalid input")
+                    continue
+            current = current % (last + 1)
 
     def pp(self, *args, **opts):
         """
