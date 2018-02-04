@@ -2988,11 +2988,11 @@ require(['base/js/namespace'], function(Jupyter) {
             clear_output(wait=True)
             if data == "train":
                 print("%s Training data #%d" % (self.name, current))
-                display(self.snapshot(net.dataset.train_inputs[current], height))
+                display(self.snapshot(self.dataset.train_inputs[current], height))
                 last = len(self.dataset.train_inputs) - 1
             else:
                 print("%s Test data #%d" % (self.name, current))
-                display(self.snapshot(net.dataset.test_inputs[current], height))
+                display(self.snapshot(self.dataset.test_inputs[current], height))
                 last = len(self.dataset.test_inputs) - 1
             retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
             if retval.lower() in ["q", "quit"]:
