@@ -2970,7 +2970,7 @@ require(['base/js/namespace'], function(Jupyter) {
             precision
             svg_height
         """
-        from IPython.display import clear_output
+        from IPython.display import clear_output, display
 
         if data not in ["test", "train"]:
             print("Invalid data to view; data should be 'train', or 'test'")
