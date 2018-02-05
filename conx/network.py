@@ -1841,7 +1841,7 @@ class Network():
         #print("aspect_ratio is", aspect_ratio)
         if aspect_ratio > 50:   # threshold may need further refinement
             print("WARNING: using a visual display shape of (%d, %d), which may be hard to see."
-                  % (rows, cols))
+                  % (rows, cols), file=sys.stderr)
             print("You can use vshape=(rows, cols) to specify a different display shape.")
         if not isinstance(wmin, (numbers.Number, type(None))):
             raise Exception("wmin: expected a number or None but got %s" % (wmin,))
@@ -2015,7 +2015,7 @@ class Network():
             y_values = self.get_metric(metric)
             y_values = y_values[start:end]
             if y_values.count(None) == len(y_values):
-                print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end))
+                print("WARNING: No %s data available for the specified epochs (%s-%s)" % (metric, start, end), file=sys.stderr)
             else:
                 next_label = label if label else metric
                 symbol = get_symbol(label, symbols, default_symbol)
@@ -2112,6 +2112,25 @@ class Network():
         """
         Check and compile the network.
 
+        You must provide error/loss and optimizer keywords.
+
+        Possible error/loss functions are:
+            * 'mse' - mean_squared_error
+            * 'mae' - mean_absolute_error
+            * 'mape' - mean_absolute_percentage_error
+            * 'msle' - mean_squared_logarithmic_error
+            * 'kld' - kullback_leibler_divergence
+            * 'cosine' - cosine_proximity
+
+        Possible optimizers are:
+            * 'sgd'
+            * 'rmsprop'
+            * 'adagrad'
+            * 'adadelta'
+            * 'adam'
+            * 'adamax'
+            * 'nadam'
+
         See https://keras.io/ `Model.compile` method for more details.
         """
         ## Error checking:
@@ -2123,7 +2142,7 @@ class Network():
         if "error" in kwargs: # synonym
             kwargs["loss"] = kwargs["error"]
             del kwargs["error"]
-        if "loss" in kwargs and kwargs["loss"] == 'sparse_categorical_crossentropy':
+        if kwargs["loss"] == 'sparse_categorical_crossentropy':
             raise Exception("'sparse_categorical_crossentropy' is not a valid error metric in conx; use 'categorical_crossentropy' with proper targets")
         if "optimizer" in kwargs:
             optimizer = kwargs["optimizer"]
@@ -2131,26 +2150,12 @@ class Network():
                      (isinstance(optimizer, object) and issubclass(optimizer.__class__, keras.optimizers.Optimizer)))):
                 raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
                                 (optimizer, Network.OPTIMIZERS,))
-        ## FIXME: redo checks to separate dataset:
-        # if len(input_layers) == 1 and len(self.input_layer_order) == 0:
-        #     pass # ok!
-        # elif len(input_layers) == len(self.dataset._input_layer_order):
-        #     # check to make names all match
-        #     for layer in input_layers:
-        #         if layer.name not in self.dataset._input_layer_order:
-        #             raise Exception("layer '%s' is not listed in dataset._input_layer_order" % layer.name)
-        # else:
-        #     raise Exception("improper dataset._input_layer_order names")
-        ## FIXME: add new dataset-based checks:
-        # if len(output_layers) == 1 and len(self.output_layer_order) == 0:
-        #     pass # ok!
-        # elif len(output_layers) == len(self.output_layer_order):
-        #     # check to make names all match
-        #     for layer in output_layers:
-        #         if layer.name not in self.output_layer_order:
-        #             raise Exception("layer '%s' is not listed in set_output_layer_order()" % layer.name)
-        # else:
-        #     raise Exception("improper set_output_layer_order() names")
+        for layer in self.layers:
+            if layer.activation is not None and layer.activation == "softmax":
+                if layer.kind() == "output":
+                    if "crossentropy" not in kwargs["loss"]:
+                        print("WARNING: you are using the 'softmax' activation function on layer '%s'" % layer.name, file=sys.stderr)
+                        print("         but not using a 'crossentropy' error measure.", file=sys.stderr)
         self._build_intermediary_models()
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
@@ -2164,8 +2169,6 @@ class Network():
         # set each conx layer to point to corresponding keras model layer
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
-
-        ## FIXME: set minmx of layers based on previous output layer's activations
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
@@ -2891,7 +2894,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 self.weight_history = pickle.load(fp)
                 self.epoch_count = (len(self.history) - 1) if self.history else 0
         else:
-            print("WARNING: no such history file '%s'" % full_filename)
+            print("WARNING: no such history file '%s'" % full_filename, file=sys.stderr)
 
     def save_history(self, dir=None, filename=None):
         """
