@@ -437,7 +437,7 @@ class _BaseLayer():
         for key in self.params:
             if key in ["name"]:
                 continue
-            retval += "\n %s = %s" % (key, html.escape(self.params[key]))
+            retval += "\n %s = %s" % (key, html.escape(str(self.params[key])))
         return retval
 
 class Layer(_BaseLayer):
