@@ -6,3 +6,9 @@ jupyter nbextension enable --py widgetsnbextension
 python -c "import matplotlib as mpl; mpl.use('Agg'); import pylab as plt; fig, ax = plt.subplots(); fig.savefig('test.png')"
 
 test -e test.png && rm test.png
+
+python -c "import conx as cx; cx.Dataset.get('mnist')"
+python -c "import conx as cx; cx.Dataset.get('cifar10')"
+python -c "import conx as cx; cx.Dataset.get('cmu_faces_full_size')"
+python -c "import conx as cx; cx.Dataset.get('cmu_faces_half_size')"
+python -c "import conx as cx; cx.Dataset.get('cmu_faces_quarter_size')"
