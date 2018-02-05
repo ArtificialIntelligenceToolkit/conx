@@ -720,7 +720,7 @@ class Dataset():
         if len(self._labels) > 0:
             self._labels = [np.array(row[start:stop]) for row in self._labels]
         if self._split > 0:
-            print("Warning: dataset split reset to 0", file=sys.stderr)
+            print("WARNING: dataset split reset to 0", file=sys.stderr)
         self._split = 0
         self._cache_values()
 
@@ -742,7 +742,7 @@ class Dataset():
             self._target_shapes = [x[0].shape for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
-            raise Exception("WARNING: inputs/targets lengths do not match")
+            raise Exception("WARNING: inputs/targets lengths do not match", file=sys.stderr)
         if self.network:
             self.network.test_dataset_ranges()
 
@@ -976,7 +976,7 @@ class Dataset():
         if len(self._labels) != 0:
             self._labels = [self._labels[b][:new_size] for b in range(self._num_target_banks())]
         if self._split > 0:
-            print("Warning: dataset split reset to 0", file=sys.stderr)
+            print("WARNING: dataset split reset to 0", file=sys.stderr)
         self._split = 0
 
     def _get_input(self, i):

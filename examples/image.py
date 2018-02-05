@@ -1,13 +1,13 @@
-from conx import *
+import conx as cx
 
-net = Network("Image")
-net.add(ImageLayer("input", (28, 28), 1))
-net.add(Conv2DLayer("conv1", 10, (5,5), activation="relu"))
-net.add(Conv2DLayer("conv2", 10, (5,5), activation="relu"))
-net.add(MaxPool2DLayer("pool1", pool_size=(2, 2)))
-net.add(FlattenLayer("flatten"))
-net.add(Layer("hidden1", 20, activation="relu"))
-net.add(Layer("output", 10, activation="softmax"))
+net = cx.Network("Image")
+net.add(cx.ImageLayer("input", (28, 28), 1))
+net.add(cx.Conv2DLayer("conv1", 10, (5,5), activation="relu"))
+net.add(cx.Conv2DLayer("conv2", 10, (5,5), activation="relu"))
+net.add(cx.MaxPool2DLayer("pool1", pool_size=(2, 2)))
+net.add(cx.FlattenLayer("flatten"))
+net.add(cx.Layer("hidden1", 20, activation="relu"))
+net.add(cx.Layer("output", 10, activation="softmax"))
 
 net.connect()
 

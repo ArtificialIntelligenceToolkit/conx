@@ -1,21 +1,21 @@
-from conx import Network, SGD, Layer
+import conx as cx
 
 ds = [[[0, 0], [0, 0.5]],
       [[0, 1], [1, 0.5]],
       [[1, 0], [1, 0.5]],
       [[1, 1], [0, 0.5]]]
 
-net = Network("XOR")
-net.add(Layer("input", 2))
-net.add(Layer("hidden1", 3, activation="relu"))
-net.add(Layer("hidden2", 4, activation="relu"))
-net.add(Layer("output", 2, activation="softmax"))
+net = cx.Network("XOR")
+net.add(cx.Layer("input", 2))
+net.add(cx.Layer("hidden1", 3, activation="relu"))
+net.add(cx.Layer("hidden2", 4, activation="relu"))
+net.add(cx.Layer("output", 2, activation="softmax"))
 net.connect("input", "hidden1")
 net.connect("hidden1", "hidden2")
 net.connect("hidden2", "output")
 
 net.compile(error='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9))
+            optimizer=cx.SGD(lr=0.3, momentum=0.9))
 
 # NOTE:
 #    net = Network("XOR", 2, 3, 4, 1, activation="sigmoid")

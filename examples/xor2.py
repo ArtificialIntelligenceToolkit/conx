@@ -1,13 +1,13 @@
-from conx import Network, Layer, SGD
+import conx as cx
 
-net = Network("XOR2")
-net.add(Layer("input1", shape=1))
-net.add(Layer("input2", shape=1))
-net.add(Layer("hidden1", shape=2, activation="sigmoid"))
-net.add(Layer("hidden2", shape=2, activation="sigmoid"))
-net.add(Layer("shared-hidden", shape=2, activation="sigmoid"))
-net.add(Layer("output1", shape=1, activation="sigmoid"))
-net.add(Layer("output2", shape=1, activation="sigmoid"))
+net = cx.Network("XOR2")
+net.add(cx.Layer("input1", shape=1))
+net.add(cx.Layer("input2", shape=1))
+net.add(cx.Layer("hidden1", shape=2, activation="sigmoid"))
+net.add(cx.Layer("hidden2", shape=2, activation="sigmoid"))
+net.add(cx.Layer("shared-hidden", shape=2, activation="sigmoid"))
+net.add(cx.Layer("output1", shape=1, activation="sigmoid"))
+net.add(cx.Layer("output2", shape=1, activation="sigmoid"))
 
 net.connect("input1", "hidden1")
 net.connect("input2", "hidden2")
@@ -17,7 +17,7 @@ net.connect("shared-hidden", "output1")
 net.connect("shared-hidden", "output2")
 
 net.compile(loss='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9))
+            optimizer=cx.SGD(lr=0.3, momentum=0.9))
 
 ds = [
     ([[0],[0]], [[0],[0]]),

@@ -2151,11 +2151,16 @@ class Network():
                 raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
                                 (optimizer, Network.OPTIMIZERS,))
         for layer in self.layers:
-            if layer.activation is not None and layer.activation == "softmax":
-                if layer.kind() == "output":
+            if layer.kind() == "output":
+                if layer.activation is not None and layer.activation == "softmax":
                     if "crossentropy" not in kwargs["loss"]:
                         print("WARNING: you are using the 'softmax' activation function on layer '%s'" % layer.name, file=sys.stderr)
                         print("         but not using a 'crossentropy' error measure.", file=sys.stderr)
+                if "crossentropy" in kwargs["loss"]:
+                    if layer.activation is not None and layer.activation != "softmax":
+                        print("WARNING: you are using a crossentropy error measure", file=sys.stderr)
+                        print("         but not using the 'softmax' activation function on layer '%s'"
+                              % layer.name, file=sys.stderr)
         self._build_intermediary_models()
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)

@@ -1,5 +1,4 @@
-from conx import *
-
+import conx as cx
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import misc
@@ -102,11 +101,11 @@ def view(images, start=0, cmap=None, interpolation=None):
 plt.ion()
 #---------------------------------------------------------------------------
 
-net = Network("MNIST")
-net.add(Layer("input", shape=784, vshape=(28, 28)))
-net.add(Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-net.add(Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
-net.add(Layer("output", shape=10, activation='softmax'))
+net = cx.Network("MNIST")
+net.add(cx.Layer("input", shape=784, vshape=(28, 28)))
+net.add(cx.Layer("hidden1", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+net.add(cx.Layer("hidden2", shape=512, vshape=(16,32), activation='relu', dropout=0.2))
+net.add(cx.Layer("output", shape=10, activation='softmax'))
 
 net.connect('input', 'hidden1')
 net.connect('hidden1', 'hidden2')
@@ -115,7 +114,7 @@ net.connect('hidden2', 'output')
 net.compile(loss='mean_squared_error',
             optimizer='sgd')
 
-ds = Dataset()
+ds = cx.Dataset()
 ds.get("mnist")
 net.set_dataset(ds)
 #net.rescale_inputs((0,255), (0,1), 'float32')

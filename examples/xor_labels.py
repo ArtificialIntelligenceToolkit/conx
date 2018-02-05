@@ -1,16 +1,16 @@
-from conx import Network, SGD
+import conx as cx
 
 ds = [[[0, 0], [0], "one"],
       [[0, 1], [1], "two"],
       [[1, 0], [1], "three"],
       [[1, 1], [0], "four"]]
 
-net = Network("XOR", 2, 2, 1, activation="sigmoid")
+net = cx.Network("XOR", 2, 2, 1, activation="sigmoid")
 net.compile(error='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9))
+            optimizer=cx.SGD(lr=0.3, momentum=0.9))
 
 # NOTE:
-#    net = Network("XOR", 2, 3, 4, 1, activation="sigmoid")
+#    net = cx.Network("XOR", 2, 3, 4, 1, activation="sigmoid")
 # is the same as:
 #    net = Network("XOR")
 #    net.add(Layer("input", shape=2))
