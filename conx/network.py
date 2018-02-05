@@ -2501,7 +2501,7 @@ class Network():
                                                         "y1":cheight,
                                                         "x2":x2,
                                                         "y2":y2,
-                                                        "arrow_color": config["arrow_color"] if self[fname].dropout == 0 else "red",
+                                                        "arrow_color": config["arrow_color"],
                                                         "tooltip": tooltip
                             }])
                         else:
@@ -2513,7 +2513,7 @@ class Network():
                                                          "y1":cheight,
                                                          "x2":x2,
                                                          "y2":y2,
-                                                         "arrow_color": config["arrow_color"] if self[fname].dropout == 0 else "red",
+                                                         "arrow_color": config["arrow_color"],
                                                          "tooltip": tooltip
                             }])
                     else:
@@ -2569,7 +2569,7 @@ class Network():
                                                     "y1":y1,
                                                     "x2":x2,
                                                     "y2":y2,
-                                                    "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
+                                                    "arrow_color": config["arrow_color"],
                                                     "tooltip": tooltip
                         }])
                         continue
@@ -2581,7 +2581,7 @@ class Network():
                                                      "y1":y1,
                                                      "x2":x2,
                                                      "y2":y2 + 2,
-                                                     "arrow_color": config["arrow_color"] if self[layer_name].dropout == 0 else "red",
+                                                     "arrow_color": config["arrow_color"],
                                                      "tooltip": tooltip
                         }])
                 struct.append(["image_svg", positioning[layer_name]])
@@ -2608,6 +2608,15 @@ class Network():
                                                  "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
                                                  "label": feature,
                                                  "font_size": config["font_size"],
+                                                 "font_family": config["font_family"],
+                                                 "text_anchor": "start",
+                    }])
+                if (self[layer_name].dropout > 0):
+                    label = "&olcross;"
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - len(label) * 2.0 - 5,
+                                                 "y": positioning[layer_name]["y"] + 5,
+                                                 "label": label,
+                                                 "font_size": config["font_size"] * 2.0,
                                                  "font_family": config["font_family"],
                                                  "text_anchor": "start",
                     }])
