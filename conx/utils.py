@@ -138,7 +138,7 @@ def show(item, background=(255, 255, 255, 255)):
     import webbrowser
     import tempfile
     if isinstance(item, str):
-        if item.startswith("<svg ") or item.startswith("<svg "):
+        if item.startswith("<svg ") or item.startswith("<SVG "):
             return show_svg(item, background)
         else:
             ## assume it is a file:
@@ -148,10 +148,13 @@ def show(item, background=(255, 255, 255, 255)):
     elif isinstance(item, PIL.Image.Image):
         return show_image(item)
     elif isinstance(item, HTML):
-        with tempfile.NamedTemporaryFile(delete=False) as fp:
-            fp.write(item.data.encode("utf-8"))
-            fp.close()
-            return webbrowser.open(fp.name)
+        if item.data.startswith("<svg ") or item.data.startswith("<SVG "):
+            return show_svg(item.data, background)
+        else:
+            with tempfile.NamedTemporaryFile(delete=False) as fp:
+                fp.write(item.data.encode("utf-8"))
+                fp.close()
+                return webbrowser.open(fp.name)
     else:
         print("I don't know how to show this item")
 

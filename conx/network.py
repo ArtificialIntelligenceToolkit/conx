@@ -490,7 +490,7 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def snapshot(self, inputs=None, scale=None, class_id=None, **kwargs):
+    def snapshot(self, inputs=None, class_id=None, **kwargs):
         """
         Create an SVG of the network given some inputs.
 
