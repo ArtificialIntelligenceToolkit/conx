@@ -129,6 +129,60 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
+def show(item, background=(255, 255, 255, 255)):
+    """
+    Show an item from the console. item can be an
+    SVG image, PIL.Image, or filename.
+    """
+    from IPython.display import Image, HTML
+    import webbrowser
+    import tempfile
+    if isinstance(item, str):
+        if item.startswith("<svg ") or item.startswith("<svg "):
+            return show_svg(item, background)
+        else:
+            ## assume it is a file:
+            return show_image(PIL.Image.open(item))
+    elif hasattr(item, "_repr_svg_"):
+        return show_svg(item._repr_svg_(), background)
+    elif isinstance(item, PIL.Image.Image):
+        return show_image(item)
+    elif isinstance(item, HTML):
+        with tempfile.NamedTemporaryFile(delete=False) as fp:
+            fp.write(item.data.encode("utf-8"))
+            fp.close()
+            return webbrowser.open(fp.name)
+    else:
+        print("I don't know how to show this item")
+
+def svg2image(svg, background=(255, 255, 255, 255)):
+    import cairosvg
+    try:
+        image_bytes = cairosvg.svg2png(bytestring=svg.encode("utf-8"))
+    except:
+        raise Exception("You need a newer version of cairosvg")
+    image = PIL.Image.open(io.BytesIO(image_bytes))
+    if background is not None:
+        ## create a blank image, with background:
+        canvas = PIL.Image.new('RGBA', image.size, background)
+        canvas.paste(image, mask=image)
+        return canvas
+    else:
+        return image
+
+def show_svg(svg, background=(255, 255, 255, 255)):
+    image = svg2image(svg, background)
+    return show_image(image)
+
+def show_image(image):
+    plt.ion()
+    frame = plt.gca()
+    frame.axes.get_xaxis().set_visible(False)
+    frame.axes.get_yaxis().set_visible(False)
+    plt.imshow(image) ## shows grid -- can we remove it?
+    plt.show(block=False)
+    return
+
 def count_params(weights):
     """
     Count the total number of scalars composing the weights.
@@ -291,7 +345,7 @@ def argmax(seq):
 
 def crop_image(image, x1, y1, x2, y2):
     """
-    Given an image an crop rectangle 
+    Given an image an crop rectangle
     x1, y1, x2, y2, return the cropped image.
 
 

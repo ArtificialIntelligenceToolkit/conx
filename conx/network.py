@@ -295,7 +295,8 @@ class Network():
             "show_errors": False,
             "pixels_per_unit": 1,
             "precision": 2,
-            "svg_height": 780, # for svg
+            "svg_scale": None, # for svg, 0 - 1, or None for optimal
+            "svg_preferred_size": 200, # in some (?) units
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -330,6 +331,7 @@ class Network():
         self.prop_from_dict = {}
         self._svg_counter = 1
         self._need_to_show_headings = True
+        self._initialized_javascript = False
 
     def __getstate__(self):
         return {
@@ -366,7 +368,10 @@ class Network():
             return self.layer_dict[layer_name]
 
     def _repr_html_(self):
-        return self.build_svg(opts={"svg_height": "780px"}) ## will fill width
+        return self.build_svg()
+
+    def _repr_svg_(self):
+        return self.build_svg()
 
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
@@ -485,7 +490,7 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def snapshot(self, inputs=None, height="780px", class_id=None, opts={}):
+    def snapshot(self, inputs=None, scale=None, class_id=None, **kwargs):
         """
         Create an SVG of the network given some inputs.
 
@@ -498,18 +503,14 @@ class Network():
         if class_id is None:
             r = random.randint(1, 1000000)
             class_id = "snapshot-%s-%s" % (self.name, r)
-        if height is not None:
-            opts["svg_height"] = height
-        return HTML(self.build_svg(class_id=class_id, inputs=inputs, opts=opts))
+        return HTML(self.build_svg(inputs=inputs, class_id=class_id, **kwargs))
 
-    def render(self, height="780px", opts={}):
+    def render(self, **kwargs):
         """
         Render the network as an SVG image.
         """
         from IPython.display import HTML
-        if height is not None:
-            opts["svg_height"] = height
-        return HTML(self.build_svg(opts=opts))
+        return HTML(self.build_svg(**kwargs))
 
     def in_console(self, mpl_backend: str) -> bool:
         """
@@ -2620,7 +2621,7 @@ class Network():
                                                  "text_anchor": "start",
                     }])
                 if (self[layer_name].dropout > 0):
-                    label = "&olcross;"
+                    label = "&#10683;"
                     struct.append(["label_svg", {"x": positioning[layer_name]["x"] - len(label) * 2.0 - 5,
                                                  "y": positioning[layer_name]["y"] + 5,
                                                  "label": label,
@@ -2634,8 +2635,13 @@ class Network():
             cheight += max_height
             level_num += 1
         cheight += config["border_bottom"]
+        ## figure out scale optimal, if scale is None
+        if config["svg_scale"] is not None:
+            svg_scale = "%s%%" % int(config["svg_scale"] * 100)
+        else:
+            svg_scale = "%s%%" % int((config["svg_preferred_size"] / max(cheight, max_width)) * 100)
         struct.append(["svg_head", {
-            "svg_height": config["svg_height"],
+            "svg_scale": svg_scale,
             "width": max_width,  # view port width
             "height": cheight,   # view port height
             "netname": self.name,
@@ -2665,8 +2671,9 @@ require(['base/js/namespace'], function(Jupyter) {
 });
 """
         display(Javascript(js))
+        self._initialized_javascript = True
 
-    def build_svg(self, inputs=None, class_id=None, opts={}):
+    def build_svg(self, inputs=None, class_id=None, **kwargs):
         """
         opts - temporary override of config
 
@@ -2686,7 +2693,7 @@ require(['base/js/namespace'], function(Jupyter) {
             return None
         # defaults:
         config = copy.copy(self.config)
-        config.update(opts)
+        config.update(kwargs)
         struct = self.build_struct(inputs, class_id, config)
         ### Define the SVG strings:
         image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
@@ -2699,7 +2706,7 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" max-width="100%" height="{svg_height}" image-rendering="pixelated">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" width="{svg_scale}" height="{svg_scale}" image-rendering="pixelated">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
@@ -2720,11 +2727,11 @@ require(['base/js/namespace'], function(Jupyter) {
                 svg = svg_head.format(**dict)
         ## build the rest:
         for (template_name, dict) in struct:
-            if template_name != "svg_head":
+            if template_name != "svg_head" and not template_name.startswith("_"):
                 t = templates[template_name]
                 svg += t.format(**dict)
         svg += """</svg>"""
-        if get_ipython():
+        if (not self._initialized_javascript and get_ipython()):
             self._initialize_javascript()
         return svg
 
@@ -2985,7 +2992,8 @@ require(['base/js/namespace'], function(Jupyter) {
             border_color
             pixels_per_unit
             precision
-            svg_height
+            svg_scale
+            svg_preferred_size
         """
         from IPython.display import clear_output, display
 

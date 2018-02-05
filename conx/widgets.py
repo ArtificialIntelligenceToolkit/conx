@@ -281,7 +281,7 @@ class Dashboard(VBox):
 
     def update_zoom_slider(self, change):
         if change["name"] == "value":
-            self.net.config["svg_height"] = self.zoom_slider.value * 780
+            self.net.config["svg_scale"] = self.zoom_slider.value
             self.regenerate()
 
     def update_position_text(self, change):
@@ -435,8 +435,8 @@ class Dashboard(VBox):
                                    value=0,
                                    layout=Layout(width='100%'))
         self.total_text = Label(value="of %s" % len(self.net.dataset.train_inputs), layout=Layout(width="100px"))
-        self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=.1, max=5,
-                                  value=self.net.config["svg_height"]/780.0)
+        self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=0, max=1.0,
+                                       value=self.net.config["svg_scale"] if self.net.config["svg_scale"] is not None else 0.5)
 
         ## Hook them up:
         button_begin.on_click(lambda button: self.goto("begin"))
