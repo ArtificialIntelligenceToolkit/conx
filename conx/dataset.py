@@ -750,6 +750,8 @@ class Dataset():
     def _verify_network_dataset_match(self):
         """
         """
+        if (self.network is None) or (self.network.model is None or len(self) == 0):
+            return ## Nothing to test
         ## check to see if number of input banks match
         if len(self.network.input_bank_order) != self._num_input_banks():
             print("WARNING: number of dataset input banks != network input banks in network '%s'" % self.network.name,
