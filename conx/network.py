@@ -2350,7 +2350,7 @@ class Network():
                 #pwidth, pheight = np.array(image.size) * image_pixels_per_unit
 
                 vshape = self.vshape(layer_name)
-                if len(vshape) is None:
+                if vshape is None:
                     pass # leave it define by image
                 elif len(vshape) == 1:
                     if vshape[0] is not None:
