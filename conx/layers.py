@@ -30,6 +30,7 @@ import operator
 from functools import reduce
 import sys
 import inspect
+import string
 import html
 import copy
 import sys
@@ -88,6 +89,7 @@ class _BaseLayer():
         }
         if not (isinstance(name, str) and len(name) > 0):
             raise Exception('bad layer name: %s' % (name,))
+        self._check_layer_name(name)
         self.name = name
         self.params = params
         self.args = args
@@ -181,6 +183,21 @@ class _BaseLayer():
 
         self.incoming_connections = []
         self.outgoing_connections = []
+
+    def _check_layer_name(self, layer_name):
+        """
+        Check to see if a layer name is appropriate.
+        Raises exception if invalid name.
+        """
+        valid_chars = string.ascii_letters + string.digits + "_-%"
+        if len(layer_name) == 0:
+            raise Exception("layer name must not be length 0: '%s'" % layer_name)
+        if not all(char in valid_chars for char in layer_name):
+            raise Exception("layer name must only contain letters, numbers, '-', and '_': '%s'" % layer_name)
+        if layer_name.count("%") != layer_name.count("%d"):
+            raise Exception("layer name must only contain '%%d'; no other formatting allowed: '%s'" % layer_name)
+        if layer_name.count("%d") not in [0, 1]:
+            raise Exception("layer name must contain at most one %%d: '%s'" % layer_name)
 
     def __getstate__(self):
         return self._state

@@ -25,6 +25,7 @@ import collections
 import operator
 from functools import reduce
 import signal
+import string
 import numbers
 import random
 import pickle
@@ -302,6 +303,7 @@ class Network():
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
+        self._check_network_name(name)
         self.num_input_layers = 0
         self.num_target_layers = 0
         self.input_bank_order = []
@@ -334,6 +336,17 @@ class Network():
         self._svg_counter = 1
         self._need_to_show_headings = True
         self._initialized_javascript = False
+
+    def _check_network_name(self, name):
+        """
+        Check to see if a network name is appropriate.
+        Raises exception if invalid name.
+        """
+        valid_chars = string.ascii_letters + string.digits + " _-"
+        if len(name) == 0:
+            raise Exception("network name must not be length 0: '%s'" % name)
+        if not all(char in valid_chars for char in name):
+            raise Exception("network name must only contain letters, numbers, '-', ' ', and '_': '%s'" % name)
 
     def __getstate__(self):
         return {
