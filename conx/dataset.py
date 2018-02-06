@@ -270,7 +270,7 @@ class DataVector():
     def __len__(self):
         """
         >>> from conx import Network
-        >>> net = Network("Test 3", 10, 2, 3, 28)
+        >>> net = Network("Test 2", 10, 2, 3, 28)
         >>> net.compile(error="mse", optimizer="adam")
         >>> for i in range(20):
         ...     net.dataset.add([i] * 10, [i] * 28)
@@ -455,7 +455,7 @@ class Dataset():
         To add an AND problem:
 
         >>> from conx import Network
-        >>> net = Network("Test 1", 2, 2, 3, 1)
+        >>> net = Network("Test 3", 2, 2, 3, 1)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
         >>> len(net.dataset.inputs)
@@ -467,14 +467,14 @@ class Dataset():
         [1, 0], [0]
         [1, 1], [1]
 
-        >>> net = Network("Test 2", 10, 2, 3, 10)
+        >>> net = Network("Test 4", 10, 2, 3, 10)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.dataset.add_by_function(10, (0, 10), "onehot", lambda i,v: v)
         >>> len(net.dataset.inputs)
         10
 
         >>> import numpy as np
-        >>> net = Network("Test 3", 10, 2, 3, 10)
+        >>> net = Network("Test 5", 10, 2, 3, 10)
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.dataset.add_by_function(10, (0, 10), lambda i, width: np.random.rand(width), lambda i,v: v)
         >>> len(net.dataset.inputs)
@@ -742,9 +742,28 @@ class Dataset():
             self._target_shapes = [x[0].shape for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
-            raise Exception("WARNING: inputs/targets lengths do not match", file=sys.stderr)
+            print("WARNING: inputs/targets lengths do not match", file=sys.stderr)
         if self.network:
             self.network.test_dataset_ranges()
+            self._verify_network_dataset_match()
+
+    def _verify_network_dataset_match(self):
+        """
+        """
+        ## check to see if number of input banks match
+        if len(self.network.input_bank_order) != self._num_input_banks():
+            print("WARNING: number of dataset input banks != network input banks in network '%s'" % self.network.name,
+                  file=sys.stderr)
+        if len(self.inputs) > 0:
+            try:
+                self.network.propagate(self.inputs[0])
+            except:
+                print("WARNING: dataset does not yet work with network '%s'" % self.network.name,
+                      file=sys.stderr)
+        ## check to see if number of output banks match
+        if len(self.network.output_bank_order) != self._num_target_banks():
+            print("WARNING: number of dataset target banks != network output banks in network '%s'" % self.network.name,
+                  file=sys.stderr)
 
     def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """

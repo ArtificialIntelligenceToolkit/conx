@@ -1337,8 +1337,10 @@ class Network():
             >>> net.compile(error="mse", optimizer="adam")
             >>> net.set_dataset(ds)
         """
-        ## FIXME: check to make sure it matches network structure
         self.dataset = dataset
+        self.dataset.network = self
+        self.test_dataset_ranges()
+        self.dataset._verify_network_dataset_match()
 
     def set_activation(self, layer_name, activation):
         """
