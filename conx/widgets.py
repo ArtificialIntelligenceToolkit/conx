@@ -523,9 +523,12 @@ class Dashboard(VBox):
         column2.append(self.layer_maxdim)
         output_shape = layer.get_output_shape()
         self.layer_feature = IntText(value=layer.feature, description="Feature to show:", style=style)
+        self.svg_rotate = Checkbox(description="Rotate", value=layer.visible, layout=layout)
         self.layer_feature.observe(self.update_layer, names='value')
         column2.append(self.layer_feature)
-
+        self.svg_rotate = Checkbox(description="Rotate network", value=self.net.config["svg_rotate"], layout=layout)
+        self.svg_rotate.observe(lambda change: self.set_attr(self.net.config, "svg_rotate", change["new"]), names='value')
+        column2.append(self.svg_rotate)
         config_children = HBox([VBox(column1, layout=Layout(width="100%")),
                                 VBox(column2, layout=Layout(width="100%"))])
         accordion = Accordion(children=[config_children])

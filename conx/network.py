@@ -296,7 +296,9 @@ class Network():
             "pixels_per_unit": 1,
             "precision": 2,
             "svg_scale": None, # for svg, 0 - 1, or None for optimal
-            "svg_preferred_size": 200, # in some (?) units
+            "svg_rotate": False, # for rotating SVG
+            "svg_preferred_size": 400, # in pixels
+            "svg_max_width": 800, # in pixels
         }
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
@@ -2642,17 +2644,41 @@ class Network():
             level_num += 1
         cheight += config["border_bottom"]
         ## figure out scale optimal, if scale is None
-        if config["svg_scale"] is not None:
-            svg_scale = "%s%%" % int(config["svg_scale"] * 100)
+        ## the fraction:
+        if config["svg_scale"] is not None: ## scale is given:
+            if config["svg_rotate"]:
+                scale_value = (config["svg_max_width"] / cheight) * config["svg_scale"]
+            else:
+                scale_value = (config["svg_max_width"] / max_width) * config["svg_scale"]
         else:
-            svg_scale = "%s%%" % int((config["svg_preferred_size"] / max(cheight, max_width)) * 100)
+            if config["svg_rotate"]:
+                scale_value = config["svg_max_width"] / max(cheight, max_width)
+            else:
+                scale_value = config["svg_preferred_size"] / max(cheight, max_width)
+        svg_scale = "%s%%" % int(scale_value * 100)
+        scaled_width = (max_width * scale_value)
+        scaled_height = (cheight * scale_value)
+        ### Need a top-level width, height because Jupyter peeks at it
+        if config["svg_rotate"]:
+            svg_transform = """ transform="rotate(90) translate(0 -%s)" """ % scaled_height
+            ### Swap them:
+            top_width = scaled_height
+            top_height = scaled_width
+        else:
+            svg_transform = ""
+            top_width = scaled_width
+            top_height = scaled_height
         struct.append(["svg_head", {
-            "svg_scale": svg_scale,
-            "width": max_width,  # view port width
-            "height": cheight,   # view port height
+            "viewbox_width": max_width,  # view port width
+            "viewbox_height": cheight,   # view port height
+            "width": scaled_width, ## actual pixels of image in page
+            "height": scaled_height, ## actual pixels of image in page
             "netname": self.name,
+            "top_width": top_width,
+            "top_height": top_height,
             "arrow_color": config["arrow_color"],
             "arrow_width": config["arrow_width"],
+            "svg_transform": svg_transform,
         }])
         return struct
 
@@ -2712,7 +2738,9 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' viewBox="0 0 {width} {height}" width="{svg_scale}" height="{svg_scale}" image-rendering="pixelated">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
+ <g {svg_transform}>
+  <svg viewBox="0 0 {viewbox_width} {viewbox_height}" width="{width}px" height="{height}px">
     <defs>
         <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,6 L9,3 z" fill="{arrow_color}" />
@@ -2736,7 +2764,7 @@ require(['base/js/namespace'], function(Jupyter) {
             if template_name != "svg_head" and not template_name.startswith("_"):
                 t = templates[template_name]
                 svg += t.format(**dict)
-        svg += """</svg>"""
+        svg += """</svg></g></svg>"""
         if (not self._initialized_javascript and get_ipython()):
             self._initialize_javascript()
         return svg
@@ -2999,7 +3027,9 @@ require(['base/js/namespace'], function(Jupyter) {
             pixels_per_unit
             precision
             svg_scale
+            svg_rotate
             svg_preferred_size
+            svg_max_width
         """
         from IPython.display import clear_output, display
 
