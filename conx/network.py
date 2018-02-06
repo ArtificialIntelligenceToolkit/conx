@@ -2151,9 +2151,11 @@ class Network():
                      (isinstance(optimizer, object) and issubclass(optimizer.__class__, keras.optimizers.Optimizer)))):
                 raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
                                 (optimizer, Network.OPTIMIZERS,))
+        using_softmax = False
         for layer in self.layers:
             if layer.kind() == "output":
                 if layer.activation is not None and layer.activation == "softmax":
+                    using_softmax = True
                     if "crossentropy" not in kwargs["loss"]:
                         print("WARNING: you are using the 'softmax' activation function on layer '%s'" % layer.name, file=sys.stderr)
                         print("         but not using a 'crossentropy' error measure.", file=sys.stderr)
@@ -2168,8 +2170,12 @@ class Network():
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         if "metrics" in kwargs and kwargs["metrics"] is not None:
             pass ## ok allow override
+        elif using_softmax: ## let's use Keras' default acc function
+            kwargs['metrics'] = ["acc"] ## Keras' default
+            if "tolerance" in kwargs:
+                print("WARNING: using softmax activation function; tolerance is ignored", file=sys.stderr)
         else:
-            kwargs['metrics'] = [self.acc] ## the default
+            kwargs['metrics'] = [self.acc] ## Conx's default
         self.compile_options = copy.copy(kwargs)
         self.model.compile(**kwargs)
         # set each conx layer to point to corresponding keras model layer
