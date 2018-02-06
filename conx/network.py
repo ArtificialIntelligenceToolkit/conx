@@ -920,7 +920,7 @@ class Network():
             targs = []
             for i in range(len(pairs[0][1])):
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
-        ## history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
+        history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, visualize=visualize)
         if len(self.output_bank_order) == 1:
@@ -1237,7 +1237,7 @@ class Network():
             self.weight_history[self.epoch_count] = self.to_array()
         assert len(self.history) == self.epoch_count+1  # +1 is for epoch 0
         if verbose:
-            print("=" * 72)
+            print("=" * 56)
             self.report_epoch(self.epoch_count, last_epoch)
         if save:
             if verbose:
@@ -2059,6 +2059,22 @@ class Network():
                 return pil_image
             else:
                 raise Exception("format must be 'svg' or 'pil'")
+
+    def show_results(self, report_rate=None):
+        """
+        Show the history of training results. If report_rate is given
+        use that, else, try to use the last trained report_rate.
+        """
+        report_rate = (report_rate
+                       if report_rate is not None
+                       else self.train_options.get("report_rate", 1))
+        self._need_to_show_headings = True
+        for epoch_count in range(0, len(self.history), report_rate):
+            results = self.history[epoch_count]
+            self.report_epoch(epoch_count, results)
+        if len(self.history) > 0:
+            print("=" * 56)
+            self.report_epoch(len(self.history) - 1, self.history[-1])
 
     def plot_results(self, callback=None, interactive=True, format="svg"):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
