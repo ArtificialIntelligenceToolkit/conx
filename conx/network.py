@@ -2402,14 +2402,6 @@ class Network():
             max_width = max(max_width, total_width)
         ### Now that we know the dimensions:
         struct = []
-        ## Draw the title:
-        struct.append(["label_svg", {"x": max_width/2,
-                                     "y": config["border_top"]/2,
-                                     "label": self.name,
-                                     "font_size": config["font_size"] + 3,
-                                     "font_family": config["font_family"],
-                                     "text_anchor": "middle",
-        }])
         cheight = config["border_top"] # top border
         ## Display targets?
         if config["show_targets"]:
@@ -2637,7 +2629,7 @@ class Network():
                                                  "font_family": config["font_family"],
                                                  "text_anchor": "start",
                     }])
-                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - (len(feature) * 7) - 5,
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - (len(feature) * 7) - 5 - 5,
                                                  "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
                                                  "label": feature,
                                                  "font_size": config["font_size"],
@@ -2659,6 +2651,24 @@ class Network():
             cheight += max_height
             level_num += 1
         cheight += config["border_bottom"]
+        ### DONE!
+        ## Draw the title:
+        if config["svg_rotate"]:
+            struct.append(["label_svg", {"x": config["border_top"], ## really border_left
+                                         "y": cheight/2,
+                                         "label": self.name,
+                                         "font_size": config["font_size"] + 3,
+                                         "font_family": config["font_family"],
+                                         "text_anchor": "middle",
+            }])
+        else:
+            struct.append(["label_svg", {"x": max_width/2,
+                                         "y": config["border_top"]/2,
+                                         "label": self.name,
+                                         "font_size": config["font_size"] + 3,
+                                         "font_family": config["font_family"],
+                                         "text_anchor": "middle",
+            }])
         ## figure out scale optimal, if scale is None
         ## the fraction:
         if config["svg_scale"] is not None: ## scale is given:
@@ -2753,7 +2763,7 @@ require(['base/js/namespace'], function(Jupyter) {
         line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
-        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central">{label}</text>"""
+        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central" {transform}>{label}</text>"""
         svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
  <g {svg_transform}>
   <svg viewBox="0 0 {viewbox_width} {viewbox_height}" width="{width}px" height="{height}px">
@@ -2778,6 +2788,12 @@ require(['base/js/namespace'], function(Jupyter) {
         ## build the rest:
         for (template_name, dict) in struct:
             if template_name != "svg_head" and not template_name.startswith("_"):
+                if template_name == "label_svg" and self.config["svg_rotate"]:
+                    dict["x"] += 8
+                    dict["text_anchor"] = "middle"
+                    dict["transform"] = """ transform="rotate(-90 %s %s) translate(%s)" """ % (dict["x"], dict["y"], 2)
+                else:
+                    dict["transform"] = ""
                 t = templates[template_name]
                 svg += t.format(**dict)
         svg += """</svg></g></svg>"""
