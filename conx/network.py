@@ -996,6 +996,8 @@ class Network():
         """
         if len(self.dataset.inputs) == 0:
             raise Exception("no dataset loaded")
+        if self.model is None:
+            raise Exception("need to compile network")
         (train_inputs, train_targets), (test_inputs, test_targets) = self.dataset._split_data()
         train_metrics = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
         results = {k:v for k, v in zip(self.model.metrics_names, train_metrics)}
@@ -1105,6 +1107,8 @@ class Network():
             mpl_backend = matplotlib.get_backend()
         else:
             mpl_backend = None
+        if self.model is None:
+            raise Exception("need to compile network")
         if not isinstance(report_rate, numbers.Integral) or report_rate < 1:
             raise Exception("bad report rate: %s" % (report_rate,))
         if not (isinstance(batch_size, numbers.Integral) or batch_size is None):
@@ -1377,6 +1381,8 @@ class Network():
         <PIL.Image.Image image mode=RGBA size=2x2 at ...>
         """
         from matplotlib import cm
+        if self.model is None:
+            raise Exception("need to compile network")
         weights = [layer.get_weights() for layer in self.model.layers
                    if layer_name == layer.name][0]
         weights = weights[0] # get the weight matrix, not the biases
@@ -1430,6 +1436,8 @@ class Network():
             * `Network.from_array`
             * `Network.get_weights_as_image`
         """
+        if self.model is None:
+            raise Exception("need to compile network")
         if layer_name is not None:
             weights = [layer.get_weights() for layer in self.model.layers
                        if layer_name == layer.name][0]
@@ -3201,6 +3209,8 @@ require(['base/js/namespace'], function(Jupyter) {
         >>> hw = net.get_weights("hidden")
         >>> net.set_weights(hw, "hidden")
         """
+        if self.model is None:
+            raise Exception("need to compile network")
         if layer_name is None:
             for i in range(len(self.model.layers)):
                 self.model.layers[i].set_weights(weights[i])
@@ -3226,6 +3236,8 @@ require(['base/js/namespace'], function(Jupyter) {
         Returns:
             All of weights and biases of the network in a single, flat list.
         """
+        if self.model is None:
+            raise Exception("need to compile network")
         array = []
         for layer in self.model.layers:
             for weight in layer.get_weights():
@@ -3248,6 +3260,8 @@ require(['base/js/namespace'], function(Jupyter) {
             >>> len(array)
             103
         """
+        if self.model is None:
+            raise Exception("need to compile network")
         position = 0
         for layer in self.model.layers:
             weights = layer.get_weights()
