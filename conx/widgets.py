@@ -391,7 +391,8 @@ class Dashboard(VBox):
         minmax = layer.get_act_minmax()
         image = layer.make_image(np.arange(minmax[0], minmax[1], .01),
                                  colormap_name,
-                                 {"pixels_per_unit": 1}).resize((300, 25))
+                                 {"pixels_per_unit": 1,
+                                  "svg_rotate": self.net.config["svg_rotate"]}).resize((300, 25))
         return image
 
     def set_attr(self, obj, attr, value):

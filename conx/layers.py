@@ -360,6 +360,12 @@ class _BaseLayer():
         else:
             image = PIL.Image.fromarray(vector)
             image = image.resize((new_height, new_width))
+        ## If rotated, and has features, rotate it:
+        if config["svg_rotate"]:
+            output_shape = self.get_output_shape()
+            if ((isinstance(output_shape, tuple) and len(output_shape) == 4) or
+                (self.vshape is not None and len(self.vshape) == 2)):
+                image = image.rotate(90, expand=1)
         return image
 
     def scale_output_for_image(self, vector, minmax, truncate=False):
@@ -591,7 +597,11 @@ class ImageLayer(Layer):
             v = v.reshape(self.dimensions[0],
                           self.dimensions[1],
                           self.depth)
-        return PIL.Image.fromarray(v)
+        image = PIL.Image.fromarray(v)
+        if config["svg_rotate"]:
+            image = image.rotate(90, expand=1)
+        return image
+
 
 class AddLayer(_BaseLayer):
     """
