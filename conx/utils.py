@@ -129,7 +129,7 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
-def show(item, background=(255, 255, 255, 255)):
+def show(item, title=None, background=(255, 255, 255, 255)):
     """
     Show an item from the console. item can be an
     SVG image, PIL.Image, or filename.
@@ -139,17 +139,17 @@ def show(item, background=(255, 255, 255, 255)):
     import tempfile
     if isinstance(item, str):
         if item.startswith("<svg ") or item.startswith("<SVG "):
-            return show_svg(item, background)
+            return show_svg(item, title, background)
         else:
             ## assume it is a file:
-            return show_image(PIL.Image.open(item))
+            return show_image(PIL.Image.open(item), title)
     elif hasattr(item, "_repr_svg_"):
-        return show_svg(item._repr_svg_(), background)
+        return show_svg(item._repr_svg_(), title, background)
     elif isinstance(item, PIL.Image.Image):
-        return show_image(item)
+        return show_image(item, title)
     elif isinstance(item, HTML):
         if item.data.startswith("<svg ") or item.data.startswith("<SVG "):
-            return show_svg(item.data, background)
+            return show_svg(item.data, title, background)
         else:
             with tempfile.NamedTemporaryFile(delete=False) as fp:
                 fp.write(item.data.encode("utf-8"))
@@ -173,16 +173,19 @@ def svg2image(svg, background=(255, 255, 255, 255)):
     else:
         return image
 
-def show_svg(svg, background=(255, 255, 255, 255)):
+def show_svg(svg, title=None, background=(255, 255, 255, 255)):
     image = svg2image(svg, background)
-    return show_image(image)
+    return show_image(image, title)
 
-def show_image(image):
+def show_image(image, title=None):
     plt.ion()
+    if title:
+        fig = plt.figure(num=title)
+        fig.canvas.set_window_title(title)
     frame = plt.gca()
     frame.axes.get_xaxis().set_visible(False)
     frame.axes.get_yaxis().set_visible(False)
-    plt.imshow(image) ## shows grid -- can we remove it?
+    plt.imshow(image)
     plt.show(block=False)
     return
 
