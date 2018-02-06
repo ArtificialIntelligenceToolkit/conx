@@ -36,7 +36,7 @@ net.test()
 
 Creates dynamic, rendered visualizations like this:
 
-<img src="https://raw.githubusercontent.com/Calysto/conx/master/notebooks/network.png" width="500"></img>
+<img src="https://raw.githubusercontent.com/Calysto/conx-notebooks/master/network.png" width="500"></img>
 
 ## Install
 
