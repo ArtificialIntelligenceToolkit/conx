@@ -598,6 +598,8 @@ class Network():
         Note:
             See :any:`Network` for more information.
         """
+        if not isinstance(layer.name, str):
+            raise Exception("layer_name should be a string")
         if layer.name in self.layer_dict:
             raise Exception("duplicate layer name '%s'" % layer.name)
         ## Automatic layer naming by pattern:
@@ -655,8 +657,6 @@ class Network():
             raise Exception("from_layer_name should be a string or None")
         if to_layer_name is not None and not isinstance(to_layer_name, str):
             raise Exception("to_layer_name should be a string or None")
-        if len(self.layers) >= 5:
-            self.config["svg_rotate"] = True
         if from_layer_name is None and to_layer_name is None:
             if (any([layer.outgoing_connections for layer in self.layers]) or
                 any([layer.incoming_connections for layer in self.layers])):
@@ -666,8 +666,12 @@ class Network():
         else:
             if from_layer_name == to_layer_name:
                 raise Exception("self connections are not allowed")
+            if not isinstance(from_layer_name, str):
+                raise Exception("from_layer_name should be a string")
             if from_layer_name not in self.layer_dict:
                 raise Exception('unknown layer: %s' % from_layer_name)
+            if not isinstance(to_layer_name, str):
+                raise Exception("to_layer_name should be a string")
             if to_layer_name not in self.layer_dict:
                 raise Exception('unknown layer: %s' % to_layer_name)
             from_layer = self.layer_dict[from_layer_name]
@@ -705,6 +709,17 @@ class Network():
                         layer.input_names = [item for sublist in
                                              [incoming.input_names for incoming in layer.incoming_connections]
                                              for item in sublist]
+    def depth(self):
+        """
+        Find the depth of the network graph of connections.
+        """
+        max_depth = 0
+        for in_layer_name in self.input_bank_order:
+            for out_layer_name in self.output_bank_order:
+                path = find_path(self, in_layer_name, out_layer_name)
+                if path:
+                    max_depth = max(len(list(path)) + 1, max_depth)
+        return max_depth
 
     def summary(self):
         """
@@ -1541,6 +1556,8 @@ class Network():
         """
         Propagate activations from the given layer name to the output layers.
         """
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if layer_name not in self.layer_dict:
             raise Exception("No such layer '%s'" % layer_name)
         if isinstance(input, dict):
@@ -1552,8 +1569,6 @@ class Network():
         ## End of input setup
         if not is_array_like(input):
             raise Exception("inputs should be an array")
-        if not isinstance(layer_name, str):
-            raise Exception("layer_name should be a string")
         if output_layer_names is None:
             if self.num_target_layers == 1:
                 output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
@@ -1567,7 +1582,10 @@ class Network():
             if (layer_name, output_layer_name) not in self.prop_from_dict:
                 path = find_path(self, layer_name, output_layer_name)
                 # Make a new Input to start here:
-                input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
+                if self[layer_name].shape is not None:
+                    input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
+                else:
+                    input_k = k = keras.layers.Input(shape(input), name=self[layer_name].name)
                 # So that we can display activations here:
                 if (layer_name, layer_name) not in self.prop_from_dict:
                     self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
@@ -1580,7 +1598,7 @@ class Network():
             # Now we should be able to get the prop_from model:
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             if raw:
-                pass
+                inputs = input
             else:
                 inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
@@ -1591,14 +1609,22 @@ class Network():
                 self._comm = Comm(target_name='conx_svg_control')
             ## Update from start to rest of graph
             if self._comm.kernel:
+                ## viz this layer:
+                if self[layer_name].visible:
+                    image = self[layer_name].make_image(inputs, config=self.config)
+                    data_uri = self._image_to_uri(image)
+                    self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
                 for output_layer_name in output_layer_names:
-                    for layer in find_path(self, layer_name, output_layer_name):
-                        model = self.prop_from_dict[(layer_name, layer.name)]
-                        vector = model.predict(inputs)[0]
-                        ## FYI: outputs not shaped
-                        image = layer.make_image(vector, config=self.config)
-                        data_uri = self._image_to_uri(image)
-                        self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                    path = find_path(self, layer_name, output_layer_name)
+                    if path is not None:
+                        for layer in path:
+                            if not layer.visible: continue
+                            model = self.prop_from_dict[(layer_name, layer.name)]
+                            vector = model.predict(inputs)[0]
+                            ## FYI: outputs not shaped
+                            image = layer.make_image(vector, config=self.config)
+                            data_uri = self._image_to_uri(image)
+                            self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         if raw:
             return outputs
         elif len(output_layer_names) == 1:
@@ -1635,6 +1661,8 @@ class Network():
             update_pictures (bool) - send images to notebook SVG images
             raw (bool) - if True, don't process inputs or outputs
         """
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if layer_name not in self.layer_dict:
             raise Exception('unknown layer: %s' % (layer_name,))
         if isinstance(inputs, dict):
@@ -1646,8 +1674,6 @@ class Network():
         ## End of input setup
         if not is_array_like(inputs):
             raise Exception("inputs should be an array")
-        if not isinstance(layer_name, str):
-            raise Exception("layer_name should be a string")
         if raw:
             outputs = self[layer_name].model.predict(np.array(inputs), batch_size=batch_size)
         elif self.num_input_layers == 1:
@@ -1662,13 +1688,20 @@ class Network():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
-            # Update path from input to output
+            # Update just the to-layer:
             if self._comm.kernel:
-                layer = self[layer_name]
-                if layer.visible and layer.model is not None:
-                    image = self._propagate_to_image(layer_name, inputs, raw=raw)
+                ## do all from input to layer_to
+                for input_layer_name in self.input_bank_order:
+                    image = self._propagate_to_image(input_layer_name, inputs, raw=raw)
                     data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                    self._comm.send({'class': "%s_%s" % (self.name, input_layer_name), "href": data_uri})
+                    path = find_path(self, input_layer_name, layer_name)
+                    if path is not None:
+                        for layer in path:
+                            if layer.visible and layer.model is not None:
+                                image = self._propagate_to_image(layer_name, inputs, raw=raw)
+                                data_uri = self._image_to_uri(image)
+                                self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
         ## Shape the outputs:
         if raw:
             return outputs
