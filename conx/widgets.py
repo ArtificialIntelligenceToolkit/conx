@@ -201,7 +201,7 @@ class Dashboard(VBox):
                                        value=self.net.config["dashboard.features.columns"],
                                        style=style)
         self.feature_scale = FloatText(description="Feature scale:",
-                                       value=self.net.config["dashboard.feature.scale"],
+                                       value=self.net.config["dashboard.features.scale"],
                                        style=style)
         self.feature_columns.observe(self.regenerate, names='value')
         self.feature_scale.observe(self.regenerate, names='value')
@@ -370,7 +370,7 @@ class Dashboard(VBox):
         ## Update the config:
         self.net.config["dashboard.features.bank"] = self.feature_bank.value
         self.net.config["dashboard.features.columns"] = self.feature_columns.value
-        self.net.config["dashboard.feature.scale"] = self.feature_scale.value
+        self.net.config["dashboard.features.scale"] = self.feature_scale.value
         inputs = self.get_current_input()
         features = None
         if self.feature_bank.value in self.net.layer_dict.keys() and inputs is not None:
