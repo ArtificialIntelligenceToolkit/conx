@@ -202,6 +202,8 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         if key == "static": continue
         net.config[key] = kwargs[key]
     current = 0
+    if title is None:
+        title = net.name
     while True:
         clear_output(wait=True)
         if data == "train":
