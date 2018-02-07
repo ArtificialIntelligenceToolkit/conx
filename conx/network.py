@@ -266,7 +266,7 @@ class Network():
                        'mean_squared_logarithmic_error', 'mse', 'msle', 'poisson',
                        'sparse_categorical_crossentropy', 'squared_hinge']
 
-    def __init__(self, name: str, *sizes: int, **config: Any):
+    def __init__(self, name: str, *sizes: int, load_config=True, **config: Any):
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.debug = False
@@ -283,37 +283,11 @@ class Network():
             seed = np.random.randint(2 ** 31 - 1)
         self.seed = seed
         np.random.seed(self.seed)
-        self.config = {
-            "font_size": 12, # for svg
-            "font_family": "monospace", # for svg
-            "border_top": 25, # for svg
-            "border_bottom": 25, # for svg
-            "hspace": 150, # for svg
-            "vspace": 30, # for svg, arrows
-            "image_maxdim": 200, # for svg
-            "image_pixels_per_unit": 50, # for svg
-            "activation": "linear", # Dense default, if none specified
-            "arrow_color": "black",
-            "arrow_width": "2",
-            "border_width": "2",
-            "border_color": "black",
-            "show_targets": False,
-            "show_errors": False,
-            "pixels_per_unit": 1,
-            "precision": 2,
-            "svg_scale": None, # for svg, 0 - 1, or None for optimal
-            "svg_rotate": False, # for rotating SVG
-            "svg_preferred_size": 400, # in pixels
-            "svg_max_width": 800, # in pixels
-            "dashboard.dataset": "Train",
-            "dashboard.features.bank": "",
-            "dashboard.features.columns": 3,
-            "dashboard.features.scale": 1.0,
-            "config_layers": {},
-        }
+        self.reset_config()
         ## Next, load a config if available, and override defaults:
         self.layers = []
-        self.load_config()
+        if load_config:
+            self.load_config()
         ## Override those with args:
         self.config.update(config)
         ## Set initial values:
@@ -346,6 +320,39 @@ class Network():
         # Connect them together:
         for i in range(len(sizes) - 1):
             self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
+
+    def reset_config(self):
+        """
+        Reset the config back to factor defaults.
+        """
+        self.config = {
+            "font_size": 12, # for svg
+            "font_family": "monospace", # for svg
+            "border_top": 25, # for svg
+            "border_bottom": 25, # for svg
+            "hspace": 150, # for svg
+            "vspace": 30, # for svg, arrows
+            "image_maxdim": 200, # for svg
+            "image_pixels_per_unit": 50, # for svg
+            "activation": "linear", # Dense default, if none specified
+            "arrow_color": "black",
+            "arrow_width": "2",
+            "border_width": "2",
+            "border_color": "black",
+            "show_targets": False,
+            "show_errors": False,
+            "pixels_per_unit": 1,
+            "precision": 2,
+            "svg_scale": None, # for svg, 0 - 1, or None for optimal
+            "svg_rotate": False, # for rotating SVG
+            "svg_preferred_size": 400, # in pixels
+            "svg_max_width": 800, # in pixels
+            "dashboard.dataset": "Train",
+            "dashboard.features.bank": "",
+            "dashboard.features.columns": 3,
+            "dashboard.features.scale": 1.0,
+            "config_layers": {},
+        }
 
     def _check_network_name(self, name):
         """
@@ -1613,7 +1620,10 @@ class Network():
                 if self[layer_name].visible:
                     image = self[layer_name].make_image(inputs, config=self.config)
                     data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
+                    self._comm.send({'class': "%s_%s" %
+                                     (self.name,
+                                      layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
+                                     "href": data_uri})
                 for output_layer_name in output_layer_names:
                     path = find_path(self, layer_name, output_layer_name)
                     if path is not None:
@@ -1624,7 +1634,10 @@ class Network():
                             ## FYI: outputs not shaped
                             image = layer.make_image(vector, config=self.config)
                             data_uri = self._image_to_uri(image)
-                            self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
+                            self._comm.send({'class': "%s_%s" %
+                                             (self.name,
+                                              layer.name + ("-rotated" if self.config["svg_rotate"] else "")),
+                                             "href": data_uri})
         if raw:
             return outputs
         elif len(output_layer_names) == 1:
@@ -1648,7 +1661,10 @@ class Network():
                     colormap = get_error_colormap()
                 image = self[layer_name].make_image(array, colormap, config)
                 data_uri = self._image_to_uri(image)
-                self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
+                self._comm.send({'class': "%s_%s_%s" %
+                                 (self.name,
+                                  layer_name,
+                                  component), "href": data_uri})
 
     def propagate_to(self, layer_name, inputs, batch_size=32, update_pictures=False, raw=False):
         """
@@ -1694,14 +1710,20 @@ class Network():
                 for input_layer_name in self.input_bank_order:
                     image = self._propagate_to_image(input_layer_name, inputs, raw=raw)
                     data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" % (self.name, input_layer_name), "href": data_uri})
+                    self._comm.send({'class': "%s_%s" %
+                                     (self.name,
+                                      input_layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
+                                     "href": data_uri})
                     path = find_path(self, input_layer_name, layer_name)
                     if path is not None:
                         for layer in path:
                             if layer.visible and layer.model is not None:
                                 image = self._propagate_to_image(layer_name, inputs, raw=raw)
                                 data_uri = self._image_to_uri(image)
-                                self._comm.send({'class': "%s_%s" % (self.name, layer_name), "href": data_uri})
+                                self._comm.send({'class': "%s_%s" %
+                                                 (self.name,
+                                                  layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
+                                                 "href": data_uri})
         ## Shape the outputs:
         if raw:
             return outputs
@@ -2671,7 +2693,7 @@ class Network():
                     image = images[layer_name]
                     (width, height) = image_dims[layer_name]
                     cwidth += (spacing - (width/2))
-                    positioning[layer_name] = {"name": layer_name,
+                    positioning[layer_name] = {"name": layer_name + ("-rotated" if config["svg_rotate"] else ""),
                                                "svg_counter": self._svg_counter,
                                                "x": cwidth,
                                                "y": cheight,
