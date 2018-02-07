@@ -505,27 +505,24 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def snapshot(self, inputs=None, class_id=None, **kwargs):
+    def picture(self, inputs=None, static=False, **kwargs):
         """
-        Create an SVG of the network given some inputs.
+        Create an SVG of the network given some inputs (optional).
 
-        >>> net = Network("Snapshot", 2, 2, 1)
+        >>> net = Network("Picture", 2, 2, 1)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.snapshot([.5, .5])
+        >>> net.picture([.5, .5])
+        <IPython.core.display.HTML object>
+        >>> net.picture([.5, .5], static=True)
         <IPython.core.display.HTML object>
         """
         from IPython.display import HTML
-        if class_id is None:
+        if static:
             r = random.randint(1, 1000000)
-            class_id = "snapshot-%s-%s" % (self.name, r)
+            class_id = "picture-static-%s-%s" % (self.name, r)
+        else:
+            class_id = None
         return HTML(self.build_svg(inputs=inputs, class_id=class_id, **kwargs))
-
-    def render(self, **kwargs):
-        """
-        Render the network as an SVG image.
-        """
-        from IPython.display import HTML
-        return HTML(self.build_svg(**kwargs))
 
     def in_console(self, mpl_backend: str) -> bool:
         """
@@ -3055,11 +3052,13 @@ require(['base/js/namespace'], function(Jupyter) {
         from .widgets import Dashboard
         return Dashboard(self, width, height, play_rate)
 
-    def view(self, data="train", height="500px", **kwargs):
+    def view(self, data="train", static=False, **kwargs):
         """
         View a network and train or test data.
 
-        data (str) = "train" or "test"
+        Arguments:
+            data (str) = "train" or "test"
+            static - if True, pictures won't update
 
         Common settings:
             show_targets (bool) - True will show target pattern
@@ -3104,11 +3103,11 @@ require(['base/js/namespace'], function(Jupyter) {
             clear_output(wait=True)
             if data == "train":
                 print("%s Training data #%d" % (self.name, current))
-                display(self.snapshot(self.dataset.train_inputs[current], height))
+                display(self.picture(self.dataset.train_inputs[current], static=static))
                 last = len(self.dataset.train_inputs) - 1
             else:
                 print("%s Test data #%d" % (self.name, current))
-                display(self.snapshot(self.dataset.test_inputs[current], height))
+                display(self.picture(self.dataset.test_inputs[current], static=static))
                 last = len(self.dataset.test_inputs) - 1
             retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
             if retval.lower() in ["q", "quit"]:
