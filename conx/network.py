@@ -435,7 +435,7 @@ class Network():
         ...                   [[0, 1], [1]],
         ...                   [[1, 0], [1]],
         ...                   [[1, 1], [0]]])
-        >>> results = net.train(10, record=True, verbose=0)
+        >>> results = net.train(10, record=True, verbose=0, plot=False)
         >>> def function(network, epoch):
         ...     return None
         >>> sv = net.playback(function)
@@ -473,7 +473,7 @@ class Network():
             ...       [[1, 0], [1]],
             ...       [[1, 1], [0]]]
             >>> net.dataset.load(ds)
-            >>> epochs, khistory = net.train(10, verbose=0, report_rate=1000, record=True)
+            >>> epochs, khistory = net.train(10, verbose=0, report_rate=1000, record=True, plot=False)
             >>> img = net.movie(lambda net, epoch: net.propagate_to_image("hidden", [1, 1],
             ...                                                           resize=(500, 100)),
             ...                 "/tmp/movie.gif", mp4=False)
@@ -1030,7 +1030,7 @@ class Network():
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
-              plot=False, record=0, callbacks=None, save=False):
+              plot=True, record=0, callbacks=None, save=False):
         """
         Train the network.
 
@@ -1077,7 +1077,7 @@ class Network():
             >>> net.compile(error="mse", optimizer="rmsprop")
             >>> net.dataset.add([0.0], [1.0])
             >>> net.dataset.add([1.0], [0.0])
-            >>> net.train()  # doctest: +ELLIPSIS
+            >>> net.train(plot=False)  # doctest: +ELLIPSIS
             Evaluating initial training metrics...
             Training...
             ...
@@ -1990,7 +1990,7 @@ class Network():
         >>> net.compile(error="mse", optimizer="rmsprop")
         >>> net.dataset.add([0.0], [1.0])
         >>> net.dataset.add([1.0], [0.0])
-        >>> net.train()  # doctest: +ELLIPSIS
+        >>> net.train(plot=False)  # doctest: +ELLIPSIS
         Evaluating initial training metrics...
         Training...
         ...

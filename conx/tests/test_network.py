@@ -24,7 +24,7 @@ def test_xor1():
                       [[0, 1], [1]],
                       [[1, 0], [1]],
                       [[1, 1], [0]]])
-    net.train(epochs=2000, accuracy=1, report_rate=25)
+    net.train(epochs=2000, accuracy=1, report_rate=25, plot=False)
     net.test()
     net.save_weights("/tmp")
     net.load_weights("/tmp")
@@ -58,7 +58,7 @@ def test_xor2():
         ([[1],[0]], [[1],[1]]),
         ([[1],[1]], [[0],[0]])
     ])
-    net.train(2000, report_rate=10, accuracy=1)
+    net.train(2000, report_rate=10, accuracy=1, plot=False)
     net.test()
     net.propagate_to("shared-hidden", [[1], [1]])
     net.propagate_to("output1", [[1], [1]])
@@ -163,5 +163,5 @@ def test_cifar10():
     net.dataset.slice(10)
     net.dataset.shuffle()
     net.dataset.split(.5)
-    net.train()
+    net.train(plot=False)
     net.propagate(net.dataset.inputs[0])
