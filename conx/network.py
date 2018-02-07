@@ -30,6 +30,7 @@ import numbers
 import random
 import pickle
 import base64
+import json
 import html
 import copy
 import sys
@@ -271,6 +272,10 @@ class Network():
         self.debug = False
         ## Pick a place in the random stream, and remember it:
         ## (can override randomness with a particular seed):
+        if not isinstance(name, str):
+            raise Exception("conx layers need a name as a first parameter")
+        self._check_network_name(name)
+        self.name = name
         if "seed" in config:
             seed = config["seed"]
             del config["seed"]
@@ -300,32 +305,23 @@ class Network():
             "svg_rotate": False, # for rotating SVG
             "svg_preferred_size": 400, # in pixels
             "svg_max_width": 800, # in pixels
+            "config_layers": {},
         }
-        if not isinstance(name, str):
-            raise Exception("conx layers need a name as a first parameter")
-        self._check_network_name(name)
+        ## Next, load a config if available, and override defaults:
+        self.layers = []
+        self.load_config()
+        ## Override those with args:
+        self.config.update(config)
+        ## Set initial values:
         self.num_input_layers = 0
         self.num_target_layers = 0
         self.input_bank_order = []
         self.output_bank_order = []
-        self.config.update(config)
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
         self._tolerance = K.variable(0.1, dtype='float32', name='tolerance')
-        self.name = name
-        self.layers = []
         self.layer_dict = {}
-        # If simple feed-forward network:
-        for i in range(len(sizes)):
-            if i > 0:
-                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
-                               activation=self.config["activation"]))
-            else:
-                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
-        # Connect them together:
-        for i in range(len(sizes) - 1):
-            self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
         self.epoch_count = 0
         self.history = []
         self.weight_history = {}
@@ -336,6 +332,16 @@ class Network():
         self._svg_counter = 1
         self._need_to_show_headings = True
         self._initialized_javascript = False
+        # If simple feed-forward network:
+        for i in range(len(sizes)):
+            if i > 0:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i],
+                               activation=self.config["activation"]))
+            else:
+                self.add(Layer(autoname(i, len(sizes)), shape=sizes[i]))
+        # Connect them together:
+        for i in range(len(sizes) - 1):
+            self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
 
     def _check_network_name(self, name):
         """
@@ -603,7 +609,15 @@ class Network():
         self.layer_dict[layer.name] = layer
         ## Layers have link back to network
         layer.network = self
+        ## Finally, override any config from network.config:
+        self.update_layer_from_config(layer)
+        ## Return name, for possible connections
         return layer.name
+
+    def update_layer_from_config(self, layer):
+        if layer.name in self.config["config_layers"]:
+            for item in self.config["config_layers"][layer.name]:
+                setattr(layer, item, self.config["config_layers"][layer.name][item])
 
     def connect(self, from_layer_name : str=None, to_layer_name : str=None):
         """
@@ -3265,6 +3279,74 @@ require(['base/js/namespace'], function(Jupyter) {
                 position += size
             layer.set_weights(new_weights)
 
+    ### Config methods:
+    def load_config(self, datadir=None, config_file=None):
+        """
+        """
+        if datadir is None:
+            datadir = os.path.join(os.path.expanduser('~'), '.keras', 'conx', 'configs')
+        if config_file is None:
+            config_file = "%s.cfg" % self.name
+        datadir = os.path.expanduser(datadir)
+        if not os.path.exists(datadir):
+            ## second try, here
+            datadir = os.path.join('/tmp', '.keras', 'conx', 'configs')
+        full_config_file = os.path.join(datadir, config_file)
+        if os.path.isfile(full_config_file):
+            with open(full_config_file) as fp:
+                config_data = json.load(fp)
+            self.update_config(config_data)
+        ## give up, fail silently
+
+    def save_config(self, datadir=None, config_file=None):
+        """
+        """
+        if datadir is None:
+            datadir = os.path.join(os.path.expanduser('~'), '.keras', 'conx', 'configs')
+        if config_file is None:
+            config_file = "%s.cfg" % self.name
+        datadir = os.path.expanduser(datadir)
+        if not os.path.exists(datadir):
+            try:
+                os.makedirs(datadir)
+            except:
+                datadir = os.path.join('/tmp', '.keras', 'conx', 'configs')
+                os.makedirs(datadir)
+        full_config_file = os.path.join(datadir, config_file)
+        self.rebuild_config()
+        with open(full_config_file, "w") as fp:
+            json.dump(self.config, fp, indent="    ")
+
+    def update_config(self, config):
+        """
+        """
+        self.config = config
+        for layer in self.layers:
+            self.update_layer_from_config(layer)
+
+    def rebuild_config(self):
+        """
+        """
+        self.config["config_layers"].clear()
+        for layer in self.layers:
+            d = {}
+            self.config["config_layers"][layer.name] = d
+            for item in ["visible",
+                         "minmax",
+                         "vshape",
+                         "image_maxdim",
+                         "image_pixels_per_unit",
+                         "colormap",
+                         "feature",
+                         "max_draw_units"]:
+                d[item] = getattr(layer, item)
+
+    def update_layer_from_config(self, layer):
+        """
+        """
+        if layer.name in self.config["config_layers"]:
+            for item in self.config["config_layers"][layer.name]:
+                setattr(layer, item, self.config["config_layers"][layer.name][item])
 
 class _InterruptHandler():
     """
