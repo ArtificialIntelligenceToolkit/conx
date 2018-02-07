@@ -373,13 +373,24 @@ class Dashboard(VBox):
                                                           scale=self.feature_scale.value, display=False)
         svg = """<p style="text-align:center">%s</p>""" % (self.net.build_svg(inputs=inputs),)
         if inputs is not None and features is not None:
-            self.net_svg.value = """
+            html_horizontal = """
+<table align="center" style="width: 100%%;">
+ <tr>
+  <td valign="top" style="width: 50%%;">%s</td>
+  <td valign="top" align="center" style="width: 50%%;"><p style="text-align:center"><b>%s</b></p>%s</td>
+</tr>
+</table>"""
+            html_vertical = """
 <table align="center" style="width: 100%%;">
  <tr>
   <td valign="top">%s</td>
+</tr>
+<tr>
   <td valign="top" align="center"><p style="text-align:center"><b>%s</b></p>%s</td>
 </tr>
-</table>""" % (svg, "%s features" % self.feature_bank.value, features)
+</table>"""
+            self.net_svg.value = (html_vertical if self.net.config["svg_rotate"] else html_horizontal) % (
+                svg, "%s features" % self.feature_bank.value, features)
         else:
             self.net_svg.value = svg
 

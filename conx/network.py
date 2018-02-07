@@ -1659,6 +1659,8 @@ class Network():
         if self._layer_has_features(layer_name):
             if html:
                 orig_feature = self[layer_name].feature
+                orig_rotate = self.config["svg_rotate"]
+                self.config["svg_rotate"] = False
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
@@ -1673,12 +1675,14 @@ class Network():
                         retval += """</tr><tr>"""
                 retval += "</tr></table>"
                 self[layer_name].feature = orig_feature
+                self.config["svg_rotate"] = orig_rotate
                 if display:
                     return HTML(retval)
                 else:
                     return retval
             else:
                 orig_feature = self[layer_name].feature
+                orig_rotate = self.config["svg_rotate"]
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
@@ -1693,6 +1697,7 @@ class Network():
                     if self._comm.kernel:
                         self._comm.send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
                 self[layer_name].feature = orig_feature
+                self.config["svg_rotate"] = orig_rotate
         else:
             raise Exception("layer '%s' has no features" % layer_name)
 
