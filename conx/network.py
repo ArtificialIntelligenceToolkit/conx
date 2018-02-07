@@ -1666,7 +1666,7 @@ class Network():
             if self._comm.kernel:
                 layer = self[layer_name]
                 if layer.visible and layer.model is not None:
-                    image = self.propagate_to_image(layer_name, inputs, raw=raw)
+                    image = self._propagate_to_image(layer_name, inputs, raw=raw)
                     data_uri = self._image_to_uri(image)
                     self._comm.send({'class': "%s_%s" % (self.name, layer.name), "href": data_uri})
         ## Shape the outputs:
@@ -1709,10 +1709,9 @@ class Network():
         if self._layer_has_features(layer_name):
             if html:
                 orig_feature = self[layer_name].feature
-                orig_rotate = self.config["svg_rotate"]
-                self.config["svg_rotate"] = False
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
+                    ## This should return in proper orientation, regardless of rotate setting:
                     image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
@@ -1725,17 +1724,15 @@ class Network():
                         retval += """</tr><tr>"""
                 retval += "</tr></table>"
                 self[layer_name].feature = orig_feature
-                self.config["svg_rotate"] = orig_rotate
                 if display:
                     return HTML(retval)
                 else:
                     return retval
             else:
                 orig_feature = self[layer_name].feature
-                orig_rotate = self.config["svg_rotate"]
-                self.config["svg_rotate"] = False
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
+                    ## This should return in proper orientation, regardless of rotate setting:
                     image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
@@ -1748,14 +1745,26 @@ class Network():
                     if self._comm.kernel:
                         self._comm.send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
                 self[layer_name].feature = orig_feature
-                self.config["svg_rotate"] = orig_rotate
         else:
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
                            update_pictures=False, raw=False):
         """
-        Gets an image of activations at a layer.
+        Gets an image of activations at a layer. Always returns image in
+        proper orientation.
+        """
+        orig_rotate = self.config["svg_rotate"]
+        self.config["svg_rotate"] = False
+        image = self._propagate_to_image(layer_name, input, batch_size, resize, scale,
+                                         update_pictures, raw)
+        self.config["svg_rotate"] = orig_rotate
+        return image
+
+    def _propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
+                           update_pictures=False, raw=False):
+        """
+        Internal version. Draws to whatever rotation is set.
         """
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
@@ -2427,7 +2436,7 @@ class Network():
                         v = in_layer.make_dummy_vector()
                 if self[layer_name].model:
                     try:
-                        image = self.propagate_to_image(layer_name, v)
+                        image = self._propagate_to_image(layer_name, v)
                     except:
                         image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
                 else:
