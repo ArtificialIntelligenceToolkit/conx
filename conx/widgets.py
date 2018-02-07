@@ -197,8 +197,12 @@ class Dashboard(VBox):
         self._height = height
         ## Global widgets:
         style = {"description_width": "initial"}
-        self.feature_columns = IntText(description="Feature columns:", value=3, style=style)
-        self.feature_scale = FloatText(description="Feature scale:", value=2.0, style=style)
+        self.feature_columns = IntText(description="Feature columns:",
+                                       value=self.net.config["dashboard.features.columns"],
+                                       style=style)
+        self.feature_scale = FloatText(description="Feature scale:",
+                                       value=self.net.config["dashboard.feature.scale"],
+                                       style=style)
         self.feature_columns.observe(self.regenerate, names='value')
         self.feature_scale.observe(self.regenerate, names='value')
         ## Hack to center SVG as justify-content is broken:
@@ -236,6 +240,7 @@ class Dashboard(VBox):
         self.position_text.value = self.control_slider.value
 
     def update_control_slider(self, change=None):
+        self.net.config["dashboard.dataset"] = self.control_select.value
         if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             self.total_text.value = "of 0"
             self.control_slider.value = 0
@@ -362,11 +367,13 @@ class Dashboard(VBox):
         ## Protection when deleting object on shutdown:
         if isinstance(button, dict) and 'new' in button and button['new'] is None:
             return
-        #with self.output:
-        #    print("regenerate called!", button)
+        ## Update the config:
+        self.net.config["dashboard.features.bank"] = self.feature_bank.value
+        self.net.config["dashboard.features.columns"] = self.feature_columns.value
+        self.net.config["dashboard.feature.scale"] = self.feature_scale.value
         inputs = self.get_current_input()
         features = None
-        if self.feature_bank.value in self.net.layer_dict.keys():
+        if self.feature_bank.value in self.net.layer_dict.keys() and inputs is not None:
             if self.net.model is not None:
                 features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                           cols=self.feature_columns.value,
@@ -447,7 +454,11 @@ class Dashboard(VBox):
                                    value=0,
                                    layout=Layout(width='100%'))
         self.total_text = Label(value="of %s" % len(self.net.dataset.train_inputs), layout=Layout(width="100px"))
-        self.zoom_slider = FloatSlider(description="Zoom", continuous_update=False, min=0, max=1.0,
+        self.zoom_slider = FloatSlider(description="Zoom",
+                                       continuous_update=False,
+                                       min=0, max=1.0,
+                                       style={"description_width": 'initial'},
+                                       layout=Layout(width="65%"),
                                        value=self.net.config["svg_scale"] if self.net.config["svg_scale"] is not None else 0.5)
 
         ## Hook them up:
@@ -486,13 +497,13 @@ class Dashboard(VBox):
         vspace = IntText(value=self.net.config["vspace"], description="Vertical space between layers:",
                          style=style, layout=layout)
         vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]), names='value')
-        self.feature_bank = Select(description="Features:", value="",
+        self.feature_bank = Select(description="Features:", value=self.net.config["dashboard.features.bank"],
                               options=[""] + [layer.name for layer in self.net.layers if self.net._layer_has_features(layer.name)],
                               rows=1)
         self.feature_bank.observe(self.regenerate, names='value')
         self.control_select = Select(
             options=['Test', 'Train'],
-            value='Train',
+            value=self.net.config["dashboard.dataset"],
             description='Dataset:',
             rows=1
         )
@@ -538,15 +549,23 @@ class Dashboard(VBox):
         self.svg_rotate = Checkbox(description="Rotate", value=layer.visible, layout=layout)
         self.layer_feature.observe(self.update_layer, names='value')
         column2.append(self.layer_feature)
-        self.svg_rotate = Checkbox(description="Rotate network", value=self.net.config["svg_rotate"], layout=layout)
+        self.svg_rotate = Checkbox(description="Rotate network",
+                                   value=self.net.config["svg_rotate"],
+                                   style={"description_width": 'initial'},
+                                   layout=Layout(width="52%"))
         self.svg_rotate.observe(lambda change: self.set_attr(self.net.config, "svg_rotate", change["new"]), names='value')
-        column2.append(self.svg_rotate)
+        self.save_config_button = Button(icon="save", layout=Layout(width="10%"))
+        self.save_config_button.on_click(self.save_config)
+        column2.append(HBox([self.svg_rotate, self.save_config_button]))
         config_children = HBox([VBox(column1, layout=Layout(width="100%")),
                                 VBox(column2, layout=Layout(width="100%"))])
         accordion = Accordion(children=[config_children])
         accordion.set_title(0, self.net.name)
         accordion.selected_index = None
         return accordion
+
+    def save_config(self, widget=None):
+        self.net.save_config()
 
     def update_layer(self, change):
         """

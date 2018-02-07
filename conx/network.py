@@ -305,6 +305,10 @@ class Network():
             "svg_rotate": False, # for rotating SVG
             "svg_preferred_size": 400, # in pixels
             "svg_max_width": 800, # in pixels
+            "dashboard.dataset": "Train",
+            "dashboard.features.bank": "",
+            "dashboard.features.columns": 3,
+            "dashboard.features.scale": 1.0,
             "config_layers": {},
         }
         ## Next, load a config if available, and override defaults:
