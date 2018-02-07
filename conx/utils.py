@@ -205,11 +205,11 @@ def view_network(net, title=None, background=(255, 255, 255, 255), data="train",
         clear_output(wait=True)
         if data == "train":
             print("%s Training data #%d" % (net.name, current))
-            view_svg(net.picture(net.dataset.train_inputs[current], static=kwargs.get("static", False)).data, title=title)
+            view_svg(net.picture(net.dataset.train_inputs[current], static=kwargs.get("static", True)).data, title=title)
             last = len(net.dataset.train_inputs) - 1
         else:
             print("%s Test data #%d" % (net.name, current))
-            view_svg(net.picture(net.dataset.test_inputs[current], static=kwargs.get("static", False)).data, title=title)
+            view_svg(net.picture(net.dataset.test_inputs[current], static=kwargs.get("static", True)).data, title=title)
             last = len(net.dataset.test_inputs) - 1
         retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
         if retval.lower() in ["q", "quit"]:

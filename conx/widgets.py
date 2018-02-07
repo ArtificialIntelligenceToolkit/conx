@@ -371,7 +371,7 @@ class Dashboard(VBox):
                 features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                           cols=self.feature_columns.value,
                                                           scale=self.feature_scale.value, display=False)
-        svg = """<p style="text-align:center">%s</p>""" % (self.net.build_svg(inputs=inputs),)
+        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs),)
         if inputs is not None and features is not None:
             html_horizontal = """
 <table align="center" style="width: 100%%;">

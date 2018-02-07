@@ -28,7 +28,7 @@ def test_xor1():
     net.test()
     net.save_weights("/tmp")
     net.load_weights("/tmp")
-    svg = net.build_svg()
+    svg = net.to_svg()
     assert net is not None
 
 def test_xor2():
@@ -70,7 +70,7 @@ def test_xor2():
     net.save_weights("/tmp")
     net.load_weights("/tmp")
     net.test()
-    svg = net.build_svg()
+    svg = net.to_svg()
     assert net is not None
 
 def test_dataset():
@@ -121,7 +121,7 @@ def test_images():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", error="binary_crossentropy")
-    svg = net.build_svg()
+    svg = net.to_svg()
     assert svg is not None
 
 def test_cifar10():

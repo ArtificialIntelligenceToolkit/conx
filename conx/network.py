@@ -383,10 +383,10 @@ class Network():
             return self.layer_dict[layer_name]
 
     def _repr_html_(self):
-        return self.build_svg()
+        return self.to_svg()
 
     def _repr_svg_(self):
-        return self.build_svg()
+        return self.to_svg()
 
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
@@ -522,7 +522,7 @@ class Network():
             class_id = "picture-static-%s-%s" % (self.name, r)
         else:
             class_id = None
-        return HTML(self.build_svg(inputs=inputs, class_id=class_id, **kwargs))
+        return HTML(self.to_svg(inputs=inputs, class_id=class_id, **kwargs))
 
     def in_console(self, mpl_backend: str) -> bool:
         """
@@ -2806,7 +2806,7 @@ require(['base/js/namespace'], function(Jupyter) {
         display(Javascript(js))
         self._initialized_javascript = True
 
-    def build_svg(self, inputs=None, class_id=None, **kwargs):
+    def to_svg(self, inputs=None, class_id=None, **kwargs):
         """
         opts - temporary override of config
 
