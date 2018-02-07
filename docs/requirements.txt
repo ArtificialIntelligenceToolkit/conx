@@ -13,3 +13,6 @@ jupyter_sphinx
 sphinxcontrib-napoleon
 recommonmark
 sklearn
+tqdm
+requests
+pydot
