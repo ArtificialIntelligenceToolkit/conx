@@ -306,7 +306,7 @@ class Dashboard(VBox):
                 self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
                 if self.net.model is None:
                     return
-                output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value], visualize=True)
+                output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value], update_pictures=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
@@ -328,7 +328,7 @@ class Dashboard(VBox):
                 self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
                 if self.net.model is None:
                     return
-                output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value], visualize=True)
+                output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value], update_pictures=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.test_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)

@@ -329,7 +329,7 @@ class Network():
         self.epoch_count = 0
         self.history = []
         self.weight_history = {}
-        self.visualize = get_ipython() is not None
+        self.update_pictures = get_ipython() is not None
         self._comm = None
         self.model = None
         self.prop_from_dict = {}
@@ -839,7 +839,7 @@ class Network():
             correct.append(all(row))
         return correct
 
-    def train_one(self, inputs, targets, batch_size=32, visualize=False):
+    def train_one(self, inputs, targets, batch_size=32, update_pictures=False):
         """
         Train on one input/target pair.
 
@@ -935,14 +935,14 @@ class Network():
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
         history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
         ## may need to update history?
-        outputs = self.propagate(inputs, batch_size=batch_size, visualize=visualize)
+        outputs = self.propagate(inputs, batch_size=batch_size, update_pictures=update_pictures)
         if len(self.output_bank_order) == 1:
             errors = (np.array(outputs) - np.array(targets)).tolist()
         else:
             errors = []
             for bank in range(len(self.output_bank_order)):
                 errors.append((np.array(outputs[bank]) - np.array(targets[bank])).tolist())
-        if visualize:
+        if update_pictures:
             if self.config["show_targets"]:
                 if len(self.output_bank_order) == 1:
                     self.display_component([targets], "targets")
@@ -1451,7 +1451,7 @@ class Network():
                 weights.append(w)
             return weights
 
-    def propagate(self, input, batch_size=32, visualize=False, raw=False):
+    def propagate(self, input, batch_size=32, update_pictures=False, raw=False):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
@@ -1497,14 +1497,14 @@ class Network():
             shapes = [self[layer_name].shape for layer_name in self.output_bank_order]
             ## FIXME: may not be able to reshape; dynamically changing output
             outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
-        if visualize:
+        if update_pictures:
             for layer in self.layers:
                 if layer.visible and layer.model:
-                    self.propagate_to(layer.name, input, batch_size, visualize=visualize, raw=raw)
+                    self.propagate_to(layer.name, input, batch_size, update_pictures=update_pictures, raw=raw)
         return outputs
 
     def propagate_from(self, layer_name, input, output_layer_names=None,
-                       batch_size=32, visualize=False, raw=False):
+                       batch_size=32, update_pictures=False, raw=False):
         """
         Propagate activations from the given layer name to the output layers.
         """
@@ -1547,7 +1547,7 @@ class Network():
                 inputs = np.array([input])
             outputs.append([list(x) for x in prop_model.predict(inputs)][0])
             ## FYI: outputs not shaped
-        if visualize:
+        if update_pictures:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -1586,15 +1586,15 @@ class Network():
                 data_uri = self._image_to_uri(image)
                 self._comm.send({'class': "%s_%s_%s" % (self.name, layer_name, component), "href": data_uri})
 
-    def propagate_to(self, layer_name, inputs, batch_size=32, visualize=False, raw=False):
+    def propagate_to(self, layer_name, inputs, batch_size=32, update_pictures=False, raw=False):
         """
-        Computes activation at a layer. Side-effect: updates visualized SVG.
+        Computes activation at a layer. Side-effect: updates live SVG.
 
         Arguments:
             layer_name (str) - name of layer to propagate activations to
             inputs - list of numbers, vector to propagate
             batch_size (int) - size of batch
-            visualize (bool) - send images to notebook SVG images
+            update_pictures (bool) - send images to notebook SVG images
             raw (bool) - if True, don't process inputs or outputs
         """
         if layer_name not in self.layer_dict:
@@ -1615,7 +1615,7 @@ class Network():
                       self._get_sorted_input_names(self[layer_name].input_names)]
             outputs = self[layer_name].model.predict(vector, batch_size=batch_size)
         ## output shaped below:
-        if visualize:
+        if update_pictures:
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
@@ -1645,7 +1645,7 @@ class Network():
 
 
     def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
-                              html=True, size=None, display=True, visualize=False, raw=False):
+                              html=True, size=None, display=True, update_pictures=False, raw=False):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1663,7 +1663,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize, raw=raw)
+                    image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1683,7 +1683,7 @@ class Network():
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
-                    image = self.propagate_to_image(layer_name, inputs, visualize=visualize, raw=raw)
+                    image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1699,7 +1699,7 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           visualize=False, raw=False):
+                           update_pictures=False, raw=False):
         """
         Gets an image of activations at a layer.
         """
@@ -1709,7 +1709,7 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
-        outputs = self.propagate_to(layer_name, input, batch_size, visualize=visualize, raw=raw)
+        outputs = self.propagate_to(layer_name, input, batch_size, update_pictures=update_pictures, raw=raw)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
         if resize is not None:
@@ -1722,7 +1722,7 @@ class Network():
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
                             interactive=True, scatter=None, symbols=None, default_symbol="o",
-                            format="svg", visualize=False):
+                            format="svg", update_pictures=False):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1759,7 +1759,7 @@ class Network():
                 vector = copy.deepcopy(ovector)
                 vector[ix] = x
                 vector[iy] = y
-                activations = self.propagate_from(from_layer, vector, to_layer, visualize=visualize)
+                activations = self.propagate_from(from_layer, vector, to_layer, update_pictures=update_pictures)
                 mat[row,col] = activations[to_unit]
         fig, ax = plt.subplots()
         axim = ax.imshow(mat, origin='lower', cmap=colormap, vmin=out_min, vmax=out_max)
