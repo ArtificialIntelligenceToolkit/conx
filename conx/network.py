@@ -627,6 +627,8 @@ class Network():
         """
         if len(self.layers) == 0:
             raise Exception("no layers have been added")
+        if len(self.layers) >= 5:
+            self.config["svg_rotate"] = True
         if from_layer_name is None and to_layer_name is None:
             if (any([layer.outgoing_connections for layer in self.layers]) or
                 any([layer.incoming_connections for layer in self.layers])):
@@ -634,7 +636,6 @@ class Network():
             for i in range(len(self.layers) - 1):
                 self.connect(self.layers[i].name, self.layers[i+1].name)
         else:
-            ## FIXME: check for cycle here
             if from_layer_name == to_layer_name:
                 raise Exception("self connections are not allowed")
             if from_layer_name not in self.layer_dict:
@@ -1531,7 +1532,7 @@ class Network():
                 if (layer_name, layer_name) not in self.prop_from_dict:
                     self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
                                                                                        outputs=k)
-                for layer in path: # FIXME: this should be a straight path between incoming and outgoing
+                for layer in path:
                     k = layer.keras_layer(k)
                     if (layer_name, layer.name) not in self.prop_from_dict:
                         self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
@@ -1895,8 +1896,7 @@ class Network():
             raise Exception("invalid number of colorbar ticks: %s" % (ticks,))
         # clip weights to the range [wmin, wmax] and normalize to [0, 1]:
         scaled_W = (np.clip(W, wmin, wmax) - wmin) / (wmax - wmin)
-        # FIXME: need a better way to set the figure size
-        fig, axes = plt.subplots(1, len(units), figsize=figsize)#, tight_layout=True)
+        fig, axes = plt.subplots(1, len(units), figsize=figsize)
         if len(units) == 1:
             axes = [axes]
         for unit, ax in zip(units, axes):
@@ -2890,7 +2890,6 @@ require(['base/js/namespace'], function(Jupyter) {
                 for w in range(len(klayer.weights)):
                     retval += "\n %s has shape %s" % (
                         klayer.weights[w].name, weights[w].shape)
-        ## FIXME: how to show merged layer weights?
         return retval
 
     def saved(self, dir=None):
