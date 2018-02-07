@@ -505,7 +505,7 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def picture(self, inputs=None, static=False, **kwargs):
+    def picture(self, inputs=None, static=False, format="html", **kwargs):
         """
         Create an SVG of the network given some inputs (optional).
 
@@ -522,7 +522,13 @@ class Network():
             class_id = "picture-static-%s-%s" % (self.name, r)
         else:
             class_id = None
-        return HTML(self.to_svg(inputs=inputs, class_id=class_id, **kwargs))
+        svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
+        if format == "html":
+            return HTML(svg)
+        elif format == "svg":
+            return svg
+        elif format == "image":
+            return svg2image(svg)
 
     def in_console(self, mpl_backend: str) -> bool:
         """
@@ -1836,14 +1842,14 @@ class Network():
                 plt.close(fig)
                 img_bytes = bytes.getvalue()
                 return SVG(img_bytes.decode())
-            elif format == "pil":
+            elif format == "image":
                 plt.savefig(bytes, format="png")
                 plt.close(fig)
                 bytes.seek(0)
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'pil'")
+                raise Exception("format must be 'svg' or 'image'")
         # optionally print out a table of activation values
         if show_values:
             s = '\n'
@@ -1958,14 +1964,14 @@ class Network():
                 plt.close(fig)
                 img_bytes = bytes.getvalue()
                 return SVG(img_bytes.decode())
-            elif format == "pil":
+            elif format == "image":
                 plt.savefig(bytes, format="png")
                 plt.close(fig)
                 bytes.seek(0)
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'pil'")
+                raise Exception("format must be 'svg' or 'image'")
 
     def show_unit_weights(self, layer_name, unit, vshape=None, ascii=False):
         if self[layer_name] is None:
@@ -2107,14 +2113,14 @@ class Network():
                 plt.close(fig)
                 img_bytes = bytes.getvalue()
                 return SVG(img_bytes.decode())
-            elif format == "pil":
+            elif format == "image":
                 plt.savefig(bytes, format="png")
                 plt.close(fig)
                 bytes.seek(0)
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'pil'")
+                raise Exception("format must be 'svg' or 'image'")
 
     def show_results(self, report_rate=None):
         """

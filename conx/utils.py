@@ -154,7 +154,8 @@ def is_array_like(item):
             (hasattr(item, "__getitem__") or
              hasattr(item, "__iter__")))
 
-def view_network(net, title=None, background=(255, 255, 255, 255), data="train", **kwargs):
+def view_network(net, title=None, background=(255, 255, 255, 255),
+                 data="train", scale=1.0, **kwargs):
     """
     View a network and train or test data.
 
@@ -205,11 +206,17 @@ def view_network(net, title=None, background=(255, 255, 255, 255), data="train",
         clear_output(wait=True)
         if data == "train":
             print("%s Training data #%d" % (net.name, current))
-            view_svg(net.picture(net.dataset.train_inputs[current], static=kwargs.get("static", True)).data, title=title)
+            view_image(net.picture(net.dataset.train_inputs[current],
+                                   static=kwargs.get("static", True),
+                                   format="image"),
+                       title=title, scale=scale)
             last = len(net.dataset.train_inputs) - 1
         else:
             print("%s Test data #%d" % (net.name, current))
-            view_svg(net.picture(net.dataset.test_inputs[current], static=kwargs.get("static", True)).data, title=title)
+            view_image(net.picture(net.dataset.test_inputs[current],
+                                   static=kwargs.get("static", True),
+                                   format="image"),
+                       title=title, scale=scale)
             last = len(net.dataset.test_inputs) - 1
         retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
         if retval.lower() in ["q", "quit"]:
@@ -224,7 +231,7 @@ def view_network(net, title=None, background=(255, 255, 255, 255), data="train",
                 continue
         current = current % (last + 1)
 
-def view(item, title=None, background=(255, 255, 255, 255), **kwargs):
+def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs):
     """
     Show an item from the console. item can be an
     SVG image, PIL.Image, or filename.
@@ -235,19 +242,19 @@ def view(item, title=None, background=(255, 255, 255, 255), **kwargs):
     import tempfile
     if isinstance(item, str):
         if item.startswith("<svg ") or item.startswith("<SVG "):
-            return view_svg(item, title, background)
+            return view_svg(item, title, background, scale=scale)
         else:
             ## assume it is a file:
-            return view_image(PIL.Image.open(item), title)
+            return view_image(PIL.Image.open(item), title, scale=scale)
     elif isinstance(item, Network):
-        return view_network(item, title=title, background=background, **kwargs)
+        return view_network(item, title=title, background=background, scale=scale, **kwargs)
     elif hasattr(item, "_repr_svg_"):
-        return view_svg(item._repr_svg_(), title, background)
+        return view_svg(item._repr_svg_(), title=title, background=background, scale=scale)
     elif isinstance(item, PIL.Image.Image):
-        return view_image(item, title)
+        return view_image(item, title=title, scale=scale)
     elif isinstance(item, HTML):
         if item.data.startswith("<svg ") or item.data.startswith("<SVG "):
-            return view_svg(item.data, title, background)
+            return view_svg(item.data, title, background, scale=scale)
         else:
             with tempfile.NamedTemporaryFile(delete=False) as fp:
                 fp.write(item.data.encode("utf-8"))
@@ -258,10 +265,23 @@ def view(item, title=None, background=(255, 255, 255, 255), **kwargs):
 
 def svg2image(svg, background=(255, 255, 255, 255)):
     import cairosvg
+    if isinstance(svg, bytes):
+        pass
+    elif isinstance(svg, str):
+        svg = svg.encode("utf-8")
+    else:
+        raise Exception("svg2image takes a str, rather than %s" % type(svg))
     try:
-        image_bytes = cairosvg.svg2png(bytestring=svg.encode("utf-8"))
+        image_bytes = cairosvg.svg2png(bytestring=svg)
     except:
-        raise Exception("You need a newer version of cairosvg")
+        image_bytes = None
+    if image_bytes is None:
+        ## let's try to convert it ourselves
+        from ._cairosvg import image as _cairosvg_image
+        ## monkey patch cairosvg.surface:
+        cairosvg.surface.TAGS["image"] = _cairosvg_image
+        ## try again:
+        image_bytes = cairosvg.svg2png(bytestring=svg)
     image = PIL.Image.open(io.BytesIO(image_bytes))
     if background is not None:
         ## create a blank image, with background:
@@ -271,14 +291,16 @@ def svg2image(svg, background=(255, 255, 255, 255)):
     else:
         return image
 
-def view_svg(svg, title=None, background=(255, 255, 255, 255)):
+def view_svg(svg, title=None, background=(255, 255, 255, 255), scale=1.0):
     image = svg2image(svg, background)
-    return view_image(image, title)
+    return view_image(image, title, scale=scale)
 
-def view_image(image, title=None):
+def view_image(image, title=None, scale=1.0):
     plt.ion()
+    size = plt.rcParams["figure.figsize"]
+    fig = plt.figure(figsize=(size[0] * scale, size[1] * scale),
+                     num=title)
     if title:
-        fig = plt.figure(num=title)
         fig.canvas.set_window_title(title)
     frame = plt.gca()
     frame.axes.get_xaxis().set_visible(False)
@@ -816,14 +838,14 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
             plt.close(fig)
             img_bytes = bytes.getvalue()
             return SVG(img_bytes.decode())
-        elif format == "pil":
+        elif format == "image":
             plt.savefig(bytes, format="png")
             plt.close(fig)
             bytes.seek(0)
             pil_image = PIL.Image.open(bytes)
             return pil_image
         else:
-            raise Exception("format must be 'svg' or 'pil'")
+            raise Exception("format must be 'svg' or 'image'")
 
 def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="",
            ylabel="", zlabel="", title="", label="", symbols=None,
@@ -859,8 +881,7 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
     from mpl_toolkits.mplot3d import Axes3D
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    set_plt_param('figure.figsize', (width, height))
-    fig = plt.figure()
+    fig = plt.figure(figsize=(width, height))
     ax = fig.gca(projection='3d')
     # Plot the surface.
     if mode == "surface" or mode == "wireframe":
@@ -932,15 +953,14 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
             plt.close(fig)
             img_bytes = bytes.getvalue()
             result = SVG(img_bytes.decode())
-        elif format == "pil":
+        elif format == "image":
             plt.savefig(bytes, format="png")
             plt.close(fig)
             bytes.seek(0)
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'pil'")
-    reset_plt_param('figure.figsize')
+            raise Exception("format must be 'svg' or 'image'")
     return result
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
@@ -967,8 +987,7 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    set_plt_param('figure.figsize', (width, height))
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(width, height))
     if len(data) == 2 and isinstance(data[0], str):
         data = [data]
     for (data_label, vectors) in data:
@@ -1012,15 +1031,14 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
             plt.close(fig)
             img_bytes = bytes.getvalue()
             result = SVG(img_bytes.decode())
-        elif format == "pil":
+        elif format == "image":
             plt.savefig(bytes, format="png")
             plt.close(fig)
             bytes.seek(0)
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'pil'")
-    reset_plt_param('figure.figsize')
+            raise Exception("format must be 'svg' or 'image'")
     return result
 
 def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel="", ylabel="", title="",
@@ -1039,8 +1057,7 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
     in_min, in_max = in_range
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    set_plt_param('figure.figsize', (width, height))
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(width, height))
     if callable(function_or_matrix):
         function = function_or_matrix
         if resolution is None:
@@ -1085,51 +1102,17 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
             plt.close(fig)
             img_bytes = bytes.getvalue()
             result = SVG(img_bytes.decode())
-        elif format == "pil":
+        elif format == "image":
             plt.savefig(bytes, format="png")
             plt.close(fig)
             bytes.seek(0)
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'pil'")
-    reset_plt_param('figure.figsize')
+            raise Exception("format must be 'svg' or 'image'")
     return result
 
 CACHE_PARAMS = {}
-
-def set_plt_param(setting, value):
-    """
-    Set the matplotlib setting to a new value.
-
-    >>> original = plt.rcParams["font.size"]
-    >>> set_plt_param("font.size", 8.0)
-    >>> original == plt.rcParams["font.size"]
-    False
-    >>> 8.0 == plt.rcParams["font.size"]
-    True
-    >>> reset_plt_param("font.size")
-    >>> original == plt.rcParams["font.size"]
-    True
-    """
-    CACHE_PARAMS[setting] = plt.rcParams[setting]
-    plt.rcParams[setting] = value
-
-def reset_plt_param(setting):
-    """
-    Reset the matplotlib setting to its default.
-
-    >>> original = plt.rcParams["figure.figsize"]
-    >>> set_plt_param("figure.figsize", [5, 5])
-    >>> original == plt.rcParams["figure.figsize"]
-    False
-    >>> [5, 5] == plt.rcParams["figure.figsize"]
-    True
-    >>> reset_plt_param("figure.figsize")
-    >>> original == plt.rcParams["figure.figsize"]
-    True
-    """
-    plt.rcParams[setting] = CACHE_PARAMS[setting]
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
             symbols=None, default_symbol="o", ymin=None, xmin=None, ymax=None, xmax=None,
@@ -1142,8 +1125,7 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
     """
     if plt is None:
         raise Exception("matplotlib was not loaded")
-    set_plt_param('figure.figsize', (width, height))
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(width, height))
     if len(data) == 2 and isinstance(data[0], str):
         data = [data]
     for (data_label, vectors) in data:
@@ -1186,15 +1168,14 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
             plt.close(fig)
             img_bytes = bytes.getvalue()
             result = SVG(img_bytes.decode())
-        elif format == "pil":
+        elif format == "image":
             plt.savefig(bytes, format="png")
             plt.close(fig)
             bytes.seek(0)
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'pil'")
-    reset_plt_param('figure.figsize')
+            raise Exception("format must be 'svg' or 'image'")
     return result
 
 def gif2mp4(filename):
@@ -1757,11 +1738,11 @@ class Experiment():
                 plt.close(fig)
                 img_bytes = bytes.getvalue()
                 return SVG(img_bytes.decode())
-            elif format == "pil":
+            elif format == "image":
                 plt.savefig(bytes, format="png")
                 plt.close(fig)
                 bytes.seek(0)
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'pil'")
+                raise Exception("format must be 'svg' or 'image'")
