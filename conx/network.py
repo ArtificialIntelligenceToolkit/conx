@@ -627,10 +627,10 @@ class Network():
         """
         if len(self.layers) == 0:
             raise Exception("no layers have been added")
-        if not isinstance(from_layer_name, str):
-            raise Exception("from_layer_name should be a string")
-        if not isinstance(to_layer_name, str):
-            raise Exception("to_layer_name should be a string")
+        if from_layer_name is not None and not isinstance(from_layer_name, str):
+            raise Exception("from_layer_name should be a string or None")
+        if to_layer_name is not None and not isinstance(to_layer_name, str):
+            raise Exception("to_layer_name should be a string or None")
         if len(self.layers) >= 5:
             self.config["svg_rotate"] = True
         if from_layer_name is None and to_layer_name is None:
