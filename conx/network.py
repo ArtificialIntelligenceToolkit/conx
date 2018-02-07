@@ -2677,6 +2677,25 @@ class Network():
             level_num += 1
         cheight += config["border_bottom"]
         ### DONE!
+        ## Draw live/static sign
+        if (class_id is None):
+            label = "&#128498;" # lighting bold, dynamic image
+            if config["svg_rotate"]:
+                struct.append(["label_svg", {"x": 10,
+                                             "y": cheight - 10,
+                                             "label": label,
+                                             "font_size": config["font_size"] * 2.0,
+                                             "font_family": config["font_family"],
+                                             "text_anchor": "middle",
+                }])
+            else:
+                struct.append(["label_svg", {"x": 10,
+                                             "y": 10,
+                                             "label": label,
+                                             "font_size": config["font_size"] * 2.0,
+                                             "font_family": config["font_family"],
+                                             "text_anchor": "middle",
+                }])
         ## Draw the title:
         if config["svg_rotate"]:
             struct.append(["label_svg", {"x": config["border_top"], ## really border_left
