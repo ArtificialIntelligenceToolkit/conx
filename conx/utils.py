@@ -129,34 +129,107 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
-def show(item, title=None, background=(255, 255, 255, 255)):
+def view_network(net, title=None, background=(255, 255, 255, 255), data="train", **kwargs):
+    """
+    View a network and train or test data.
+
+    Arguments:
+        data (str) = "train" or "test"
+
+    Common settings:
+        show_targets (bool) - True will show target pattern
+        show_errors (bool) - Ture will show error pattern
+
+    Additional settings:
+        font_size
+        font_family
+        border_top
+        border_bottom
+        hspace
+        vspace
+        image_maxdim
+        image_pixels_per_unit
+        activation
+        arrow_color
+        arrow_width
+        border_width
+        border_color
+        pixels_per_unit
+        precision
+        svg_scale
+        svg_rotate
+        svg_preferred_size
+        svg_max_width
+    """
+    from IPython.display import clear_output
+
+    if data not in ["test", "train"]:
+        print("Invalid data to view; data should be 'train', or 'test'")
+        return
+    if len(net.dataset) == 0:
+        print("Please load a dataset")
+        return
+    if data == "test" and len(net.dataset.test_inputs) == 0:
+        print("Please split data")
+        return
+    for key in kwargs:
+        if key == "static": continue
+        net.config[key] = kwargs[key]
+    current = 0
+    while True:
+        clear_output(wait=True)
+        if data == "train":
+            print("%s Training data #%d" % (net.name, current))
+            view_svg(net.picture(net.dataset.train_inputs[current], static=kwargs.get("static", False)).data, title=title)
+            last = len(net.dataset.train_inputs) - 1
+        else:
+            print("%s Test data #%d" % (net.name, current))
+            view_svg(net.picture(net.dataset.test_inputs[current], static=kwargs.get("static", False)).data, title=title)
+            last = len(net.dataset.test_inputs) - 1
+        retval = input("Enter # (0-%s) to view, return for next, q to quit: " % (last,))
+        if retval.lower() in ["q", "quit"]:
+            return
+        elif retval == "":
+            current += 1
+        else:
+            try:
+                current = int(retval)
+            except:
+                print("Invalid input")
+                continue
+        current = current % (last + 1)
+
+def view(item, title=None, background=(255, 255, 255, 255), **kwargs):
     """
     Show an item from the console. item can be an
     SVG image, PIL.Image, or filename.
     """
     from IPython.display import Image, HTML
+    from conx import Network
     import webbrowser
     import tempfile
     if isinstance(item, str):
         if item.startswith("<svg ") or item.startswith("<SVG "):
-            return show_svg(item, title, background)
+            return view_svg(item, title, background)
         else:
             ## assume it is a file:
-            return show_image(PIL.Image.open(item), title)
+            return view_image(PIL.Image.open(item), title)
+    elif isinstance(item, Network):
+        return view_network(item, title=title, background=background, **kwargs)
     elif hasattr(item, "_repr_svg_"):
-        return show_svg(item._repr_svg_(), title, background)
+        return view_svg(item._repr_svg_(), title, background)
     elif isinstance(item, PIL.Image.Image):
-        return show_image(item, title)
+        return view_image(item, title)
     elif isinstance(item, HTML):
         if item.data.startswith("<svg ") or item.data.startswith("<SVG "):
-            return show_svg(item.data, title, background)
+            return view_svg(item.data, title, background)
         else:
             with tempfile.NamedTemporaryFile(delete=False) as fp:
                 fp.write(item.data.encode("utf-8"))
                 fp.close()
                 return webbrowser.open(fp.name)
     else:
-        print("I don't know how to show this item")
+        print("I don't know how to view this item")
 
 def svg2image(svg, background=(255, 255, 255, 255)):
     import cairosvg
@@ -173,11 +246,11 @@ def svg2image(svg, background=(255, 255, 255, 255)):
     else:
         return image
 
-def show_svg(svg, title=None, background=(255, 255, 255, 255)):
+def view_svg(svg, title=None, background=(255, 255, 255, 255)):
     image = svg2image(svg, background)
-    return show_image(image, title)
+    return view_image(image, title)
 
-def show_image(image, title=None):
+def view_image(image, title=None):
     plt.ion()
     if title:
         fig = plt.figure(num=title)
