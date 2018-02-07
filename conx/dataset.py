@@ -677,8 +677,8 @@ class Dataset():
         if isinstance(self, str):
             dataset_name, self = self, Dataset()
             return_it = True
-        if dataset_name in self.DATASETS:
-            self.DATASETS[dataset_name](self, *args, **kwargs)
+        if dataset_name.lower() in self.DATASETS:
+            self.DATASETS[dataset_name.lower()](self, *args, **kwargs)
             if return_it:
                 return self
         else:
