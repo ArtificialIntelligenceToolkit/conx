@@ -39,4 +39,4 @@ from .network import *
 from .layers import *
 from .dataset import *
 
-print("conx, version %s" % __version__, file=sys.stderr)
+print("Conx, version %s" % __version__, file=sys.stderr)

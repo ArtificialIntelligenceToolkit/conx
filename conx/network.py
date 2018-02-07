@@ -3324,7 +3324,7 @@ require(['base/js/namespace'], function(Jupyter) {
     def update_config(self, config):
         """
         """
-        self.config = config
+        self.config.update(config)
         for layer in self.layers:
             self.update_layer_from_config(layer)
 
