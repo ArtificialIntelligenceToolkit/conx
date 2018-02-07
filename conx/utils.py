@@ -129,6 +129,31 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
+def is_array_like(item):
+    """
+    Checks to see if something is array-like.
+
+    >>> import numpy as np
+    >>> is_array_like([])
+    True
+    >>> is_array_like(tuple())
+    True
+    >>> is_array_like(np.ndarray([]))
+    True
+
+    >>> is_array_like("hello")
+    False
+    >>> is_array_like(1)
+    False
+    >>> is_array_like(2.3)
+    False
+    >>> is_array_like(np)
+    False
+    """
+    return (not hasattr(item, "strip") and
+            (hasattr(item, "__getitem__") or
+             hasattr(item, "__iter__")))
+
 def view_network(net, title=None, background=(255, 255, 255, 255), data="train", **kwargs):
     """
     View a network and train or test data.

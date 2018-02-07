@@ -627,6 +627,10 @@ class Network():
         """
         if len(self.layers) == 0:
             raise Exception("no layers have been added")
+        if not isinstance(from_layer_name, str):
+            raise Exception("from_layer_name should be a string")
+        if not isinstance(to_layer_name, str):
+            raise Exception("to_layer_name should be a string")
         if len(self.layers) >= 5:
             self.config["svg_rotate"] = True
         if from_layer_name is None and to_layer_name is None:
@@ -1347,6 +1351,8 @@ class Network():
         from keras.models import load_model
         import keras.activations
         import tempfile
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if not isinstance(activation, str):
             activation = activation.__name__
         acts = {
@@ -1381,6 +1387,8 @@ class Network():
         <PIL.Image.Image image mode=RGBA size=2x2 at ...>
         """
         from matplotlib import cm
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if self.model is None:
             raise Exception("need to compile network")
         weights = [layer.get_weights() for layer in self.model.layers
@@ -1475,6 +1483,9 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
+        ## End of input setup
+        if not is_array_like(input):
+            raise Exception("inputs should be an array")
         if raw:
             outputs = self.model.predict(np.array(input), batch_size=batch_size)
         elif self.num_input_layers == 1:
@@ -1514,6 +1525,11 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
+        ## End of input setup
+        if not is_array_like(input):
+            raise Exception("inputs should be an array")
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if output_layer_names is None:
             if self.num_target_layers == 1:
                 output_layer_names = [layer.name for layer in self.layers if layer.kind() == "output"]
@@ -1603,6 +1619,11 @@ class Network():
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
             inputs = image2array(inputs)
+        ## End of input setup
+        if not is_array_like(inputs):
+            raise Exception("inputs should be an array")
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         if raw:
             outputs = self[layer_name].model.predict(np.array(inputs), batch_size=batch_size)
         elif self.num_input_layers == 1:
@@ -1654,6 +1675,11 @@ class Network():
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
             inputs = image2array(inputs)
+        ## End of input setup
+        if not is_array_like(inputs):
+            raise Exception("inputs should be an array")
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         output_shape = self[layer_name].get_output_shape()
         retval = """<table><tr>"""
         if self._layer_has_features(layer_name):
@@ -1712,6 +1738,11 @@ class Network():
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
             input = image2array(input)
+        ## End of input setup
+        if not is_array_like(input):
+            raise Exception("inputs should be an array")
+        if not isinstance(layer_name, str):
+            raise Exception("layer_name should be a string")
         outputs = self.propagate_to(layer_name, input, batch_size, update_pictures=update_pictures, raw=raw)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
