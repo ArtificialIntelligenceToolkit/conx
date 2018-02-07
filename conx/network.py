@@ -1733,6 +1733,7 @@ class Network():
             else:
                 orig_feature = self[layer_name].feature
                 orig_rotate = self.config["svg_rotate"]
+                self.config["svg_rotate"] = False
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
