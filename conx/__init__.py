@@ -25,9 +25,10 @@ import os
 import matplotlib
 ## If no DISPLAY, then set the matplotlib backend
 ## to an alternate to work if in console (Tk, Qt, etc).
-if sys.platform == "darwin":
+if False: # sys.platform == "darwin":
     pass # let's not mess with OSX
 else:
+    import pdb; pdb.set_trace()
     if (("DISPLAY" not in os.environ) or
         (os.environ["DISPLAY"] == "")):
         if (matplotlib.get_backend() in [
@@ -35,8 +36,8 @@ else:
                 'NbAgg',
                 ]):
             pass  ## Don't change if server has no DISPLAY but is connected to notebook
-    else:
-        matplotlib.use('Agg') # something that will work
+        else:
+            matplotlib.use('Agg') # something that will work
 from ._version import __version__
 from .network import *
 from .layers import *
