@@ -25,15 +25,18 @@ import os
 import matplotlib
 ## If no DISPLAY, then set the matplotlib backend
 ## to an alternate to work if in console (Tk, Qt, etc).
-if (("DISPLAY" not in os.environ) or
-    (os.environ["DISPLAY"] == "")):
-    if (matplotlib.get_backend() in [
-            'module://ipykernel.pylab.backend_inline',
-            'NbAgg',
-            ]):
-        pass  ## Don't change if server has no DISPLAY but is connected to notebook
+if sys.platform == "darwin":
+    pass # let's not mess with OSX
+else:
+    if (("DISPLAY" not in os.environ) or
+        (os.environ["DISPLAY"] == "")):
+        if (matplotlib.get_backend() in [
+                'module://ipykernel.pylab.backend_inline',
+                'NbAgg',
+                ]):
+            pass  ## Don't change if server has no DISPLAY but is connected to notebook
     else:
-        matplotlib.use('Agg')
+        matplotlib.use('Agg') # something that will work
 from ._version import __version__
 from .network import *
 from .layers import *
