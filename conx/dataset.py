@@ -431,6 +431,7 @@ class Dataset():
         """
         Remove all of the inputs/targets.
         """
+        self._warning_set = False
         self._inputs = []
         self._targets = []
         self._labels = []
@@ -750,22 +751,30 @@ class Dataset():
     def _verify_network_dataset_match(self):
         """
         """
+        warning = False
         if (self.network is None) or (self.network.model is None or len(self) == 0):
             return ## Nothing to test
         ## check to see if number of input banks match
         if len(self.network.input_bank_order) != self._num_input_banks():
+            warning = True
             print("WARNING: number of dataset input banks != network input banks in network '%s'" % self.network.name,
                   file=sys.stderr)
         if len(self.inputs) > 0:
             try:
                 self.network.propagate(self.inputs[0])
             except:
+                warning = True
                 print("WARNING: dataset does not yet work with network '%s'" % self.network.name,
                       file=sys.stderr)
         ## check to see if number of output banks match
         if len(self.network.output_bank_order) != self._num_target_banks():
+            warning = True
             print("WARNING: number of dataset target banks != network output banks in network '%s'" % self.network.name,
                   file=sys.stderr)
+        if self._warning_set and not warning:
+            print("INFO: dataset now works with network '%s'" % self.network.name,
+                  file=sys.stderr)
+        self._warning_set = warning
 
     def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """
