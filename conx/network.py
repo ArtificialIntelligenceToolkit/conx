@@ -522,7 +522,8 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def picture(self, inputs=None, static=False, format="html", **kwargs):
+    def picture(self, inputs=None, static=False, rotate=False,
+                format="html", class_id=None, **kwargs):
         """
         Create an SVG of the network given some inputs (optional).
 
@@ -535,11 +536,14 @@ class Network():
         """
         from IPython.display import HTML
         if static:
+            if class_id is not None:
+                print("WARNING: class_id given but ignored", file=sys.stderr)
             r = random.randint(1, 1000000)
             class_id = "picture-static-%s-%s" % (self.name, r)
-        else:
-            class_id = None
+        orig_rotate = self.config["svg_rotate"]
+        self.config["svg_rotate"] = rotate
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
+        self.config["svg_rotate"] = orig_rotate
         if format == "html":
             return HTML(svg)
         elif format == "svg":
