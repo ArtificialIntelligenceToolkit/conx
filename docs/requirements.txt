@@ -16,3 +16,4 @@ sklearn
 tqdm
 requests
 pydot
+cairosvg

@@ -10,3 +10,4 @@ svgwrite
 tqdm
 requests
 pydot
+cairosvg
