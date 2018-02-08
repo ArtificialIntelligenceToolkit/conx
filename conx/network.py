@@ -2767,20 +2767,36 @@ class Network():
                     self[layer_name].__class__.__name__ != "ImageLayer"):
                     features = str(output_shape[3])
                     feature = str(self[layer_name].feature)
-                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
-                                                 "y": positioning[layer_name]["y"] + 5,
-                                                 "label": features,
-                                                 "font_size": config["font_size"],
-                                                 "font_family": config["font_family"],
-                                                 "text_anchor": "start",
-                    }])
-                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - (len(feature) * 7) - 5 - 5,
-                                                 "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
-                                                 "label": feature,
-                                                 "font_size": config["font_size"],
-                                                 "font_family": config["font_family"],
-                                                 "text_anchor": "start",
-                    }])
+                    if config["svg_rotate"]:
+                        struct.append(["label_svg", {"x": positioning[layer_name]["x"] + 5,
+                                                     "y": positioning[layer_name]["y"] - 10 - 5,
+                                                     "label": features,
+                                                     "font_size": config["font_size"],
+                                                     "font_family": config["font_family"],
+                                                     "text_anchor": "start",
+                        }])
+                        struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] - 10,
+                                                     "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] + 10 + 5,
+                                                     "label": feature,
+                                                     "font_size": config["font_size"],
+                                                     "font_family": config["font_family"],
+                                                     "text_anchor": "start",
+                        }])
+                    else:
+                        struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
+                                                     "y": positioning[layer_name]["y"] + 5,
+                                                     "label": features,
+                                                     "font_size": config["font_size"],
+                                                     "font_family": config["font_family"],
+                                                     "text_anchor": "start",
+                        }])
+                        struct.append(["label_svg", {"x": positioning[layer_name]["x"] - (len(feature) * 7) - 5 - 5,
+                                                     "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
+                                                     "label": feature,
+                                                     "font_size": config["font_size"],
+                                                     "font_family": config["font_family"],
+                                                     "text_anchor": "start",
+                        }])
                 if (self[layer_name].dropout > 0):
                     label = "&#10683;"
                     struct.append(["label_svg", {"x": positioning[layer_name]["x"] - len(label) * 2.0 - 5,
@@ -2818,7 +2834,7 @@ class Network():
                 }])
         ## Draw the title:
         if config["svg_rotate"]:
-            struct.append(["label_svg", {"x": config["border_top"], ## really border_left
+            struct.append(["label_svg", {"x": 10, ## really border_left
                                          "y": cheight/2,
                                          "label": self.name,
                                          "font_size": config["font_size"] + 3,
