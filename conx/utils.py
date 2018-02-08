@@ -258,7 +258,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
         if item.data.startswith("<svg ") or item.data.startswith("<SVG "):
             return view_svg(item.data, title, background, scale=scale)
         else:
-            with tempfile.NamedTemporaryFile(delete=False) as fp:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as fp:
                 fp.write(item.data.encode("utf-8"))
                 fp.close()
                 return webbrowser.open(fp.name)
