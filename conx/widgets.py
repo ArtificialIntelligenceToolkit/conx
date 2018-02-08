@@ -19,6 +19,7 @@
 
 import numpy as np
 import threading
+import random
 import time
 
 from IPython.display import Javascript, display
@@ -193,6 +194,8 @@ class Dashboard(VBox):
         self.player = _Player(self, play_rate)
         self.player.start()
         self.net = net
+        r = random.randint(1, 1000000)
+        self.class_id = "picture-dashboard-%s-%s" % (self.net.name, r)
         self._width = width
         self._height = height
         ## Global widgets:
@@ -214,6 +217,12 @@ class Dashboard(VBox):
         controls = self.make_controls()
         config = self.make_config()
         super().__init__([config, controls, self.net_svg, self.output])
+
+    def propagate(self, inputs):
+        """
+        Propagate inputs through the dashboard view of the network.
+        """
+        return self.net.propagate(inputs, class_id=self.class_id, update_pictures=True)
 
     def goto(self, position):
         if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
@@ -311,43 +320,60 @@ class Dashboard(VBox):
                 self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
                 if self.net.model is None:
                     return
-                output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value], update_pictures=True)
+                output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value],
+                                            class_id=self.class_id, update_pictures=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
                     if len(self.net.output_bank_order) == 1: ## FIXME: use minmax of output bank
-                        self.net.display_component([self.net.dataset.train_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                        self.net.display_component([self.net.dataset.train_targets[self.control_slider.value]],
+                                                   "targets",
+                                                   class_id=self.class_id,
+                                                   minmax=(-1, 1))
                     else:
-                        self.net.display_component(self.net.dataset.train_targets[self.control_slider.value], "targets", minmax=(-1, 1))
+                        self.net.display_component(self.net.dataset.train_targets[self.control_slider.value],
+                                                   "targets",
+                                                   class_id=self.class_id,
+                                                   minmax=(-1, 1))
                 if self.net.config["show_errors"]: ## minmax is error
                     if len(self.net.output_bank_order) == 1:
                         errors = np.array(output) - np.array(self.net.dataset.train_targets[self.control_slider.value])
-                        self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                        self.net.display_component([errors.tolist()],
+                                                   "errors",
+                                                   class_id=self.class_id,
+                                                   minmax=(-1, 1))
                     else:
                         errors = []
                         for bank in range(len(self.net.output_bank_order)):
                             errors.append( np.array(output[bank]) - np.array(self.net.dataset.train_targets[self.control_slider.value][bank]))
-                        self.net.display_component(errors, "errors", minmax=(-1, 1))
+                        self.net.display_component(errors, "errors",  class_id=self.class_id, minmax=(-1, 1))
             elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
                 self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
                 if self.net.model is None:
                     return
-                output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value], update_pictures=True)
+                output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value],
+                                            class_id=self.class_id, update_pictures=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.test_inputs[self.control_slider.value],
                                                cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]: ## FIXME: use minmax of output bank
-                    self.net.display_component([self.net.dataset.test_targets[self.control_slider.value]], "targets", minmax=(-1, 1))
+                    self.net.display_component([self.net.dataset.test_targets[self.control_slider.value]],
+                                               "targets",
+                                               class_id=self.class_id,
+                                               minmax=(-1, 1))
                 if self.net.config["show_errors"]: ## minmax is error
                     if len(self.net.output_bank_order) == 1:
                         errors = np.array(output) - np.array(self.net.dataset.test_targets[self.control_slider.value])
-                        self.net.display_component([errors.tolist()], "errors", minmax=(-1, 1))
+                        self.net.display_component([errors.tolist()],
+                                                   "errors",
+                                                   class_id=self.class_id,
+                                                   minmax=(-1, 1))
                     else:
                         errors = []
                         for bank in range(len(self.net.output_bank_order)):
                             errors.append( np.array(output[bank]) - np.array(self.net.dataset.test_targets[self.control_slider.value][bank]))
-                        self.net.display_component(errors, "errors", minmax=(-1, 1))
+                        self.net.display_component(errors, "errors", class_id=self.class_id, minmax=(-1, 1))
 
     def toggle_play(self, button):
         ## toggle
@@ -378,7 +404,8 @@ class Dashboard(VBox):
                 features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                           cols=self.feature_columns.value,
                                                           scale=self.feature_scale.value, display=False)
-        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs),)
+        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs,
+                                                                           class_id=self.class_id),)
         if inputs is not None and features is not None:
             html_horizontal = """
 <table align="center" style="width: 100%%;">

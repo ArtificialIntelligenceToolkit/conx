@@ -1507,7 +1507,8 @@ class Network():
                 weights.append(w)
             return weights
 
-    def propagate(self, input, batch_size=32, update_pictures=False, raw=False):
+    def propagate(self, input, batch_size=32, class_id=None,
+                  update_pictures=False, raw=False):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
@@ -1558,8 +1559,8 @@ class Network():
             outputs = [outputs[i].reshape(shapes[i]).tolist() for i in range(len(self.output_bank_order))]
         if update_pictures:
             for layer in self.layers:
-                if layer.visible and layer.model:
-                    self.propagate_to(layer.name, input, batch_size, update_pictures=update_pictures, raw=raw)
+                self.propagate_to(layer.name, input, batch_size, class_id=class_id,
+                                  update_pictures=update_pictures, raw=raw, update_path=False)
         return outputs
 
     def propagate_from(self, layer_name, input, output_layer_names=None,
@@ -1624,10 +1625,11 @@ class Network():
                 if self[layer_name].visible:
                     image = self[layer_name].make_image(inputs, config=self.config)
                     data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" %
-                                     (self.name,
-                                      layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
-                                     "href": data_uri})
+                    class_id_name = "%s_%s" % (self.name, layer_name)
+                    if self.config["svg_rotate"]:
+                        class_id_name += "-rotated"
+                    if self.debug: print("propagate_from 1: class_id_name:", class_id_name)
+                    self._comm.send({'class': class_id_name, "href": data_uri})
                 for output_layer_name in output_layer_names:
                     path = find_path(self, layer_name, output_layer_name)
                     if path is not None:
@@ -1638,10 +1640,11 @@ class Network():
                             ## FYI: outputs not shaped
                             image = layer.make_image(vector, config=self.config)
                             data_uri = self._image_to_uri(image)
-                            self._comm.send({'class': "%s_%s" %
-                                             (self.name,
-                                              layer.name + ("-rotated" if self.config["svg_rotate"] else "")),
-                                             "href": data_uri})
+                            class_id_name = "%s_%s" % (self.name, layer.name)
+                            if self.config["svg_rotate"]:
+                                class_id_name += "-rotated"
+                            if self.debug: print("propagate_from 2: class_id_name:", class_id_name)
+                            self._comm.send({'class': class_id_name, "href": data_uri})
         if raw:
             return outputs
         elif len(output_layer_names) == 1:
@@ -1649,7 +1652,7 @@ class Network():
         else:
             return outputs
 
-    def display_component(self, vector, component, **opts):
+    def display_component(self, vector, component, class_id=None, **opts):
         """
         vector is a list, one each per output layer. component is "errors" or "targets"
         """
@@ -1665,12 +1668,16 @@ class Network():
                     colormap = get_error_colormap()
                 image = self[layer_name].make_image(array, colormap, config)
                 data_uri = self._image_to_uri(image)
-                self._comm.send({'class': "%s_%s_%s" %
-                                 (self.name,
-                                  layer_name,
-                                  component), "href": data_uri})
+                if class_id is None:
+                    class_id_name = "%s_%s" % (self.name, layer_name)
+                else:
+                    class_id_name = "%s_%s" % (class_id, layer_name)
+                if self.debug: print("display_component: sending to class_id:", class_id_name + "_" + component)
+                self._comm.send({'class': class_id_name + "_" + component,
+                                 "href": data_uri})
 
-    def propagate_to(self, layer_name, inputs, batch_size=32, update_pictures=False, raw=False):
+    def propagate_to(self, layer_name, inputs, batch_size=32, class_id=None,
+                     update_pictures=False, update_path=True, raw=False):
         """
         Computes activation at a layer. Side-effect: updates live SVG.
 
@@ -1708,26 +1715,50 @@ class Network():
             if not self._comm:
                 from ipykernel.comm import Comm
                 self._comm = Comm(target_name='conx_svg_control')
-            # Update just the to-layer:
             if self._comm.kernel:
-                ## do all from input to layer_to
-                for input_layer_name in self.input_bank_order:
-                    image = self._propagate_to_image(input_layer_name, inputs, raw=raw)
+                if update_path: ## update the whole path, from all inputs to the layer_name, if a path
+                    ## don't repeat any updates, so keep track of what you have done:
+                    updated = set([])
+                    for input_layer_name in self.input_bank_order:
+                        if input_layer_name not in updated:
+                            image = self._propagate_to_image(input_layer_name, inputs, raw=raw)
+                            data_uri = self._image_to_uri(image)
+                            if class_id is None:
+                                class_id_name = "%s_%s" % (self.name, input_layer_name)
+                            else:
+                                class_id_name = "%s_%s" % (class_id, input_layer_name)
+                            if self.config["svg_rotate"]:
+                                class_id_name += "-rotated"
+                            if self.debug: print("propagate_to 1: sending to class_id_name:", class_id_name)
+                            self._comm.send({'class': class_id_name, "href": data_uri})
+                            updated.add(input_layer_name)
+                        path = find_path(self, input_layer_name, layer_name)
+                        if path is not None:
+                            for layer in path:
+                                if layer.visible and layer.model is not None:
+                                    if layer.name not in updated:
+                                        image = self._propagate_to_image(layer.name, inputs, raw=raw)
+                                        data_uri = self._image_to_uri(image)
+                                        if class_id is None:
+                                            class_id_name = "%s_%s" % (self.name, layer.name)
+                                        else:
+                                            class_id_name = "%s_%s" % (class_id, layer.name)
+                                        if self.config["svg_rotate"]:
+                                            class_id_name += "-rotated"
+                                        if self.debug: print("propagate_to 2: sending to class_id_name:", class_id_name)
+                                        self._comm.send({'class': class_id_name, "href": data_uri})
+                                        updated.add(layer.name)
+                else: # not the whole path, just to the layer_name
+                    image = self._propagate_to_image(layer_name, inputs, raw=raw)
                     data_uri = self._image_to_uri(image)
-                    self._comm.send({'class': "%s_%s" %
-                                     (self.name,
-                                      input_layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
-                                     "href": data_uri})
-                    path = find_path(self, input_layer_name, layer_name)
-                    if path is not None:
-                        for layer in path:
-                            if layer.visible and layer.model is not None:
-                                image = self._propagate_to_image(layer_name, inputs, raw=raw)
-                                data_uri = self._image_to_uri(image)
-                                self._comm.send({'class': "%s_%s" %
-                                                 (self.name,
-                                                  layer_name + ("-rotated" if self.config["svg_rotate"] else "")),
-                                                 "href": data_uri})
+                    if class_id is None:
+                        class_id_name = "%s_%s" % (self.name, layer_name)
+                    else:
+                        class_id_name = "%s_%s" % (class_id, layer_name)
+                    if self.config["svg_rotate"]:
+                        class_id_name += "-rotated"
+                    if self.debug: print("propagate_to 3: sending to class_id_name:", class_id_name)
+                    self._comm.send({'class': class_id_name, "href": data_uri})
         ## Shape the outputs:
         if raw:
             return outputs
@@ -1747,7 +1778,8 @@ class Network():
 
 
     def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
-                              html=True, size=None, display=True, update_pictures=False, raw=False):
+                              html=True, size=None, display=True, class_id=None,
+                              update_pictures=False, raw=False):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1771,7 +1803,8 @@ class Network():
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     ## This should return in proper orientation, regardless of rotate setting:
-                    image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
+                    image = self.propagate_to_image(layer_name, inputs, class_id=class_id,
+                                                    update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1792,7 +1825,8 @@ class Network():
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
                     ## This should return in proper orientation, regardless of rotate setting:
-                    image = self.propagate_to_image(layer_name, inputs, update_pictures=update_pictures, raw=raw)
+                    image = self.propagate_to_image(layer_name, inputs, class_id=class_id,
+                                                    update_pictures=update_pictures, raw=raw)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1808,7 +1842,7 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           update_pictures=False, raw=False):
+                           class_id=None, update_pictures=False, raw=False):
         """
         Gets an image of activations at a layer. Always returns image in
         proper orientation.
@@ -1816,12 +1850,12 @@ class Network():
         orig_rotate = self.config["svg_rotate"]
         self.config["svg_rotate"] = False
         image = self._propagate_to_image(layer_name, input, batch_size, resize, scale,
-                                         update_pictures, raw)
+                                         class_id, update_pictures, raw)
         self.config["svg_rotate"] = orig_rotate
         return image
 
     def _propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           update_pictures=False, raw=False):
+                            class_id=None, update_pictures=False, raw=False):
         """
         Internal version. Draws to whatever rotation is set.
         """
@@ -1836,7 +1870,8 @@ class Network():
             raise Exception("inputs should be an array")
         if not isinstance(layer_name, str):
             raise Exception("layer_name should be a string")
-        outputs = self.propagate_to(layer_name, input, batch_size, update_pictures=update_pictures, raw=raw)
+        outputs = self.propagate_to(layer_name, input, batch_size, class_id=class_id,
+                                    update_pictures=update_pictures, raw=raw)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
         if resize is not None:
