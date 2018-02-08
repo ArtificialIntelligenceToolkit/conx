@@ -28,7 +28,6 @@ import matplotlib
 if False: # sys.platform == "darwin":
     pass # let's not mess with OSX
 else:
-    import pdb; pdb.set_trace()
     if (("DISPLAY" not in os.environ) or
         (os.environ["DISPLAY"] == "")):
         if (matplotlib.get_backend() in [
