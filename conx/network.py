@@ -1106,7 +1106,8 @@ class Network():
             verbose (int): Level of feedback on training. verbose=0 gives no
                 feedback, but returns (epoch_count, result)
             kverbose (int): Level of feedback from Keras.
-            shuffle (bool): Should the data be shuffled?
+            shuffle (bool or str): Should the training data be shuffled?
+                'batch' shuffles in batch-sized chunks.
             tolerance (float): The maximum difference between target and output
                 that should be considered correct.
             class_weight (float):

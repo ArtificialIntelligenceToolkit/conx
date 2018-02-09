@@ -916,6 +916,8 @@ class Dataset():
         self._targets = [self._targets[b][permutation] for b in range(self._num_target_banks())]
         if len(self._labels) != 0:
             self._labels = [self._labels[b][permutation] for b in range(self._num_target_banks())]
+        if 0 < self._split < 1:
+            print("WARNING: reshuffling all data; test data has changed", file=sys.stderr)
 
     def split(self, split=None):
         """Splits the inputs/targets into training and validation sets.
