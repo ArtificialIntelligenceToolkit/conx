@@ -129,6 +129,13 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
+def clear_session():
+    """
+    Needed to clear the session if memory is growing.
+    """
+    from keras import backend as K
+    K.clear_session()
+
 def is_array_like(item):
     """
     Checks to see if something is array-like.
