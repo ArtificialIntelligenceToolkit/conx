@@ -2541,7 +2541,10 @@ class Network():
                         v = in_layer.make_dummy_vector()
                 if self[layer_name].model:
                     try:
+                        orig_svg_rotate = self.config["svg_rotate"] 
+                        self.config["svg_rotate"] = config["svg_rotate"]
                         image = self._propagate_to_image(layer_name, v)
+                        self.config["svg_rotate"] = orig_svg_rotate
                     except:
                         image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 else:
