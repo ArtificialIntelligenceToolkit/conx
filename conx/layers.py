@@ -288,6 +288,8 @@ class _BaseLayer():
                 return self.incoming_connections[0].get_colormap()
             else:
                 return self.colormap
+        elif self.kind() == "input":
+            return "gray" if self.colormap is None else self.colormap
         else:
             return get_colormap() if self.colormap is None else self.colormap
 
@@ -336,11 +338,12 @@ class _BaseLayer():
         new_height = vector.shape[1] * size # in, pixels
         if colormap is None:
             colormap = self.get_colormap()
-        try:
-            cm_hot = cm.get_cmap(colormap)
-        except:
-            cm_hot = cm.get_cmap("RdGy")
-        vector = cm_hot(vector)
+        if colormap is not None:
+            try:
+                cm_hot = cm.get_cmap(colormap)
+            except:
+                cm_hot = cm.get_cmap("RdGy")
+            vector = cm_hot(vector)
         vector = np.uint8(vector * 255)
         if max(vector.shape) <= self.max_draw_units:
             # Need to make it bigger, to draw circles:

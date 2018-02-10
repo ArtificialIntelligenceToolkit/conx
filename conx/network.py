@@ -399,11 +399,9 @@ class Network():
         else:
             return self.layer_dict[layer_name]
 
-    def _repr_html_(self):
-        return self.to_svg()
-
     def _repr_svg_(self):
-        return self.to_svg()
+        return self.to_svg(show_errors=False, show_targets=False, svg_rotate=False,
+                           svg_scale=None)
 
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
@@ -544,9 +542,18 @@ class Network():
             r = random.randint(1, 1000000)
             class_id = "picture-static-%s-%s" % (self.name, r)
         orig_rotate = self.config["svg_rotate"]
+        orig_show_errors = self.config["show_errors"]
+        orig_show_targets = self.config["show_targets"]
+        orig_svg_scale = self.config["svg_scale"]
         self.config["svg_rotate"] = rotate
+        self.config["show_errors"] = False
+        self.config["show_targets"] = False
+        self.config["svg_scale"] = None
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
         self.config["svg_rotate"] = orig_rotate
+        self.config["show_errors"] = orig_show_errors
+        self.config["show_targets"] = orig_show_targets
+        self.config["svg_scale"] = orig_svg_scale
         if format == "html":
             return HTML(svg)
         elif format == "svg":
@@ -2982,8 +2989,8 @@ require(['base/js/namespace'], function(Jupyter) {
                 "border_color": config["border_color"],
                 "border_width": config["border_width"],
             })
-        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**self.config)
-        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**self.config)
+        line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**config)
+        arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central" {transform}>{label}</text>"""
         svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
@@ -3010,7 +3017,7 @@ require(['base/js/namespace'], function(Jupyter) {
         ## build the rest:
         for (template_name, dict) in struct:
             if template_name != "svg_head" and not template_name.startswith("_"):
-                if template_name == "label_svg" and self.config["svg_rotate"]:
+                if template_name == "label_svg" and config["svg_rotate"]:
                     dict["x"] += 8
                     dict["text_anchor"] = "middle"
                     dict["transform"] = """ transform="rotate(-90 %s %s) translate(%s)" """ % (dict["x"], dict["y"], 2)
