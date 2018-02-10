@@ -202,9 +202,13 @@ class Dashboard(VBox):
         style = {"description_width": "initial"}
         self.feature_columns = IntText(description="Feature columns:",
                                        value=self.net.config["dashboard.features.columns"],
+                                       min=0,
+                                       max=1024,
                                        style=style)
         self.feature_scale = FloatText(description="Feature scale:",
                                        value=self.net.config["dashboard.features.scale"],
+                                       min=0.1,
+                                       max=10,
                                        style=style)
         self.feature_columns.observe(self.regenerate, names='value')
         self.feature_scale.observe(self.regenerate, names='value')
@@ -247,6 +251,13 @@ class Dashboard(VBox):
             else:
                 self.control_slider.value = min(self.control_slider.value + 1, length - 1)
         self.position_text.value = self.control_slider.value
+
+
+    def change_select(self, change=None):
+        """
+        """
+        self.update_control_slider(change)
+        self.regenerate()
 
     def update_control_slider(self, change=None):
         self.net.config["dashboard.dataset"] = self.control_select.value
@@ -534,7 +545,7 @@ class Dashboard(VBox):
             description='Dataset:',
             rows=1
         )
-        self.control_select.observe(self.update_control_slider, names='value')
+        self.control_select.observe(self.change_select, names='value')
         column1 = [self.control_select,
                    self.zoom_slider,
                    hspace,
