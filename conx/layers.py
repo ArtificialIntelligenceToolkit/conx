@@ -328,7 +328,7 @@ class _BaseLayer():
                             args.append(s)
                             count += 1
             vector = vector[args]
-        vector = self.scale_output_for_image(vector, self.get_act_minmax(), truncate=True)
+        vector = scale_output_for_image(vector, self.get_act_minmax(), truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         size = config["pixels_per_unit"]
@@ -367,13 +367,6 @@ class _BaseLayer():
                 (self.vshape is not None and len(self.vshape) == 2)):
                 image = image.rotate(90, expand=1)
         return image
-
-    def scale_output_for_image(self, vector, minmax, truncate=False):
-        """
-        Given an activation name (or something else) and an output
-        vector, scale the vector.
-        """
-        return rescale_numpy_array(vector, minmax, (0,255), 'uint8', truncate=truncate)
 
     def make_dummy_vector(self, default_value=0.0):
         """

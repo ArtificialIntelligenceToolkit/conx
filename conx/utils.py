@@ -30,7 +30,9 @@ import matplotlib.pyplot as plt
 from urllib.parse import urlparse
 import requests
 import zipfile
+import math
 import tqdm
+import sys
 import os
 import re
 
@@ -161,6 +163,39 @@ def is_array_like(item):
             (hasattr(item, "__getitem__") or
              hasattr(item, "__iter__")))
 
+def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
+    if not 0 <= spacing <= 1:
+        print("spacing must be between 0 and 1")
+        return
+    if not scale > 0:
+        print("scale must be > 0")
+    if layout is None:
+        layout = (1, len(images))
+    rows, cols = layout
+    border = spacing / max(rows, cols)
+    fig, axes = plt.subplots(rows, cols, squeeze=False,
+                             figsize=(cols*scale, rows*scale),
+                             gridspec_kw={'wspace': spacing,
+                                          'hspace': spacing,
+                                          'left': border,
+                                          'right': 1-border,
+                                          'bottom': border,
+                                          'top': 1-border})
+    if title is not None:
+        fig.canvas.set_window_title(title)
+    k = 0
+    rows, cols = axes.shape
+    for ax in axes.reshape(axes.size):
+        ax.axis('off')
+    for r in range(rows):
+        for c in range(cols):
+            if k >= len(images):
+                return  # no more images to display
+            axes[r][c].imshow(images[k])
+            k += 1
+    if k < len(images):
+        print("WARNING: could not view all images with layout %s" % (layout,), file=sys.stderr)
+
 def view_network(net, title=None, background=(255, 255, 255, 255),
                  data="train", scale=1.0, **kwargs):
     """
@@ -259,6 +294,8 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
         return view_network(item, title=title, background=background, scale=scale, **kwargs)
     elif hasattr(item, "_repr_svg_"):
         return view_svg(item._repr_svg_(), title=title, background=background, scale=scale)
+    elif hasattr(item, "_repr_image_"):
+        return view_image(item._repr_image_(), title=title, scale=scale)
     elif isinstance(item, PIL.Image.Image):
         return view_image(item, title=title, scale=scale)
     elif isinstance(item, HTML):
@@ -269,17 +306,24 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
                 fp.write(item.data.encode("utf-8"))
                 fp.close()
                 return webbrowser.open(fp.name)
+    elif isinstance(item, (tuple, list)) and len(item) > 0:
+        if hasattr(item[0], "_repr_image_"):
+            return view_image_list([dv._repr_image_() for dv in item], title=title, scale=scale, **kwargs)
+        elif isinstance(item[0], PIL.Image.Image):
+            return view_image_list(item, title=title, scale=scale, **kwargs)
+        else: ## assume that it is some numbers
+            return view_image(array_to_image(item), title=title, scale=scale)
     else:
         print("I don't know how to view this item")
 
-def svg2image(svg, background=(255, 255, 255, 255)):
+def svg_to_image(svg, background=(255, 255, 255, 255)):
     import cairosvg
     if isinstance(svg, bytes):
         pass
     elif isinstance(svg, str):
         svg = svg.encode("utf-8")
     else:
-        raise Exception("svg2image takes a str, rather than %s" % type(svg))
+        raise Exception("svg_to_image takes a str, rather than %s" % type(svg))
     try:
         image_bytes = cairosvg.svg2png(bytestring=svg)
     except:
@@ -301,7 +345,7 @@ def svg2image(svg, background=(255, 255, 255, 255)):
         return image
 
 def view_svg(svg, title=None, background=(255, 255, 255, 255), scale=1.0):
-    image = svg2image(svg, background)
+    image = svg_to_image(svg, background)
     return view_image(image, title, scale=scale)
 
 def view_image(image, title=None, scale=1.0):
@@ -309,7 +353,7 @@ def view_image(image, title=None, scale=1.0):
     size = plt.rcParams["figure.figsize"]
     fig = plt.figure(figsize=(size[0] * scale, size[1] * scale),
                      num=title)
-    if title:
+    if title is not None:
         fig.canvas.set_window_title(title)
     frame = plt.gca()
     frame.axes.get_xaxis().set_visible(False)
@@ -486,14 +530,14 @@ def crop_image(image, x1, y1, x2, y2):
 
     >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
     ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
-    >>> image = array2image(m)
+    >>> image = array_to_image(m)
     >>> crop_image(image, 0, 0, 1, 1) # doctest: +ELLIPSIS
     <PIL.Image.Image image mode=RGB size=1x1 at ...>
     """
     from PIL import Image
     return image.crop((x1, y1, x2, y2))
 
-def image2array(image):
+def image_to_array(image):
     """
     Convert an image filename or PIL.Image into a matrix (list of
     lists).
@@ -501,10 +545,10 @@ def image2array(image):
 
     >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
     ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
-    >>> image = array2image(m)
+    >>> image = array_to_image(m)
     >>> np.array(image).tolist()
     [[[0, 255, 255], [255, 0, 0]], [[0, 255, 255], [255, 0, 0]]]
-    >>> image2array(image)
+    >>> image_to_array(image)
     [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]], [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
 
     """
@@ -512,33 +556,60 @@ def image2array(image):
         image = PIL.Image.open(image)
     return (np.array(image, "float32") / 255.0).tolist()
 
-def array2image(array, scale=1.0, shape=None):
+def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
     """
     Convert a matrix (with shape, or given shape) to a PIL.Image.
 
     >>> m = [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]],
     ...      [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
-    >>> image = array2image(m)
+    >>> image = array_to_image(m)
     >>> np.array(image).tolist()
     [[[255, 255, 255], [0, 0, 0]], [[0, 0, 0], [255, 255, 255]]]
-    >>> image2array(image)
+    >>> image_to_array(image)
     [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
 
     >>> m = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
     ...      0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
-    >>> array2image(m, shape=(2, 2, 3))       # doctest: +ELLIPSIS
+    >>> array_to_image(m, shape=(2, 2, 3))       # doctest: +ELLIPSIS
     <PIL.Image.Image image mode=RGB size=2x2 at ...>
     """
+    from matplotlib import cm
     array = np.array(array) # let's make sure
-    array =  (array * 255).astype("uint8")
+    if minmax is None: # auto
+        minmax = [array.min(), array.max()]
+        if minmax[0] == minmax[1]:
+            minmax[0] = minmax[0] - .5
+            minmax[1] = minmax[1] + .5
+        minmax[0] = math.floor(minmax[0])
+        minmax[1] = math.ceil(minmax[1])
     if shape is not None:
         array = array.reshape(shape)
+    if colormap is not None:
+        try:
+            cm_hot = cm.get_cmap(colormap)
+            array = cm_hot(array)
+        except:
+            pass
+    array = rescale_numpy_array(array, minmax, (0,255), 'uint8',
+                                truncate=True)
     if len(array.shape) == 3 and array.shape[-1] == 1:
         array = array.reshape((array.shape[0], array.shape[1]))
+    elif len(array.shape) == 1:
+        array = np.array([array])
     image = PIL.Image.fromarray(array)
     if scale != 1.0:
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+    if image.mode not in ["RGB", "RGBA"]:
+        image = image.convert("RGB")
     return image
+
+def scale_output_for_image(vector, minmax, truncate=False):
+    """
+    Given an activation name (or something else) and an output
+    vector, scale the vector.
+    """
+    return rescale_numpy_array(vector, minmax, (0,255), 'uint8',
+                               truncate=truncate)
 
 def onehot(i, width):
     """

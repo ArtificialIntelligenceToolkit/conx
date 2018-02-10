@@ -1020,11 +1020,37 @@ class Dataset():
         if not 0 <= i < size:
             raise Exception("input index %d is out of bounds" % (i,))
         else:
-            data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
+            data = [self._tolist(self._inputs[b][i], "inputs", b) for b in range(self._num_input_banks())]
         if self._num_input_banks() == 1:
             return data[0]
         else:
             return data
+
+    def _tolist(self, nparray, item, bank):
+        class DataVectorList(list):
+            """
+            """
+            def __init__(self, lyst, network, item, bank):
+                super().__init__(lyst)
+                self.network = network
+                self.item = item
+                self.bank = bank
+
+            def _repr_image_(self):
+                if self.network:
+                    config = {"pixels_per_unit": self.network.config["pixels_per_unit"],
+                              "svg_rotate": False}
+                    if self.item.endswith("inputs"):
+                        layer_name = self.network.input_bank_order[self.bank]
+                    elif self.item.endswith("targets"):
+                        layer_name = self.network.input_bank_order[self.bank]
+                    else:
+                        raise Exception("DataVectorList display error: I don't know how to display %s" % self.item)
+                    return self.network[layer_name].make_image(np.array(self), config=config)
+                else:
+                    return array_to_image(self)
+
+        return DataVectorList(nparray.tolist(), self.network, item, bank)
 
     def _get_target(self, i):
         """
@@ -1034,7 +1060,7 @@ class Dataset():
         size = self._get_size()
         if not 0 <= i < size:
             raise Exception("target index %d is out of bounds" % (i,))
-        data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
+        data = [self._tolist(self._targets[b][i], "targets", b) for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
         else:
@@ -1062,7 +1088,7 @@ class Dataset():
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_train:
             raise Exception("training input index %d is out of bounds" % (i,))
-        data = [self._inputs[b][i].tolist() for b in range(self._num_input_banks())]
+        data = [self._tolist(self._inputs[b][i], "train_inputs", b) for b in range(self._num_input_banks())]
         if self._num_input_banks() == 1:
             return data[0]
         else:
@@ -1076,7 +1102,7 @@ class Dataset():
         size, num_train, num_test = self._get_split_sizes()
         if not 0 <= i < num_train:
             raise Exception("training target index %d is out of bounds" % (i,))
-        data = [self._targets[b][i].tolist() for b in range(self._num_target_banks())]
+        data = [self._tolist(self._targets[b][i], "train_targets", b) for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
         else:
@@ -1105,7 +1131,7 @@ class Dataset():
         if not 0 <= i < num_test:
             raise Exception("test input index %d is out of bounds" % (i,))
         j = size - num_test + i
-        data = [self._inputs[b][j].tolist() for b in range(self._num_input_banks())]
+        data = [self._tolist(self._inputs[b][j], "test_inputs", b) for b in range(self._num_input_banks())]
         if self._num_input_banks() == 1:
             return data[0]
         else:
@@ -1120,7 +1146,7 @@ class Dataset():
         if not 0 <= i < num_test:
             raise Exception("test target index %d is out of bounds" % (i,))
         j = size - num_test + i
-        data = [self._targets[b][j].tolist() for b in range(self._num_target_banks())]
+        data = [self._tolist(self._targets[b][j], "test_targets", b) for b in range(self._num_target_banks())]
         if self._num_target_banks() == 1:
             return data[0]
         else:

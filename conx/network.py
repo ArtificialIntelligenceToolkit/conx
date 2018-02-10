@@ -549,7 +549,7 @@ class Network():
         elif format == "svg":
             return svg
         elif format == "image":
-            return svg2image(svg)
+            return svg_to_image(svg)
 
     def in_console(self, mpl_backend: str) -> bool:
         """
@@ -1445,7 +1445,7 @@ class Network():
         weights = [layer.get_weights() for layer in self.model.layers
                    if layer_name == layer.name][0]
         weights = weights[0] # get the weight matrix, not the biases
-        vector = self[layer_name].scale_output_for_image(weights, (-5,5), truncate=True)
+        vector = scale_output_for_image(weights, (-5,5), truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
         size = self.config["pixels_per_unit"]
@@ -1534,7 +1534,7 @@ class Network():
             if self.num_input_layers == 1:
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
-            input = image2array(input)
+            input = image_to_array(input)
         ## End of input setup
         if not is_array_like(input):
             raise Exception("inputs should be an array")
@@ -1578,7 +1578,7 @@ class Network():
             if self.num_input_layers == 1:
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
-            input = image2array(input)
+            input = image_to_array(input)
         ## End of input setup
         if not is_array_like(input):
             raise Exception("inputs should be an array")
@@ -1698,7 +1698,7 @@ class Network():
             if self.num_input_layers == 1:
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
-            inputs = image2array(inputs)
+            inputs = image_to_array(inputs)
         ## End of input setup
         if not is_array_like(inputs):
             raise Exception("inputs should be an array")
@@ -1790,7 +1790,7 @@ class Network():
             if self.num_input_layers == 1:
                 inputs = inputs[0]
         elif isinstance(inputs, PIL.Image.Image):
-            inputs = image2array(inputs)
+            inputs = image_to_array(inputs)
         ## End of input setup
         if not is_array_like(inputs):
             raise Exception("inputs should be an array")
@@ -1865,7 +1865,7 @@ class Network():
             if self.num_input_layers == 1:
                 input = input[0]
         elif isinstance(input, PIL.Image.Image):
-            input = image2array(input)
+            input = image_to_array(input)
         ## End of input setup
         if not is_array_like(input):
             raise Exception("inputs should be an array")

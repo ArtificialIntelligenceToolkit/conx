@@ -26,5 +26,5 @@ ds = [
     ([[1, 1],[1, 1]], [[0, 0],[0, 0]])
 ]
 net.dataset.load(ds)
-net.train(2000, report_rate=10, accuracy=1)
-net.test()
+#net.train(2000, report_rate=10, accuracy=1)
+#net.test()
