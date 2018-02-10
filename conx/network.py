@@ -520,8 +520,9 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def picture(self, inputs=None, dynamic=False, rotate=False,
-                format="html", class_id=None, **kwargs):
+    def picture(self, inputs=None, dynamic=False, rotate=False, scale=None,
+                show_errors=False, show_targets=False, format="html", class_id=None,
+                **kwargs):
         """
         Create an SVG of the network given some inputs (optional).
 
@@ -546,9 +547,9 @@ class Network():
         orig_show_targets = self.config["show_targets"]
         orig_svg_scale = self.config["svg_scale"]
         self.config["svg_rotate"] = rotate
-        self.config["show_errors"] = False
-        self.config["show_targets"] = False
-        self.config["svg_scale"] = None
+        self.config["show_errors"] = show_errors
+        self.config["show_targets"] = show_targets
+        self.config["svg_scale"] = scale
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
         self.config["svg_rotate"] = orig_rotate
         self.config["show_errors"] = orig_show_errors
