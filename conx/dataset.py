@@ -448,24 +448,36 @@ class Dataset():
         """
         return self._get_size()
 
-    def random(self, length, frange=(-1, 1)):
+    def add_random(self, count, frange=(-1, 1)):
         """
-        Append a number of random values in the range frange
+        Append a number of random values in the range `frange`
         to inputs and targets.
+
+        Requires that dataset belongs to a network with
+        input layers.
 
         >>> from conx import *
         >>> net = Network("Random", 5, 2, 3, 4)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.random(100)
+        >>> net.dataset.add_random(100)
         >>> len(net.dataset.inputs)
         100
+        >>> shape(net.dataset.inputs)
+        (100, 5)
         >>> len(net.dataset.targets)
         100
+        >>> shape(net.dataset.targets)
+        (100, 4)
         """
+        if self.network is None:
+            raise Exception("please call network.set_dataset() on this dataset")
+        if (len(self.network.input_bank_order) == 0 or
+            len(self.network.output_bank_order) == 0):
+            raise Exception("please connect network layers")
         diff = abs(frange[1] - frange[0])
         ## inputs:
         inputs = []
-        for i in range(length):
+        for i in range(count):
             if self.network:
                 for layer_name in self.network.input_bank_order:
                     shape = self.network[layer_name].shape
@@ -475,7 +487,7 @@ class Dataset():
                     inputs.append(np.random.rand(*shape) * diff + frange[0])
         ## targets:
         targets = []
-        for i in range(length):
+        for i in range(count):
             if self.network:
                 for layer_name in self.network.output_bank_order:
                     shape = self.network[layer_name].shape
