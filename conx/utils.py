@@ -193,6 +193,7 @@ def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
                 return  # no more images to display
             axes[r][c].imshow(images[k])
             k += 1
+    plt.show(block=False)
     if k < len(images):
         print("WARNING: could not view all images with layout %s" % (layout,), file=sys.stderr)
 
