@@ -2543,9 +2543,9 @@ class Network():
                     try:
                         image = self._propagate_to_image(layer_name, v)
                     except:
-                        image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
+                        image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 else:
-                    image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=self.config)
+                    image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
                 ### Layer settings:
