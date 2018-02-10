@@ -175,6 +175,7 @@ def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
     border = spacing / max(rows, cols)
     fig, axes = plt.subplots(rows, cols, squeeze=False,
                              figsize=(cols*scale, rows*scale),
+                             num=title,
                              gridspec_kw={'wspace': spacing,
                                           'hspace': spacing,
                                           'left': border,
@@ -355,7 +356,6 @@ def view_svg(svg, title=None, background=(255, 255, 255, 255), scale=1.0):
     return view_image(image, title, scale=scale)
 
 def view_image(image, title=None, scale=1.0):
-    plt.ion()
     size = plt.rcParams["figure.figsize"]
     fig = plt.figure(figsize=(size[0] * scale, size[1] * scale),
                      num=title)
