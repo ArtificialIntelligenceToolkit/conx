@@ -535,6 +535,9 @@ class Network():
         <IPython.core.display.HTML object>
         """
         from IPython.display import HTML
+        if any([(layer.kind() == "unconnected") for layer in self.layers]) or len(self.layers) == 0:
+            print("Network error: please add layers and connect them")
+            return
         if static:
             if class_id is not None:
                 print("WARNING: class_id given but ignored", file=sys.stderr)
@@ -2966,8 +2969,7 @@ require(['base/js/namespace'], function(Jupyter) {
 
         See .config for all options.
         """
-        if any([(layer.kind() == "unconnected") for layer in self.layers]):
-            #raise Exception("can't build display with layers that aren't connected; use Network.connect(...)")
+        if any([(layer.kind() == "unconnected") for layer in self.layers]) or len(self.layers) == 0:
             return None
         # defaults:
         config = copy.copy(self.config)

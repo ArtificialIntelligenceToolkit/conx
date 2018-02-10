@@ -238,6 +238,9 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
     if len(net.dataset) == 0:
         print("Please load a dataset")
         return
+    if net.models is None:
+        print("Please compile network")
+        return
     if data == "test" and len(net.dataset.test_inputs) == 0:
         print("Please split data")
         return
@@ -291,7 +294,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
         else:
             ## assume it is a file:
             return view_image(PIL.Image.open(item), title, scale=scale)
-    elif isinstance(item, Network):
+    elif isinstance(item, Network) and len(item.dataset) > 0:
         return view_network(item, title=title, background=background, scale=scale, **kwargs)
     elif hasattr(item, "_repr_svg_"):
         return view_svg(item._repr_svg_(), title=title, background=background, scale=scale)
