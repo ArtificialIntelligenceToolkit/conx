@@ -33,11 +33,14 @@ def mnist(dataset):
     dataset.description = """
 Original source: http://yann.lecun.com/exdb/mnist/
 
-The MNIST database of handwritten digits, available from this page,
-has 70,000 examples. It is a subset of a larger set available from
-NIST. The digits have been size-normalized and centered in a
-fixed-size image.  It is a good database for people who want to try
-learning techniques and pattern recognition methods on real-world data
-while spending minimal efforts on preprocessing and formatting.
+The MNIST dataset contains 70,000 images of handwritten digits (zero
+to nine) that have been size-normalized and centered in a square grid
+of pixels.  Each image is a 28 × 28 × 1 array of floating-point numbers
+representing grayscale intensities ranging from 0 (black) to 1
+(white).  The target data consists of one-hot binary vectors of size
+10, corresponding to the digit classification categories zero through
+nine.  Some example MNIST images are shown below:
+
+![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
 """
     dataset.load_direct([inputs], [targets], [labels])

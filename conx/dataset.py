@@ -874,12 +874,20 @@ class Dataset():
         retval += '   * total     : %d\n\n' % (size,)
         retval += '**Input Summary**:\n'
         if size != 0:
-            retval += '   * shape  : %s\n' % self.inputs.shape
-            retval += '   * range  : %s\n\n' % (self._inputs_range,)
+            if len(self.inputs.shape) == 1:
+                retval += '   * shape  : %s\n' % (self.inputs.shape[0],)
+                retval += '   * range  : %s\n\n' % (self._inputs_range[0],)
+            else:
+                retval += '   * shape  : %s\n' % (self.inputs.shape,)
+                retval += '   * range  : %s\n\n' % (self._inputs_range,)
         retval += '**Target Summary**:\n'
         if size != 0:
-            retval += '   * shape  : %s\n' % self.targets.shape
-            retval += '   * range  : %s\n\n' % (self._targets_range,)
+            if len(self.targets.shape) == 1:
+                retval += '   * shape  : %s\n' % (self.targets.shape[0],)
+                retval += '   * range  : %s\n\n' % (self._targets_range[0],)
+            else:
+                retval += '   * shape  : %s\n' % (self.targets.shape,)
+                retval += '   * range  : %s\n\n' % (self._targets_range,)
         if self.network:
             self.network.test_dataset_ranges()
         return retval
