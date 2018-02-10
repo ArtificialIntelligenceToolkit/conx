@@ -297,7 +297,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
     elif isinstance(item, Network) and len(item.dataset) > 0:
         return view_network(item, title=title, background=background, scale=scale, **kwargs)
     elif hasattr(item, "_repr_svg_"):
-        return view_svg(item._repr_svg_(), title=title, background=background, scale=scale)
+        return view_svg(item.to_svg(), title=title, background=background, scale=scale)
     elif hasattr(item, "_repr_image_"):
         return view_image(item._repr_image_(), title=title, scale=scale)
     elif isinstance(item, PIL.Image.Image):
