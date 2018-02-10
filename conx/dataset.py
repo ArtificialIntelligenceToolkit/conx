@@ -106,54 +106,72 @@ class DataVector():
             if isinstance(pos, slice):
                 return [self.dataset._get_target(i) for i in
                         range(len(self.dataset.targets))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_target(i) for i in pos]
             else:
                 return self.dataset._get_target(pos)
         elif self.item == "labels":
             if isinstance(pos, slice):
                 return [self.dataset._get_label(i) for i in
                         range(len(self.dataset.labels))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_label(i) for i in pos]
             else:
                 return self.dataset._get_label(pos)
         elif self.item == "test_labels":
             if isinstance(pos, slice):
                 return [self.dataset._get_test_label(i) for i in
                         range(len(self.dataset.test_labels))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_test_label(i) for i in pos]
             else:
                 return self.dataset._get_test_label(pos)
         elif self.item == "train_labels":
             if isinstance(pos, slice):
                 return [self.dataset._get_train_label(i) for i in
                         range(len(self.dataset.train_labels))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_train_label(i) for i in pos]
             else:
                 return self.dataset._get_train_label(pos)
         elif self.item == "inputs":
             if isinstance(pos, slice):
                 return [self.dataset._get_input(i) for i in
                         range(len(self.dataset.inputs))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_input(i) for i in pos]
             else:
                 return self.dataset._get_input(pos)
         elif self.item == "test_inputs":
             if isinstance(pos, slice):
                 return [self.dataset._get_test_input(i) for i in
                         range(len(self.dataset.test_inputs))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_test_input(i) for i in pos]
             else:
                 return self.dataset._get_test_input(pos)
         elif self.item == "train_inputs":
             if isinstance(pos, slice):
                 return [self.dataset._get_train_input(i) for i in
                         range(len(self.dataset.train_inputs))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_train_input(i) for i in pos]
             else:
                 return self.dataset._get_train_input(pos)
         elif self.item == "test_targets":
             if isinstance(pos, slice):
                 return [self.dataset._get_test_target(i) for i in
                         range(len(self.dataset.test_targets))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_test_target(i) for i in pos]
             else:
                 return self.dataset._get_test_target(pos)
         elif self.item == "train_targets":
             if isinstance(pos, slice):
                 return [self.dataset._get_train_target(i) for i in
                         range(len(self.dataset.train_targets))[pos]]
+            elif isinstance(pos, (list, tuple)):
+                return [self.dataset._get_train_target(i) for i in pos]
             else:
                 return self.dataset._get_train_target(pos)
         else:
