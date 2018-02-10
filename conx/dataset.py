@@ -1041,9 +1041,15 @@ class Dataset():
                     config = {"pixels_per_unit": self.network.config["pixels_per_unit"],
                               "svg_rotate": False}
                     if self.item.endswith("inputs"):
-                        layer_name = self.network.input_bank_order[self.bank]
+                        if self.bank < len(self.network.input_bank_order):
+                            layer_name = self.network.input_bank_order[self.bank]
+                        else:
+                            return array_to_image(self)
                     elif self.item.endswith("targets"):
-                        layer_name = self.network.input_bank_order[self.bank]
+                        if self.bank < len(self.network.output_bank_order):
+                            layer_name = self.network.output_bank_order[self.bank]
+                        else:
+                            return array_to_image(self)
                     else:
                         raise Exception("DataVectorList display error: I don't know how to display %s" % self.item)
                     return self.network[layer_name].make_image(np.array(self), config=config)
