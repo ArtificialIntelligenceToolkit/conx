@@ -2630,6 +2630,7 @@ class Network():
                                              "y": cheight + height/2 + 2,
                                              "label": "targets",
                                              "font_size": config["font_size"],
+                                             "font_color": "black",
                                              "font_family": config["font_family"],
                                              "text_anchor": "start",
                 }])
@@ -2668,6 +2669,7 @@ class Network():
                                              "y": cheight + height/2 + 2,
                                              "label": "errors",
                                              "font_size": config["font_size"],
+                                             "font_color": "black",
                                              "font_family": config["font_family"],
                                              "text_anchor": "start",
                 }])
@@ -2809,6 +2811,7 @@ class Network():
                                              "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
                                              "label": layer_name,
                                              "font_size": config["font_size"],
+                                             "font_color": "black",
                                              "font_family": config["font_family"],
                                              "text_anchor": "start",
                 }])
@@ -2822,6 +2825,7 @@ class Network():
                                                      "y": positioning[layer_name]["y"] - 10 - 5,
                                                      "label": features,
                                                      "font_size": config["font_size"],
+                                                     "font_color": "black",
                                                      "font_family": config["font_family"],
                                                      "text_anchor": "start",
                         }])
@@ -2829,6 +2833,7 @@ class Network():
                                                      "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] + 10 + 5,
                                                      "label": feature,
                                                      "font_size": config["font_size"],
+                                                     "font_color": "black",
                                                      "font_family": config["font_family"],
                                                      "text_anchor": "start",
                         }])
@@ -2837,6 +2842,7 @@ class Network():
                                                      "y": positioning[layer_name]["y"] + 5,
                                                      "label": features,
                                                      "font_size": config["font_size"],
+                                                     "font_color": "black",
                                                      "font_family": config["font_family"],
                                                      "text_anchor": "start",
                         }])
@@ -2844,6 +2850,7 @@ class Network():
                                                      "y": positioning[layer_name]["y"] + positioning[layer_name]["height"] - 5,
                                                      "label": feature,
                                                      "font_size": config["font_size"],
+                                                     "font_color": "black",
                                                      "font_family": config["font_family"],
                                                      "text_anchor": "start",
                         }])
@@ -2853,6 +2860,7 @@ class Network():
                                                  "y": positioning[layer_name]["y"] + 5,
                                                  "label": label,
                                                  "font_size": config["font_size"] * 2.0,
+                                                 "font_color": "black",
                                                  "font_family": config["font_family"],
                                                  "text_anchor": "start",
                     }])
@@ -2865,12 +2873,13 @@ class Network():
         ### DONE!
         ## Draw live/static sign
         if (class_id is None):
-            label = "&#128498;" # lighting bold, dynamic image
+            label = "*" # lightning bold, dynamic image
             if config["svg_rotate"]:
                 struct.append(["label_svg", {"x": 10,
                                              "y": cheight - 10,
                                              "label": label,
                                              "font_size": config["font_size"] * 2.0,
+                                             "font_color": "red",
                                              "font_family": config["font_family"],
                                              "text_anchor": "middle",
                 }])
@@ -2879,6 +2888,7 @@ class Network():
                                              "y": 10,
                                              "label": label,
                                              "font_size": config["font_size"] * 2.0,
+                                             "font_color": "red",
                                              "font_family": config["font_family"],
                                              "text_anchor": "middle",
                 }])
@@ -2888,6 +2898,7 @@ class Network():
                                          "y": cheight/2,
                                          "label": self.name,
                                          "font_size": config["font_size"] + 3,
+                                         "font_color": "black",
                                          "font_family": config["font_family"],
                                          "text_anchor": "middle",
             }])
@@ -2896,6 +2907,7 @@ class Network():
                                          "y": config["border_top"]/2,
                                          "label": self.name,
                                          "font_size": config["font_size"] + 3,
+                                         "font_color": "black",
                                          "font_family": config["font_family"],
                                          "text_anchor": "middle",
             }])
@@ -2992,7 +3004,7 @@ require(['base/js/namespace'], function(Jupyter) {
         line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
-        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" alignment-baseline="central" {transform}>{label}</text>"""
+        label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" fill="{font_color}" alignment-baseline="central" {transform}>{label}</text>"""
         svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
  <g {svg_transform}>
   <svg viewBox="0 0 {viewbox_width} {viewbox_height}" width="{width}px" height="{height}px">
