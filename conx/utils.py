@@ -236,7 +236,10 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         print("Invalid data to view; data should be 'train', or 'test'")
         return
     if len(net.dataset) == 0:
-        print("Please load a dataset")
+        ## try to get a picture of the network, if one:
+        image = net.picture(static=kwargs.get("static", True), format="image")
+        if image:
+            return view_image(image, title=title, scale=scale)
         return
     if net.models is None:
         print("Please compile network")
@@ -294,10 +297,8 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
         else:
             ## assume it is a file:
             return view_image(PIL.Image.open(item), title, scale=scale)
-    elif isinstance(item, Network) and len(item.dataset) > 0:
+    elif isinstance(item, Network):
         return view_network(item, title=title, background=background, scale=scale, **kwargs)
-    elif hasattr(item, "_repr_svg_"):
-        return view_svg(item.to_svg(), title=title, background=background, scale=scale)
     elif hasattr(item, "_repr_image_"):
         return view_image(item._repr_image_(), title=title, scale=scale)
     elif isinstance(item, PIL.Image.Image):
