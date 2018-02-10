@@ -242,7 +242,7 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         if image:
             return view_image(image, title=title, scale=scale)
         return
-    if net.models is None:
+    if net.model is None:
         print("Please compile network")
         return
     if data == "test" and len(net.dataset.test_inputs) == 0:
