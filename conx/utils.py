@@ -190,6 +190,7 @@ def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
     for r in range(rows):
         for c in range(cols):
             if k >= len(images):
+                plt.show(block=False)
                 return  # no more images to display
             axes[r][c].imshow(images[k])
             k += 1
