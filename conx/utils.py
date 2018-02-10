@@ -238,7 +238,7 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         return
     if len(net.dataset) == 0:
         ## try to get a picture of the network, if one:
-        image = net.picture(static=kwargs.get("static", True), format="image")
+        image = net.picture(dynamic=kwargs.get("dynamic", False), format="image")
         if image:
             return view_image(image, title=title, scale=scale)
         return
@@ -249,7 +249,7 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         print("Please split data")
         return
     for key in kwargs:
-        if key == "static": continue
+        if key == "dynamic": continue
         net.config[key] = kwargs[key]
     current = 0
     if title is None:
@@ -259,14 +259,14 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
         if data == "train":
             print("%s Training data #%d" % (net.name, current))
             view_image(net.picture(net.dataset.train_inputs[current],
-                                   static=kwargs.get("static", True),
+                                   dynamic=kwargs.get("dynamic", False),
                                    format="image"),
                        title=title, scale=scale)
             last = len(net.dataset.train_inputs) - 1
         else:
             print("%s Test data #%d" % (net.name, current))
             view_image(net.picture(net.dataset.test_inputs[current],
-                                   static=kwargs.get("static", True),
+                                   dynamic=kwargs.get("dynamic", False),
                                    format="image"),
                        title=title, scale=scale)
             last = len(net.dataset.test_inputs) - 1

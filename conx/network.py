@@ -520,7 +520,7 @@ class Network():
             else:
                 return gif2mp4(movie_name)
 
-    def picture(self, inputs=None, static=False, rotate=False,
+    def picture(self, inputs=None, dynamic=False, rotate=False,
                 format="html", class_id=None, **kwargs):
         """
         Create an SVG of the network given some inputs (optional).
@@ -529,14 +529,14 @@ class Network():
         >>> net.compile(error="mse", optimizer="adam")
         >>> net.picture([.5, .5])
         <IPython.core.display.HTML object>
-        >>> net.picture([.5, .5], static=True)
+        >>> net.picture([.5, .5], dynamic=True)
         <IPython.core.display.HTML object>
         """
         from IPython.display import HTML
         if any([(layer.kind() == "unconnected") for layer in self.layers]) or len(self.layers) == 0:
             print("Network error: please add layers and connect them")
             return
-        if static:
+        if not dynamic:
             if class_id is not None:
                 print("WARNING: class_id given but ignored", file=sys.stderr)
             r = random.randint(1, 1000000)
@@ -722,14 +722,14 @@ class Network():
             sequence = topological_sort(self, self.layers)
             for layer in sequence:
                 if layer.kind() == 'input':
-                    layer.input_names = [layer.name]
+                    layer.input_names = set([layer.name])
                 else:
                     if len(layer.incoming_connections) == 1:
                         layer.input_names = layer.incoming_connections[0].input_names
                     else:
-                        layer.input_names = [item for sublist in
-                                             [incoming.input_names for incoming in layer.incoming_connections]
-                                             for item in sublist]
+                        layer.input_names = set([item for sublist in
+                                                 [incoming.input_names for incoming in layer.incoming_connections]
+                                                 for item in sublist])
     def depth(self):
         """
         Find the depth of the network graph of connections.
@@ -2411,7 +2411,7 @@ class Network():
         """
         for layer in self.layers:
             layer.k = None
-            layer.input_names = []
+            layer.input_names = set([])
             layer.model = None
 
     def update_model(self):
@@ -2430,7 +2430,7 @@ class Network():
             if layer.kind() == 'input':
                 if self.debug: print("making input layer for", layer.name)
                 layer.k = layer.make_input_layer_k()
-                layer.input_names = [layer.name]
+                layer.input_names = set([layer.name])
                 layer.model = keras.models.Model(inputs=layer.k, outputs=layer.k) # identity
             else:
                 if self.debug: print("making layer for", layer.name)
@@ -2448,9 +2448,9 @@ class Network():
                     else:
                         k = keras.layers.Concatenate()([incoming.k for incoming in layer.incoming_connections])
                     # flatten:
-                    layer.input_names = [item for sublist in
-                                         [incoming.input_names for incoming in layer.incoming_connections]
-                                         for item in sublist]
+                    layer.input_names = set([item for sublist in
+                                             [incoming.input_names for incoming in layer.incoming_connections]
+                                             for item in sublist])
                 if self.debug: print("input names for", layer.name, layer.input_names)
                 if self.debug: print("applying k's", kfuncs)
                 for f in kfuncs:
