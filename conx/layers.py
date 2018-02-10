@@ -366,7 +366,7 @@ class _BaseLayer():
         ## If rotated, and has features, rotate it:
         if config["svg_rotate"]:
             output_shape = self.get_output_shape()
-            if ((isinstance(output_shape, tuple) and len(output_shape) == 4) or
+            if ((isinstance(output_shape, tuple) and len(output_shape) >= 3) or
                 (self.vshape is not None and len(self.vshape) == 2)):
                 image = image.rotate(90, expand=1)
         return image
