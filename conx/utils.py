@@ -553,12 +553,12 @@ def minimum(seq):
     Returns:
         The minimum value in list or matrix.
 
-    >>> minimum([0.5, 0.2, 0.3, 0.1])
-    0.1
-    >>> minimum([[0.5, 0.2], [0.3, 0.1]])
-    0.1
-    >>> minimum([[[0.5], [0.2]], [[0.3], [0.1]]])
-    0.1
+    >>> minimum([5, 2, 3, 1])
+    1
+    >>> minimum([[5, 2], [3, 1]])
+    1
+    >>> minimum([[[5], [2]], [[3], [1]]])
+    1
     """
     return np.array(seq).min()
 
