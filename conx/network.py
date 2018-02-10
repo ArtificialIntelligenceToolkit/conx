@@ -3134,6 +3134,7 @@ require(['base/js/namespace'], function(Jupyter) {
         else:
             self.load_model(dir)
             self.load_weights(dir)
+            self.load_config(dir)
 
     def save(self, dir=None):
         """
@@ -3142,6 +3143,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if self.model:
             self.save_model(dir)
             self.save_weights(dir)
+            self.save_config(dir)
             with open("%s/network.pickle" % (("%s.conx" % self.name.replace(" ", "_"))
                                              if dir is None else dir), "wb") as fp:
                 pickle.dump(self, fp)
@@ -3411,13 +3413,13 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         """
         if datadir is None:
-            datadir = os.path.join(os.path.expanduser('~'), '.keras', 'conx', 'configs')
+            datadir = "%s.conx" % self.name.replace(" ", "_")
         if config_file is None:
-            config_file = "%s.cfg" % self.name
+            config_file = "config.json"
         datadir = os.path.expanduser(datadir)
         if not os.path.exists(datadir):
             ## second try, here
-            datadir = os.path.join('/tmp', '.keras', 'conx', 'configs')
+            datadir = os.path.join('/tmp', datadir)
         full_config_file = os.path.join(datadir, config_file)
         if os.path.isfile(full_config_file):
             with open(full_config_file) as fp:
@@ -3429,15 +3431,14 @@ require(['base/js/namespace'], function(Jupyter) {
         """
         """
         if datadir is None:
-            datadir = os.path.join(os.path.expanduser('~'), '.keras', 'conx', 'configs')
+            datadir = "%s.conx" % self.name.replace(" ", "_")
         if config_file is None:
-            config_file = "%s.cfg" % self.name
-        datadir = os.path.expanduser(datadir)
+            config_file = "config.json"
         if not os.path.exists(datadir):
             try:
                 os.makedirs(datadir)
             except:
-                datadir = os.path.join('/tmp', '.keras', 'conx', 'configs')
+                datadir = os.path.join('/tmp', datadir)
                 os.makedirs(datadir)
         full_config_file = os.path.join(datadir, config_file)
         self.rebuild_config()

@@ -527,6 +527,59 @@ def argmax(seq):
     """
     return np.argmax(seq)
 
+def argmin(seq):
+    """
+    Find the index of the minimum value in seq.
+
+    Arguments:
+        seq (list) - sequence of numbers
+
+    Returns:
+        The index of minimum value in list.
+
+    >>> argmin([0.5, 0.2, 0.3, 0.1])
+    3
+    """
+    return np.argmin(seq)
+
+def minimum(seq):
+    """
+    Find the minimum value in seq.
+
+    Arguments:
+        seq (list) - sequence or matrix of numbers
+
+    Returns:
+        The minimum value in list or matrix.
+
+    >>> minimum([0.5, 0.2, 0.3, 0.1])
+    0.1
+    >>> minimum([[0.5, 0.2], [0.3, 0.1]])
+    0.1
+    >>> minimum([[[0.5], [0.2]], [[0.3], [0.1]]])
+    0.1
+    """
+    return np.array(seq).min()
+
+def maximum(seq):
+    """
+    Find the maximum value in seq.
+
+    Arguments:
+        seq (list) - sequence or matrix of numbers
+
+    Returns:
+        The maximum value in list or matrix.
+
+    >>> maximum([0.5, 0.2, 0.3, 0.1])
+    0.5
+    >>> maximum([[0.5, 0.2], [0.3, 0.1]])
+    0.5
+    >>> maximum([[[0.5], [0.2]], [[0.3], [0.1]]])
+    0.5
+    """
+    return np.array(seq).max()
+
 def crop_image(image, x1, y1, x2, y2):
     """
     Given an image an crop rectangle
