@@ -6,26 +6,22 @@ Examples
 
    Learning
    XOR
-   ActivationFunctions
+   MNIST
+   Face recognition
+   CIFAR10_CNN
+   Auto-encoder with Conv2D
    Datasets
    Plotting
    Autoencoder
-   MNIST
    Predicting and Generating Texts
-   Face recognition
    RecommendingMovies
    LSTM
-   CIFAR10_CNN
-   AlphaZero
+   ActivationFunctions
    Gridfonts
    Camera
    Robot Simulation
    Extrapolation1
    VisionQuest
-   DeepDreams
-   Auto-encoder with Conv2D
    Experiments
    MakingMovies
    PCA
-   Under The Hood
-   WorkingWithKeras
