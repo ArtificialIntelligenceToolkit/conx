@@ -259,6 +259,7 @@ class Network():
     """
     OPTIMIZERS = ("sgd", "rmsprop", "adagrad", "adadelta", "adam",
                   "adamax", "nadam", "tfoptimizer")
+
     ERROR_FUNCTIONS = ['binary_crossentropy', 'categorical_crossentropy',
                        'categorical_hinge', 'cosine', 'cosine_proximity', 'hinge',
                        'kld', 'kullback_leibler_divergence', 'logcosh', 'mae', 'mape',
@@ -2363,12 +2364,28 @@ class Network():
             del kwargs["error"]
         if kwargs["loss"] == 'sparse_categorical_crossentropy':
             raise Exception("'sparse_categorical_crossentropy' is not a valid error metric in conx; use 'categorical_crossentropy' with proper targets")
-        if "optimizer" in kwargs:
-            optimizer = kwargs["optimizer"]
-            if (not ((isinstance(optimizer, str) and optimizer in self.OPTIMIZERS) or
-                     (isinstance(optimizer, object) and issubclass(optimizer.__class__, keras.optimizers.Optimizer)))):
-                raise Exception("invalid optimizer '%s'; use valid function or one of %s" %
-                                (optimizer, Network.OPTIMIZERS,))
+        if "optimizer" not in kwargs or "loss" not in kwargs:
+            raise Exception("both optimizer and error/loss are required to compile a network")
+        if isinstance(kwargs["optimizer"], str) and kwargs["optimizer"].lower() not in self.OPTIMIZERS:
+            raise Exception("invalid optimizer '%s'; use valid function or one of %s" % (kwargs["optimizer"], Network.OPTIMIZERS,))
+        ## Build an optimizer:
+        config = kwargs.get("config", {})
+        for kw in list(kwargs.keys()):
+            if kw not in ["loss", "metrics", "optimizer"]:
+                if kw != "config":
+                    config[kw] = kwargs[kw]
+                del kwargs[kw]
+        if config != {}:
+            error = False
+            try:
+                kwargs["optimizer"] = keras.optimizers.get({"class_name": kwargs["optimizer"], "config": config})
+            except:
+                error = True
+            if error:
+                class_instance = keras.optimizers.get(kwargs["optimizer"])
+                raise Exception("invalid optimizer arguments %s(**%s); for more information type: help(cx.%s)" % (
+                    kwargs["optimizer"], config, class_instance.__class__.__name__))
+        ### Optimizer is an instance, if given kwargs
         using_softmax = False
         for layer in self.layers:
             if layer.kind() == "output":
