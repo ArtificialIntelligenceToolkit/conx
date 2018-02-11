@@ -241,45 +241,27 @@ class DataVector():
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
-    def filter_indices(self, function):
+    def filter(self, function, index=True):
         """
-        function() takes item[i] and returns True or False
-        filter will return all indices that match the filter.
-        """
-        if self.item == "targets":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.targets[i])]
-        elif self.item == "inputs":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.inputs[i])]
-        elif self.item == "labels":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.labels[i])]
-        if self.item == "test_targets":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.test_targets[i])]
-        elif self.item == "test_inputs":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.test_inputs[i])]
-        if self.item == "train_targets":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.train_targets[i])]
-        elif self.item == "train_inputs":
-            return [i for i in range(len(self.dataset)) if function(self.dataset.train_inputs[i])]
-
-    def filter(self, function):
-        """
-        function() takes item[i] and returns True or False
+        function() takes (i, item[i]) and returns True or False
         filter will return all items that match the filter.
+
+        if index is True, then return indices, else return the items.
         """
         if self.item == "targets":
-            return [self.dataset.targets[i] for i in range(len(self.dataset)) if function(self.dataset.targets[i])]
+            return [i if index else self.dataset.targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.targets[i])]
         elif self.item == "inputs":
-            return [self.dataset.inputs[i] for i in range(len(self.dataset)) if function(self.dataset.inputs[i])]
+            return [i if index else self.dataset.inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.inputs[i])]
         elif self.item == "labels":
-            return [self.dataset.labels[i] for i in range(len(self.dataset)) if function(self.dataset.labels[i])]
+            return [i if index else self.dataset.labels[i] for i in range(len(self.dataset)) if function(i, self.dataset.labels[i])]
         if self.item == "test_targets":
-            return [self.dataset.test_targets[i] for i in range(len(self.dataset)) if function(self.dataset.test_targets[i])]
+            return [i if index else self.dataset.test_targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.test_targets[i])]
         elif self.item == "test_inputs":
-            return [self.dataset.test_inputs[i] for i in range(len(self.dataset)) if function(self.dataset.test_inputs[i])]
+            return [i if index else self.dataset.test_inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.test_inputs[i])]
         if self.item == "train_targets":
-            return [self.dataset.train_targets[i] for i in range(len(self.dataset)) if function(self.dataset.train_targets[i])]
+            return [i if index else self.dataset.train_targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.train_targets[i])]
         elif self.item == "train_inputs":
-            return [self.dataset.train_inputs[i] for i in range(len(self.dataset)) if function(self.dataset.train_inputs[i])]
+            return [i if index else self.dataset.train_inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.train_inputs[i])]
 
     def reshape(self, bank_index, new_shape=None):
         """
