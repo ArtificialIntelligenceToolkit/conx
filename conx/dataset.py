@@ -247,46 +247,46 @@ class DataVector():
         """
         select selects items or indices from a dataset pattern.
 
-        function() takes (i, item[i]) and returns True or False
+        function() takes (i, dataset) and returns True or False
         filter will return all items that match the filter.
 
         Examples:
             >>> ds = Dataset()
             >>> ds.get("mnist")
-            >>> ds.inputs.select(lambda i,x: True, slice=10, index=True)
+            >>> ds.inputs.select(lambda i,dataset: True, slice=10, index=True)
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-            >>> s = ds.inputs.select(lambda i,x: x, slice=(10, 20, 2))
+            >>> s = ds.inputs.select(lambda i,dataset: ds.inputs[i], slice=(10, 20, 2))
             >>> shape(s)
             (5, 28, 28, 1)
 
         Arguments:
-            function - callable that takes (i, item[i]) and returns True/False
+            function - callable that takes (i, dataset) and returns True/False
             slice - range of items/indices to return
             index - if index is True, then return indices, else return the items.
         """
         import itertools
         if self.item == "targets":
             retval = (i if index else self.dataset.targets[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.targets[i]))
+                      for i in range(len(self.dataset)) if function(i, self.dataset))
         elif self.item == "inputs":
             retval = (i if index else self.dataset.inputs[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.inputs[i]))
+                      for i in range(len(self.dataset)) if function(i, self.dataset))
         elif self.item == "labels":
             retval = (i if index else self.dataset.labels[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.labels[i]))
+                      for i in range(len(self.dataset)) if function(i, self.dataset))
         if self.item == "test_targets":
             retval = (i if index else self.dataset.test_targets[i]
-                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset.test_targets[i]))
+                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset))
         elif self.item == "test_inputs":
             retval = (i if index else self.dataset.test_inputs[i]
-                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset.test_inputs[i]))
+                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset))
         if self.item == "train_targets":
             retval = (i if index else self.dataset.train_targets[i]
-                      for i in range(len(self.dataset.tran_inputs)) if function(i, self.dataset.train_targets[i]))
+                      for i in range(len(self.dataset.train_inputs)) if function(i, self.dataset))
         elif self.item == "train_inputs":
             retval = (i if index else self.dataset.train_inputs[i]
-                      for i in range(len(self.dataset.train_inputs)) if function(i, self.dataset.train_inputs[i]))
+                      for i in range(len(self.dataset.train_inputs)) if function(i, self.dataset))
         if slice is None:
             return list(retval)
         else:
