@@ -320,6 +320,9 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
             return view_image_list([dv._repr_image_() for dv in item], title=title, scale=scale, **kwargs)
         elif isinstance(item[0], PIL.Image.Image):
             return view_image_list(item, title=title, scale=scale, **kwargs)
+        elif isinstance(item[0], SVG):
+            images = [svg_to_image(svg.data) for svg in item]
+            return view_image_list(images, title=title, scale=scale, **kwargs)
         else: ## assume that it is some numbers
             return view_image(array_to_image(item), title=title, scale=scale)
     else:
