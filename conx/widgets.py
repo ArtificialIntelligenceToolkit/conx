@@ -118,6 +118,8 @@ class SequenceViewer(VBox):
                 self.control_slider.value = 0 # wrap around
             else:
                 self.control_slider.value = min(self.control_slider.value + 1, self.length - 1)
+        elif isinstance(position, int):
+            self.control_slider.value = position
         self.position_text.value = self.control_slider.value
 
     def toggle_play(self, button):
@@ -310,10 +312,8 @@ class Dashboard(VBox):
             self.regenerate()
 
     def update_position_text(self, change):
-        if (change["name"] == "_property_lock" and
-            isinstance(change["new"], dict) and
-            "value" in change["new"]):
-            self.control_slider.value = change["new"]["value"]
+        # {'name': 'value', 'old': 2, 'new': 3, 'owner': IntText(value=3, layout=Layout(width='100%')), 'type': 'change'}
+        self.control_slider.value = change["new"]
 
     def get_current_input(self):
         if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
