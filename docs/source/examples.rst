@@ -12,6 +12,7 @@ Examples
    Auto-encoder with Conv2D
    Datasets
    Plotting
+   Plot3D
    Autoencoder
    Predicting and Generating Texts
    RecommendingMovies
@@ -25,3 +26,4 @@ Examples
    Experiments
    MakingMovies
    PCA
+   Utilities
