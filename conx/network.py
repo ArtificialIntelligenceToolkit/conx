@@ -1401,6 +1401,10 @@ class Network():
             >>> net.compile(error="mse", optimizer="adam")
             >>> net.set_dataset(ds)
         """
+        if not isinstance(dataset, Dataset):
+            raise Exception("Network.set_dataset() takes a Dataset object")
+        if dataset.network is not None:
+            print("INFO: using dataset on a new network, replacing old network", file=sys.stderr)
         self.dataset = dataset
         self.dataset.network = self
         self.test_dataset_ranges()
