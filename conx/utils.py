@@ -289,7 +289,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
     Show an item from the console. item can be an
     SVG image, PIL.Image, or filename.
     """
-    from IPython.display import Image, HTML
+    from IPython.display import Image, HTML, SVG
     from conx import Network
     import webbrowser
     import tempfile
@@ -313,6 +313,8 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
                 fp.write(item.data.encode("utf-8"))
                 fp.close()
                 return webbrowser.open(fp.name)
+    elif isinstance(item, SVG):
+        return view_svg(item.data, title, background, scale=scale)
     elif isinstance(item, (tuple, list)) and len(item) > 0:
         if hasattr(item[0], "_repr_image_"):
             return view_image_list([dv._repr_image_() for dv in item], title=title, scale=scale, **kwargs)
@@ -352,6 +354,9 @@ def svg_to_image(svg, background=(255, 255, 255, 255)):
         return image
 
 def view_svg(svg, title=None, background=(255, 255, 255, 255), scale=1.0):
+    """
+    Takes the actual SVG string.
+    """
     image = svg_to_image(svg, background)
     return view_image(image, title, scale=scale)
 
