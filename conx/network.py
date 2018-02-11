@@ -589,17 +589,17 @@ class Network():
             'NbAgg',
         ]
 
-    def add(self, layer: Layer) -> None:
+    def add(self, *layers: Layer) -> None:
         """
-        Add a layer to the network layer connections. Order is not
+        Add layers to the network layer connections. Order is not
         important, unless calling :any:`Network.connect` without any
         arguments.
 
         Arguments:
-            layer: A layer instance.
+            layer: One or more layer instances.
 
         Returns:
-            layer_name (str) - name of layer added
+            layer_name (str) - name of last layer added
 
         Examples:
             >>> net = Network("XOR2")
@@ -613,35 +613,43 @@ class Network():
             'input'
             >>> net.add(Layer("hidden", 5))
             'hidden'
+            >>> net.add(Layer("hidden2", 5),
+            ...         Layer("hidden3", 5),
+            ...         Layer("hidden4", 5),
+            ...         Layer("hidden5", 5))
+            'hidden5'
             >>> net.add(Layer("output", 2))
             'output'
             >>> len(net.layers)
-            3
+            7
 
         Note:
             See :any:`Network` for more information.
         """
-        if not isinstance(layer.name, str):
-            raise Exception("layer_name should be a string")
-        if layer.name in self.layer_dict:
-            raise Exception("duplicate layer name '%s'" % layer.name)
-        ## Automatic layer naming by pattern:
-        if "%d" in layer.name:
-            layer_names = [layer.name for layer in self.layers]
-            i = 1
-            while (layer.name % i) in layer_names:
-                i += 1
-            layer.name = layer.name % i
-            if hasattr(layer, "params") and "name" in layer.params:
-                layer.params["name"] = layer.name
-        self.layers.append(layer)
-        self.layer_dict[layer.name] = layer
-        ## Layers have link back to network
-        layer.network = self
-        ## Finally, override any config from network.config:
-        self.update_layer_from_config(layer)
-        ## Return name, for possible connections
-        return layer.name
+        last_name = None
+        for layer in layers:
+            if not isinstance(layer.name, str):
+                raise Exception("layer_name should be a string")
+            if layer.name in self.layer_dict:
+                raise Exception("duplicate layer name '%s'" % layer.name)
+            ## Automatic layer naming by pattern:
+            if "%d" in layer.name:
+                layer_names = [layer.name for layer in self.layers]
+                i = 1
+                while (layer.name % i) in layer_names:
+                    i += 1
+                layer.name = layer.name % i
+                if hasattr(layer, "params") and "name" in layer.params:
+                    layer.params["name"] = layer.name
+            self.layers.append(layer)
+            self.layer_dict[layer.name] = layer
+            ## Layers have link back to network
+            layer.network = self
+            ## Finally, override any config from network.config:
+            self.update_layer_from_config(layer)
+            ## Return name, for possible connections
+            last_name = layer.name
+        return last_name
 
     def update_layer_from_config(self, layer):
         if layer.name in self.config["config_layers"]:
