@@ -980,12 +980,13 @@ class Dataset():
         if self.name:
             name = self.name
         elif self.network:
-            name = "Dataset for %s" % self.network.name
+            name = "%s Dataset" % self.network.name
         else:
             name = "Unnamed Dataset"
-        template = '%-20s  %-20s  %-20s\n'
+        template = '%-10s  %-20s  %-30s\n'
+        retval +=  "%s:\n" % (name,)
         if size != 0:
-            retval +=  template % (name, "Shape", "Range",)
+            retval +=  template % ("Pattern", "Shape", "Range",)
             retval += ('=' * 65) + "\n"
             if len(self.inputs.shape) == 1:
                 retval += template % ("inputs", self.inputs.shape[0], self._inputs_range[0],)
@@ -999,7 +1000,7 @@ class Dataset():
         retval += 'Total patterns: %d\n' % (size,)
         retval += '   Training patterns: %d\n' % (num_train,)
         retval += '   Testing patterns: %d\n' % (num_test,)
-        retval += ('_' * 65) + "\n"
+        retval += ('_' * 65)
         print(retval)
         if self.network:
             self.network.test_dataset_ranges()
