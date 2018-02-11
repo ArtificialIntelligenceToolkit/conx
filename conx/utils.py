@@ -348,8 +348,14 @@ def svg_to_image(svg, background=(255, 255, 255, 255)):
     if background is not None:
         ## create a blank image, with background:
         canvas = PIL.Image.new('RGBA', image.size, background)
-        canvas.paste(image, mask=image)
-        return canvas
+        try:
+            canvas.paste(image, mask=image)
+        except:
+            canvas = None ## fails on images that don't need backgrounds
+        if canvas:
+            return canvas
+        else:
+            return image
     else:
         return image
 
