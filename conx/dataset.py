@@ -966,11 +966,45 @@ class Dataset():
             self.network.test_dataset_ranges()
         return retval
 
-    def summary(self):
+    def info(self):
         """
-        Print out a summary of the dataset.
+        Print out high-level information about the dataset.
         """
         return display(self)
+
+    def summary(self):
+        size, num_train, num_test = self._get_split_sizes()
+        retval = ''
+        retval += ('_' * 98) + "\n"
+        if self.name:
+            retval += "%s:\n" % self.name
+        elif self.network:
+            retval += "Dataset for network '%s':\n" % self.network.name
+        else:
+            retval += "Unnamed Dataset:\n"
+        template = '%-20s    %-20s     %-20s\n'
+        if size != 0:
+            retval +=  template % ("Dataset", "Shape", "Range",)
+            retval += ('=' * 98) + "\n"
+            if len(self.inputs.shape) == 1:
+                retval += template % ("training inputs", self.inputs.shape[0], self._inputs_range[0],)
+            else:
+                retval += template % ("training targets", self.inputs.shape, self._inputs_range,)
+            retval += ('_' * 98) + "\n"
+        if size != 0:
+            if len(self.targets.shape) == 1:
+                retval += template % ("test inputs", self.targets.shape[0], self._targets_range[0],)
+            else:
+                retval += template % ("test targets", self.targets.shape, self._targets_range,)
+            retval += ('_' * 98) + "\n"
+        retval += 'Split:\n'
+        retval += '   Total: %d\n' % (size,)
+        retval += '   Training: %d\n' % (num_train,)
+        retval += '   Testing: %d\n' % (num_test,)
+        retval += ('_' * 98) + "\n"
+        print(retval)
+        if self.network:
+            self.network.test_dataset_ranges()
 
     def rescale_inputs(self, bank_index, old_range, new_range, new_dtype):
         """
