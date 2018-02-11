@@ -491,7 +491,11 @@ class Dashboard(VBox):
                                    max=max(length, 0),
                                    value=0,
                                    layout=Layout(width='100%'))
-        self.total_text = Label(value="of %s" % len(self.net.dataset.train_inputs), layout=Layout(width="100px"))
+        if self.net.config["dashboard.dataset"] == "Train":
+            length = len(self.net.dataset.train_inputs)
+        else:
+            length = len(self.net.dataset.test_inputs)
+        self.total_text = Label(value="of %s" % length, layout=Layout(width="100px"))
         self.zoom_slider = FloatSlider(description="Zoom",
                                        continuous_update=False,
                                        min=0, max=1.0,
