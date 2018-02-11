@@ -29,6 +29,8 @@ from IPython.display import display
 from .utils import *
 import conx.datasets
 
+py_slice = slice
+
 class DataVector():
     """
     Class to make internal Keras numpy arrays look like
@@ -241,27 +243,57 @@ class DataVector():
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
-    def filter(self, function, index=True):
+    def select(self, function, slice=None, index=False):
         """
+        select selects items or indices from a dataset pattern.
+
         function() takes (i, item[i]) and returns True or False
         filter will return all items that match the filter.
 
-        if index is True, then return indices, else return the items.
+        Examples:
+            >>> ds = Dataset()
+            >>> ds.get("mnist")
+            >>> ds.inputs.select(lambda i,x: True, slice=10, index=True)
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+            >>> s = ds.inputs.select(lambda i,x: x, slice=(10, 20, 2))
+            >>> shape(s)
+            (5, 28, 28, 1)
+
+        Arguments:
+            function - callable that takes (i, item[i]) and returns True/False
+            slice - range of items/indices to return
+            index - if index is True, then return indices, else return the items.
         """
+        import itertools
         if self.item == "targets":
-            return [i if index else self.dataset.targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.targets[i])]
+            retval = (i if index else self.dataset.targets[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.targets[i]))
         elif self.item == "inputs":
-            return [i if index else self.dataset.inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.inputs[i])]
+            retval = (i if index else self.dataset.inputs[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.inputs[i]))
         elif self.item == "labels":
-            return [i if index else self.dataset.labels[i] for i in range(len(self.dataset)) if function(i, self.dataset.labels[i])]
+            retval = (i if index else self.dataset.labels[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.labels[i]))
         if self.item == "test_targets":
-            return [i if index else self.dataset.test_targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.test_targets[i])]
+            retval = (i if index else self.dataset.test_targets[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.test_targets[i]))
         elif self.item == "test_inputs":
-            return [i if index else self.dataset.test_inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.test_inputs[i])]
+            retval = (i if index else self.dataset.test_inputs[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.test_inputs[i]))
         if self.item == "train_targets":
-            return [i if index else self.dataset.train_targets[i] for i in range(len(self.dataset)) if function(i, self.dataset.train_targets[i])]
+            retval = (i if index else self.dataset.train_targets[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.train_targets[i]))
         elif self.item == "train_inputs":
-            return [i if index else self.dataset.train_inputs[i] for i in range(len(self.dataset)) if function(i, self.dataset.train_inputs[i])]
+            retval = (i if index else self.dataset.train_inputs[i]
+                      for i in range(len(self.dataset)) if function(i, self.dataset.train_inputs[i]))
+        if slice is None:
+            return list(retval)
+        else:
+            if not isinstance(slice, (list, tuple)):
+                slice = (slice,)
+            args = py_slice(*slice)
+            return list(itertools.islice(retval, args.start, args.stop, args.step))
 
     def reshape(self, bank_index, new_shape=None):
         """
