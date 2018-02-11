@@ -936,16 +936,17 @@ class Dataset():
 
     def make_summary(self):
         retval = ""
-        if self.name is not None:
-            retval += "**Dataset name**: %s\n\n" % self.name
+        if self.name:
+            name = self.name
+        elif self.network:
+            name = "Dataset for %s" % self.network.name
+        else:
+            name = "Unnamed Dataset"
+        retval += "**Dataset name**: %s\n\n" % name
         if self.description is not None:
             retval += self.description
             retval += "\n"
         size, num_train, num_test = self._get_split_sizes()
-        retval += '**Dataset Split**:\n'
-        retval += '   * training  : %d\n' % (num_train,)
-        retval += '   * testing   : %d\n' % (num_test,)
-        retval += '   * total     : %d\n\n' % (size,)
         retval += '**Input Summary**:\n'
         if size != 0:
             if len(self.inputs.shape) == 1:
@@ -975,33 +976,30 @@ class Dataset():
     def summary(self):
         size, num_train, num_test = self._get_split_sizes()
         retval = ''
-        retval += ('_' * 98) + "\n"
+        retval += ('_' * 65) + "\n"
         if self.name:
-            retval += "%s:\n" % self.name
+            name = self.name
         elif self.network:
-            retval += "Dataset for network '%s':\n" % self.network.name
+            name = "Dataset for %s" % self.network.name
         else:
-            retval += "Unnamed Dataset:\n"
-        template = '%-20s    %-20s     %-20s\n'
+            name = "Unnamed Dataset"
+        template = '%-20s  %-20s  %-20s\n'
         if size != 0:
-            retval +=  template % ("Dataset", "Shape", "Range",)
-            retval += ('=' * 98) + "\n"
+            retval +=  template % (name, "Shape", "Range",)
+            retval += ('=' * 65) + "\n"
             if len(self.inputs.shape) == 1:
-                retval += template % ("training inputs", self.inputs.shape[0], self._inputs_range[0],)
+                retval += template % ("inputs", self.inputs.shape[0], self._inputs_range[0],)
             else:
-                retval += template % ("training targets", self.inputs.shape, self._inputs_range,)
-            retval += ('_' * 98) + "\n"
-        if size != 0:
+                retval += template % ("inputs", self.inputs.shape, self._inputs_range,)
             if len(self.targets.shape) == 1:
-                retval += template % ("test inputs", self.targets.shape[0], self._targets_range[0],)
+                retval += template % ("targets", self.targets.shape[0], self._targets_range[0],)
             else:
-                retval += template % ("test targets", self.targets.shape, self._targets_range,)
-            retval += ('_' * 98) + "\n"
-        retval += 'Split:\n'
-        retval += '   Total: %d\n' % (size,)
-        retval += '   Training: %d\n' % (num_train,)
-        retval += '   Testing: %d\n' % (num_test,)
-        retval += ('_' * 98) + "\n"
+                retval += template % ("targets", self.targets.shape, self._targets_range,)
+        retval += ('=' * 65) + "\n"
+        retval += 'Total patterns: %d\n' % (size,)
+        retval += '   Training patterns: %d\n' % (num_train,)
+        retval += '   Testing patterns: %d\n' % (num_test,)
+        retval += ('_' * 65) + "\n"
         print(retval)
         if self.network:
             self.network.test_dataset_ranges()
