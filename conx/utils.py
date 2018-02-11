@@ -950,11 +950,11 @@ def movie(function, movie_name="movie.gif", play_range=None,
             return gif2mp4(movie_name)
 
 def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
-           interactive=True, format='svg'):
+           format=None):
     """
     Plot a function.
 
-    >>> plot_f(lambda x: x, frange=(-1, 1, .1), interactive=False)
+    >>> plot_f(lambda x: x, frange=(-1, 1, .1), format="svg")
     <IPython.core.display.SVG object>
     """
     xs = np.arange(*frange)
@@ -967,7 +967,7 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
     if title:
         plt.title(title)
     plt.plot(xs, ys, symbol)
-    if interactive:
+    if format is None:
         plt.show(block=False)
     else:
         from IPython.display import SVG
@@ -984,12 +984,12 @@ def plot_f(f, frange=(-1, 1, .1), symbol="o-", xlabel="", ylabel="", title="",
             pil_image = PIL.Image.open(bytes)
             return pil_image
         else:
-            raise Exception("format must be 'svg' or 'image'")
+            raise Exception("format must be None, 'svg', or 'image'")
 
 def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="",
            ylabel="", zlabel="", title="", label="", symbols=None,
            default_symbol=None, ymin=None, xmin=None, ymax=None,
-           xmax=None, interactive=True, format='svg', colormap=None,
+           xmax=None, format=None, colormap=None,
            linewidth=0, antialiased=False, mode="surface"):
     """
     function is a function(x,y) or list of ["Label", [(x,y,z)]].
@@ -1001,19 +1001,19 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
             returns z
 
     >>> plot3D([["Test1", [[0, 0, 1], [0, 1, 0]]]], mode="scatter",
-    ...        interactive=False)
+    ...        format="svg")
     <IPython.core.display.SVG object>
 
     >>> plot3D((lambda x,y: x ** 2 + y ** 2),
     ...        (-1,1,.1), (-1,1,.1),
     ...        mode="surface",
-    ...        interactive=False)
+    ...        format="svg")
     <IPython.core.display.SVG object>
 
     >>> plot3D((lambda x,y: x ** 2 + y ** 2),
     ...        (-1,1,.1), (-1,1,.1),
     ...        mode="wireframe",
-    ...        interactive=False)
+    ...        format="svg")
     <IPython.core.display.SVG object>
     """
     ## needed to get 3d projection:
@@ -1081,7 +1081,7 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
         plt.xlim(xmin=xmin)
     if xmax is not None:
         plt.xlim(xmax=xmax)
-    if interactive:
+    if format is None:
         plt.show(block=False)
         result = None
     else:
@@ -1099,12 +1099,12 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'image'")
+            raise Exception("format must be None, 'svg', or 'image'")
     return result
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
-         interactive=True, format='svg', xs=None):
+         format='svg', xs=None):
     """
     Create a line or scatter plot given the y-coordinates of a set of
     lines.
@@ -1114,12 +1114,12 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
 
     >>> p = plot(["Error", [1, 2, 4, 6, 1, 2, 3]],
     ...           ylabel="error",
-    ...           xlabel="hello", interactive=False)
+    ...           xlabel="hello", format="svg")
     >>> p
     <IPython.core.display.SVG object>
     >>> p = plot([["Error", [1, 2, 4, 6, 1, 2, 3]]],
     ...           ylabel="error",
-    ...           xlabel="hello", interactive=False)
+    ...           xlabel="hello", format="svg")
     >>> p
     <IPython.core.display.SVG object>
 
@@ -1159,7 +1159,7 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
         plt.xlim(xmin=xmin)
     if xmax is not None:
         plt.xlim(xmax=xmax)
-    if interactive:
+    if format is None:
         plt.show(block=False)
         result = None
     else:
@@ -1177,11 +1177,11 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'image'")
+            raise Exception("format must be None, 'svg', or 'image'")
     return result
 
 def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel="", ylabel="", title="",
-            resolution=None, out_min=None, out_max=None, colormap=None, interactive=True, format='svg'):
+            resolution=None, out_min=None, out_max=None, colormap=None, format=None):
     """
     Create a heatmap plot given a matrix, or a function.
 
@@ -1189,7 +1189,7 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
     >>> def function(x, y):
     ...     return math.sqrt(x ** 2 + y ** 2)
     >>> hm = heatmap(function,
-    ...              interactive=False)
+    ...              format="svg")
     >>> hm
     <IPython.core.display.SVG object>
     """
@@ -1230,7 +1230,7 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
         plt.ylabel(ylabel)
     if title:
         plt.title(title)
-    if interactive:
+    if format is None:
         plt.show(block=False)
         result = None
     else:
@@ -1248,18 +1248,18 @@ def heatmap(function_or_matrix, in_range=(0,1), width=8.0, height=4.0, xlabel=""
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'image'")
+            raise Exception("format must be None, 'svg', or 'image'")
     return result
 
 CACHE_PARAMS = {}
 
 def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", label="",
             symbols=None, default_symbol="o", ymin=None, xmin=None, ymax=None, xmax=None,
-            interactive=True, format='svg'):
+            format='svg'):
     """
     Create a scatter plot with series of (x,y) data.
 
-    >>> scatter(["Test 1", [(0,4), (2,3), (1,2)]], interactive=False)
+    >>> scatter(["Test 1", [(0,4), (2,3), (1,2)]], format="svg")
     <IPython.core.display.SVG object>
     """
     if plt is None:
@@ -1296,7 +1296,7 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
         plt.xlim(xmax=xmax)
     if title:
         plt.title(title)
-    if interactive:
+    if format is None:
         plt.show(block=False)
         result = None
     else:
@@ -1314,7 +1314,7 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
             pil_image = PIL.Image.open(bytes)
             result = pil_image
         else:
-            raise Exception("format must be 'svg' or 'image'")
+            raise Exception("format must be None, 'svg', or 'image'")
     return result
 
 def gif2mp4(filename):
@@ -1751,7 +1751,7 @@ class Experiment():
     ...         dir="/tmp/")
     >>> len(exp.results)
     4
-    >>> exp.plot("loss", interactive=False)
+    >>> exp.plot("loss", format="svg")
     <IPython.core.display.SVG object>
     >>> exp.apply(lambda category, exp_name: (category, exp_name))
     [('adam-sigmoid', '/tmp/XOR-00001-00001'), ('sgd-sigmoid', '/tmp/XOR-00001-00002'), ('adam-relu', '/tmp/XOR-00001-00003'), ('sgd-relu', '/tmp/XOR-00001-00004')]
@@ -1846,7 +1846,7 @@ class Experiment():
                 results.append(function(category, exp_name, *args, **kwargs))
         return results
 
-    def plot(self, metrics='loss', symbols=None, interactive=True, format='svg'):
+    def plot(self, metrics='loss', symbols=None, format='svg'):
         """
         Plot all of the results of the experiment on a single plot.
         """
@@ -1867,7 +1867,7 @@ class Experiment():
             fig_ax = net.plot(metrics, return_fig_ax=True, fig_ax=fig_ax, label=category,
                               symbols=symbols, title=self.name)
         fig, ax = fig_ax
-        if interactive:
+        if format is None:
             plt.show(block=False)
         else:
             from IPython.display import SVG
@@ -1884,4 +1884,4 @@ class Experiment():
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'image'")
+                raise Exception("format must be None, 'svg', or 'image'")

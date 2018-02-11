@@ -94,11 +94,11 @@ class PlotCallback(Callback):
             # training loop finished, so make a final update to plot
             # in case the number of loop cycles wasn't a multiple of
             # report_rate
-            self.network.plot_results(self, interactive=True)
+            self.network.plot_results(self)
             if not self.in_console:
                 plt.close(self.figure[0])
         elif (epoch+1) % self.report_rate == 0:
-            self.network.plot_results(self, interactive=True)
+            self.network.plot_results(self)
 
 class FunctionCallback(Callback):
     """
@@ -1895,8 +1895,8 @@ class Network():
     def plot_activation_map(self, from_layer='input', from_units=(0,1), to_layer='output',
                             to_unit=0, colormap=None, default_from_layer_value=0,
                             resolution=None, act_range=(0,1), show_values=False, title=None,
-                            interactive=True, scatter=None, symbols=None, default_symbol="o",
-                            format="svg", update_pictures=False):
+                            scatter=None, symbols=None, default_symbol="o",
+                            format=None, update_pictures=False):
         """
         Plot the activations at a bank/unit given two input units.
         """
@@ -1966,7 +1966,7 @@ class Network():
         ax.set_yticks([i*(ypixels-1)/4 for i in range(5)])
         ax.set_yticklabels([ymin+i*yspan/4 for i in range(5)])
         cbar = fig.colorbar(axim)
-        if interactive:
+        if format is None:
             plt.show(block=False)
         else:
             from IPython.display import SVG
@@ -1983,7 +1983,7 @@ class Network():
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'image'")
+                raise Exception("format must be None, 'svg', or 'image'")
         # optionally print out a table of activation values
         if show_values:
             s = '\n'
@@ -2005,7 +2005,7 @@ class Network():
 
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
                            colormap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
-                           interactive=True, format="svg"):
+                           format=None):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
         or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
         value of the weight matrix is used. wrange overrides provided wmin/wmax values. ticks
@@ -2088,7 +2088,7 @@ class Network():
             cbar_labels[0] = wmin_label
             cbar_labels[-1] = wmax_label
             colorbar.ax.set_yticklabels(cbar_labels)
-        if interactive:
+        if format is None:
             plt.show(block=False)
         else:
             from IPython.display import SVG
@@ -2105,7 +2105,7 @@ class Network():
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'image'")
+                raise Exception("format must be None, 'svg', or 'image'")
 
     def show_unit_weights(self, layer_name, unit, vshape=None, ascii=False):
         if self[layer_name] is None:
@@ -2157,7 +2157,7 @@ class Network():
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
              label=None, symbols=None, default_symbol="-", title=None, return_fig_ax=False, fig_ax=None,
-             interactive=True, format="svg"):
+             format=None):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -2237,7 +2237,7 @@ class Network():
         plt.title(title)
         if return_fig_ax:
             return (fig, ax)
-        elif interactive:
+        elif format is None:
             plt.show(block=False)
         else:
             from IPython.display import SVG
@@ -2254,7 +2254,7 @@ class Network():
                 pil_image = PIL.Image.open(bytes)
                 return pil_image
             else:
-                raise Exception("format must be 'svg' or 'image'")
+                raise Exception("format must be None, 'svg', or 'image'")
 
     def show_results(self, report_rate=None):
         """
@@ -2272,7 +2272,7 @@ class Network():
             print("=" * 56)
             self.report_epoch(len(self.history) - 1, self.history[-1])
 
-    def plot_results(self, callback=None, interactive=True, format="svg"):
+    def plot_results(self, callback=None, format=None):
         """plots loss and accuracy on separate graphs, ignoring any other metrics"""
         #print("called on_epoch_end with epoch =", epoch)
         metrics = self.get_metrics()
@@ -2311,7 +2311,7 @@ class Network():
             acc_ax.set_title("%s: Accuracy" % (self.name,))
             acc_ax.set_xlabel('Epoch')
             acc_ax.legend(loc='best')
-        if (callback is not None and not callback.in_console) or not interactive:
+        if (callback is not None and not callback.in_console) or format == "svg":
             from IPython.display import SVG, clear_output, display
             bytes = io.BytesIO()
             plt.savefig(bytes, format='svg')
@@ -2319,7 +2319,7 @@ class Network():
             clear_output(wait=True)
             display(SVG(img_bytes.decode()))
             #return SVG(img_bytes.decode())
-        else: # interactive
+        else: # format is None
             plt.pause(0.01)
             #plt.show(block=False)
 
