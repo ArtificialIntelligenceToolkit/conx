@@ -277,16 +277,16 @@ class DataVector():
                       for i in range(len(self.dataset)) if function(i, self.dataset.labels[i]))
         if self.item == "test_targets":
             retval = (i if index else self.dataset.test_targets[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.test_targets[i]))
+                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset.test_targets[i]))
         elif self.item == "test_inputs":
             retval = (i if index else self.dataset.test_inputs[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.test_inputs[i]))
+                      for i in range(len(self.dataset.test_inputs)) if function(i, self.dataset.test_inputs[i]))
         if self.item == "train_targets":
             retval = (i if index else self.dataset.train_targets[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.train_targets[i]))
+                      for i in range(len(self.dataset.tran_inputs)) if function(i, self.dataset.train_targets[i]))
         elif self.item == "train_inputs":
             retval = (i if index else self.dataset.train_inputs[i]
-                      for i in range(len(self.dataset)) if function(i, self.dataset.train_inputs[i]))
+                      for i in range(len(self.dataset.train_inputs)) if function(i, self.dataset.train_inputs[i]))
         if slice is None:
             return list(retval)
         else:
