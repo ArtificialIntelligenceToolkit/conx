@@ -724,7 +724,6 @@ class Dataset():
                     raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (0, shape, prediction[0].shape))
         if len(self._inputs) > 0 and mode == "load":
             self.clear()
-            print("INFO: cleared previously loaded dataset", file=sys.stderr)
         self.compile(pairs)
 
     def compile(self, pairs):
@@ -1049,7 +1048,7 @@ class Dataset():
         template = '%-10s  %-20s  %-30s\n'
         retval +=  "%s:\n" % (name,)
         if size != 0:
-            retval +=  template % ("Pattern", "Shape", "Range",)
+            retval +=  template % ("Patterns", "Shape", "Range",)
             retval += ('=' * 65) + "\n"
             if len(self.inputs.shape) == 1:
                 retval += template % ("inputs", self.inputs.shape[0], self._inputs_range[0],)
