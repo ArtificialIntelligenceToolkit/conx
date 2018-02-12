@@ -421,11 +421,13 @@ def download(url, directory="./", force=False, unzip=True):
         os.makedirs(directory, exist_ok=True)
         response = requests.get(url, stream=True)
         total_length = response.headers.get('content-length')
-        bar = tqdm.tqdm_notebook(total=int(total_length))
+        if total_length:
+            bar = tqdm.tqdm_notebook(total=int(total_length))
         with open(file_path, 'wb') as f:
             for data in response.iter_content(chunk_size=4096):
                 f.write(data)
-                bar.update(4096)
+                if total_length:
+                    bar.update(4096)
         print("Done!")
     else:
         print("Using cached %s as '%s'." % (url, file_path))
