@@ -19,28 +19,40 @@ The network is specified to the constructor by providing sizes. For example, Net
 Computing XOR via a target function:
 
 ```python
-from conx import Network, SGD
+import conx as cx
 
 dataset = [[[0, 0], [0]],
            [[0, 1], [1]],
            [[1, 0], [1]],
            [[1, 1], [0]]]
 
-net = Network("XOR", 2, 5, 1, activation="sigmoid")
+net = cx.Network("XOR", 2, 5, 1, activation="sigmoid")
 net.set_dataset(dataset)
 net.compile(error='mean_squared_error',
-            optimizer=SGD(lr=0.3, momentum=0.9))
-net.train(2000, report_rate=10, accuracy=1)
-net.test()
+            optimizer="sgd", lr=0.3, momentum=0.9)
+net.train(2000, report_rate=10, accuracy=1.0)
+net.test(show=True)
 ```
 
 Creates dynamic, rendered visualizations like this:
 
 <img src="https://raw.githubusercontent.com/Calysto/conx-notebooks/master/network.png" width="500"></img>
 
-## Install
+## Don't Install
 
-Rather than installing conx, consider using our [mybinder](https://mybinder.org/v2/gh/Calysto/conx/master?filepath=binder%2Findex.ipynb) in-the-cloud version. Availability may be limited due to demand.
+Rather than installing conx, consider one of the following pre-built options:
+
+* Using our [mybinder](https://mybinder.org/v2/gh/Calysto/conx/master?filepath=binder%2Findex.ipynb) in-the-cloud version. Availability may be limited due to demand.
+* Use our Conx Docker container.
+* Use our VirtualBox image.
+* Use one of the online, freely available Jupyter servers, including:
+  * http://colab.research.google.com
+  * http://cocalc.com
+  * https://notebooks.azure.com/
+  * https://datascientistworkbench.com/
+  * https://authorea.com/
+
+## Install
 
 `conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
 
@@ -97,7 +109,7 @@ sudo apt install ffmpeg
 sudo yum install ffmpeg
 ```
 
-## Use with Jupyter Notebooks
+### Use with Jupyter Notebooks
 
 To use the Network.dashboard() and camera functions, you will need to enable `ipywidgets`:
 
@@ -124,9 +136,10 @@ To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.
 }
 ```
 
-## Troubleshooting
+### Troubleshooting
 
 1. If you have a problem after installing matplotlib with pip, and you already have matplotlib installed (say, with apt) you may want to remove the apt-installed version of matplotlib.
+2. Theano has many known problems. Don't use Theano, use TensorFlow.
 
 ## Examples
 
