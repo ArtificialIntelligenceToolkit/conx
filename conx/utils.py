@@ -1751,7 +1751,7 @@ class Experiment():
     >>> def function(optimizer, activation, **options):
     ...     net = Network("XOR", 2, 2, 1, activation=activation, seed=42)
     ...     net.compile(error="mse", optimizer=optimizer)
-    ...     net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
+    ...     net.dataset.append_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
     ...     net.train(report_rate=100, verbose=0, plot=False, **options)
     ...     category = "%s-%s" % (optimizer, activation)
     ...     return category, net

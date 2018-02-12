@@ -1151,8 +1151,8 @@ class Network():
         Examples:
             >>> net = Network("Train Test", 1, 3, 1)
             >>> net.compile(error="mse", optimizer="rmsprop")
-            >>> net.dataset.add([0.0], [1.0])
-            >>> net.dataset.add([1.0], [0.0])
+            >>> net.dataset.append([0.0], [1.0])
+            >>> net.dataset.append([1.0], [0.0])
             >>> net.train(plot=False)  # doctest: +ELLIPSIS
             Evaluating initial training metrics...
             Training...
@@ -2177,8 +2177,8 @@ class Network():
 
         >>> net = Network("Plot Test", 1, 3, 1)
         >>> net.compile(error="mse", optimizer="rmsprop")
-        >>> net.dataset.add([0.0], [1.0])
-        >>> net.dataset.add([1.0], [0.0])
+        >>> net.dataset.append([0.0], [1.0])
+        >>> net.dataset.append([1.0], [0.0])
         >>> net.train(plot=False)  # doctest: +ELLIPSIS
         Evaluating initial training metrics...
         Training...
