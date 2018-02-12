@@ -46,11 +46,10 @@ Rather than installing conx, consider one of the following pre-built options:
 * Use our Conx Docker container.
 * Use our VirtualBox image.
 * Use one of the online, freely available Jupyter servers, including:
-  * http://colab.research.google.com
-  * http://cocalc.com
-  * https://notebooks.azure.com/
-  * https://datascientistworkbench.com/
-  * https://authorea.com/
+  * [Google's Colabatory](http://colab.research.google.com), [FAQ](https://research.google.com/colaboratory/faq.html)
+  * [SageMath's Cocalc](http://cocalc.com), [More information](https://cocalc.com/help?session=default)
+  * [Microsoft's Azure](https://notebooks.azure.com/), [More Information](https://notebooks.azure.com/help)
+  * [IBM's Cognitive Class](https://datascientistworkbench.com/), [More information](http://support.datascientistworkbench.com/knowledgebase)
 
 ## Install
 
