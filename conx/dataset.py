@@ -988,12 +988,12 @@ class Dataset():
         print('Generated %d target vectors from %d labels' % (len(self.targets), num_classes))
 
     def _repr_markdown_(self):
-        return self.make_summary()
+        return self.make_info()
 
     def __repr__(self):
-        return self.make_summary()
+        return self.make_info()
 
-    def make_summary(self):
+    def make_info(self):
         retval = ""
         if self.name:
             name = self.name
@@ -1001,11 +1001,15 @@ class Dataset():
             name = "Dataset for %s" % self.network.name
         else:
             name = "Unnamed Dataset"
-        retval += "**Dataset name**: %s\n\n" % name
+        retval += "**Dataset**: %s\n\n" % name
         if self.description is not None:
             retval += self.description
             retval += "\n"
         size, num_train, num_test = self._get_split_sizes()
+        retval += '**Information**:\n'
+        retval += '   * name    : %s\n' % (self.name,)
+        retval += '   * length  : %s\n' % (size,)
+        retval += '\n'
         retval += '**Input Summary**:\n'
         if size != 0:
             if len(self.inputs.shape) == 1:
