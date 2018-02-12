@@ -807,8 +807,6 @@ class Dataset():
             dataset_name, self = self, Dataset()
             return_it = True
         else:
-            if len(self) > 0:
-                print("INFO: Dataset.get() cleared previous dataset with new dataset", file=sys.stderr)
             self._split = 0
         if dataset_name.lower() in self.DATASETS:
             self.DATASETS[dataset_name.lower()](self, *args, **kwargs)
