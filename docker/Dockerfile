@@ -2,8 +2,12 @@ FROM jupyter/tensorflow-notebook
 
 LABEL maintainer="Douglas Blank <doug.blank@gmail.com>"
 
-RUN pip install conx --upgrade
-RUN pip install jyro --upgrade
+RUN pip install conx --upgrade --no-cache-dir
+RUN pip install jyro --upgrade --no-cache-dir
+RUN pip install jupyter notebook --upgrade --no-cache-dir
+
+RUN sudo apt install --yes ffmpeg || true
+RUN sudo apt install --yes libffi-dev libffi6 || true
 
 RUN python -c "import conx as cx; cx.Dataset.get('mnist')"
 RUN python -c "import conx as cx; cx.Dataset.get('cifar10')"
