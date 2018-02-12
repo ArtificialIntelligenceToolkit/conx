@@ -47,10 +47,10 @@ class DataVector():
         >>> net = Network("Test 0", 3, 2)
         >>> net.compile(error="mse", optimizer="adam")
         >>> ds = net.dataset
-        >>> ds.add([1, 2, 3], [4, 5])
-        >>> ds.add([1, 2, 3], [4, 5])
-        >>> ds.add([1, 2, 3], [4, 5])
-        >>> ds.add([1, 2, 3], [4, 5])
+        >>> ds.append([1, 2, 3], [4, 5])
+        >>> ds.append([1, 2, 3], [4, 5])
+        >>> ds.append([1, 2, 3], [4, 5])
+        >>> ds.append([1, 2, 3], [4, 5])
         >>> ds.split(1)
         >>> ds.inputs[0]
         [1.0, 2.0, 3.0]
@@ -74,10 +74,10 @@ class DataVector():
         True
 
         >>> ds = Dataset()
-        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
-        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
-        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
-        >>> ds.add([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.append([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.append([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.append([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
+        >>> ds.append([[1, 2, 3], [1, 2, 3]], [[4, 5], [4, 5]])
         >>> ds.split(1)
         >>> ds.inputs[0]
         [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
@@ -303,7 +303,7 @@ class DataVector():
         >>> from conx import Network
         >>> net = Network("Test 1", 10, 2, 3, 28 * 28)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add([0] * 10, [0] * 28 * 28)
+        >>> net.dataset.append([0] * 10, [0] * 28 * 28)
         >>> net.dataset.inputs.shape
         [(10,)]
         >>> net.dataset.inputs.reshape(0, (2, 5))
@@ -346,7 +346,7 @@ class DataVector():
         >>> net = Network("Test 2", 10, 2, 3, 28)
         >>> net.compile(error="mse", optimizer="adam")
         >>> for i in range(20):
-        ...     net.dataset.add([i] * 10, [i] * 28)
+        ...     net.dataset.append([i] * 10, [i] * 28)
         >>> len(net.dataset.targets)
         20
         >>> len(net.dataset.inputs)
@@ -463,7 +463,7 @@ class Dataset():
         """
         return self._get_size()
 
-    def add_random(self, count, frange=(-1, 1)):
+    def append_random(self, count, frange=(-1, 1)):
         """
         Append a number of random values in the range `frange`
         to inputs and targets.
@@ -474,7 +474,7 @@ class Dataset():
         >>> from conx import *
         >>> net = Network("Random", 5, 2, 3, 4)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_random(100)
+        >>> net.dataset.append_random(100)
         >>> len(net.dataset.inputs)
         100
         >>> shape(net.dataset.inputs)
@@ -510,7 +510,7 @@ class Dataset():
             else:
                 for shape in self._target_shapes:
                     targets.append(np.random.rand(*shape) * diff + frange[0])
-        self.load(list(zip(inputs, targets)))
+        self._load(list(zip(inputs, targets)), mode="append")
 
     def clear(self):
         """
@@ -525,13 +525,13 @@ class Dataset():
         self._input_shapes = [(None,)]
         self._target_shapes = [(None,)]
 
-    def add(self, inputs, targets):
+    def _add(self, inputs, targets):
         """
         Add a single (input, target) pair to the dataset.
         """
-        self.load(list(zip([inputs], [targets])))
+        self._load(list(zip([inputs], [targets])), mode="append")
 
-    def add_by_function(self, width, frange, ifunction, tfunction):
+    def append_by_function(self, width, frange, ifunction, tfunction):
         """
         width - length of an input vector
         frange - (start, stop) or (start, stop, step)
@@ -543,7 +543,7 @@ class Dataset():
         >>> from conx import Network
         >>> net = Network("Test 3", 2, 2, 3, 1)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
+        >>> net.dataset.append_by_function(2, (0, 4), "binary", lambda i,v: [int(sum(v) == len(v))])
         >>> len(net.dataset.inputs)
         4
 
@@ -555,14 +555,14 @@ class Dataset():
 
         >>> net = Network("Test 4", 10, 2, 3, 10)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_by_function(10, (0, 10), "onehot", lambda i,v: v)
+        >>> net.dataset.append_by_function(10, (0, 10), "onehot", lambda i,v: v)
         >>> len(net.dataset.inputs)
         10
 
         >>> import numpy as np
         >>> net = Network("Test 5", 10, 2, 3, 10)
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.dataset.add_by_function(10, (0, 10), lambda i, width: np.random.rand(width), lambda i,v: v)
+        >>> net.dataset.append_by_function(10, (0, 10), lambda i, width: np.random.rand(width), lambda i,v: v)
         >>> len(net.dataset.inputs)
         10
         """
@@ -585,7 +585,7 @@ class Dataset():
             inputs.append(v)
             targets.append(tfunction(current, v))
             current += frange[2] # increment
-        self.load(list(zip(inputs, targets)))
+        self._load(list(zip(inputs, targets)), mode="append")
 
     def load_direct(self, inputs=None, targets=None, labels=None):
         """
@@ -607,6 +607,47 @@ class Dataset():
         self._cache_values()
 
     def load(self, pairs=None, inputs=None, targets=None, labels=None):
+        self._load(pairs, inputs, targets, labels, mode="load")
+
+    def append(self, pairs=None, inputs=None):
+        """
+        Append a input, and a target or a list of [[input, target], ...].
+
+        >>> ds = Dataset()
+        >>> ds.append([0, 0], [0])
+        >>> ds.append([0, 1], [1])
+        >>> ds.append([1, 0], [1])
+        >>> ds.append([1, 1], [0])
+        >>> len(ds)
+        4
+        >>> ds.clear()
+        >>> len(ds)
+        0
+        >>> ds.append([[[0, 0], [0]],
+        ...            [[0, 1], [1]],
+        ...            [[1, 0], [1]],
+        ...            [[1, 1], [0]]])
+        >>> len(ds)
+        4
+        >>> ds.append([[[0, 0], [0]],
+        ...            [[0, 1], [1]],
+        ...            [[1, 0], [1]],
+        ...            [[1, 1], [0]]])
+        >>> len(ds)
+        8
+        >>> ds.load([[[0, 0], [0]],
+        ...          [[0, 1], [1]],
+        ...          [[1, 0], [1]],
+        ...          [[1, 1], [0]]])
+        >>> len(ds)
+        4
+        """
+        if inputs is None:
+            self._load(pairs, mode="append")
+        else:
+            self._add(pairs, inputs) ## really inputs and targets
+
+    def _load(self, pairs=None, inputs=None, targets=None, labels=None, mode=None):
         """
         Set the human-specified dataset to a proper keras dataset.
 
@@ -681,6 +722,9 @@ class Dataset():
                 shape = targets[0].shape
                 if prediction[0].shape != shape:
                     raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (0, shape, prediction[0].shape))
+        if len(self._inputs) > 0 and mode == "load":
+            self.clear()
+            print("INFO: cleared previously loaded dataset", file=sys.stderr)
         self.compile(pairs)
 
     def compile(self, pairs):
