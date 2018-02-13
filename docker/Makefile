@@ -1,2 +1,2 @@
 build:
-	docker image build -t "calysto/conx"
+	sudo docker image build -t "calysto/conx" .

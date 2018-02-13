@@ -2,7 +2,7 @@ FROM jupyter/tensorflow-notebook
 
 LABEL maintainer="Douglas Blank <doug.blank@gmail.com>"
 
-RUN pip install conx --upgrade --no-cache-dir
+RUN pip install conx==3.6.0 --upgrade --no-cache-dir
 RUN pip install jyro --upgrade --no-cache-dir
 RUN pip install jupyter notebook --upgrade --no-cache-dir
 
