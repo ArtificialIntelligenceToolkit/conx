@@ -38,109 +38,13 @@ Creates dynamic, rendered visualizations like this:
 
 <img src="https://raw.githubusercontent.com/Calysto/conx-notebooks/master/network.png" width="500"></img>
 
-## Don't Install
-
-Rather than installing conx, consider one of the following pre-built options:
-
-* Using our [mybinder](https://mybinder.org/v2/gh/Calysto/conx/master?filepath=binder%2Findex.ipynb) in-the-cloud version. Availability may be limited due to demand.
-* Use our Conx Docker container.
-* Use our VirtualBox image.
-* Use one of the online, freely available Jupyter servers, including:
-  * [Google's Colabatory](http://colab.research.google.com), [FAQ](https://research.google.com/colaboratory/faq.html)
-  * [SageMath's Cocalc](http://cocalc.com), [More information](https://cocalc.com/help?session=default)
-  * [Microsoft's Azure](https://notebooks.azure.com/), [More Information](https://notebooks.azure.com/help)
-  * [IBM's Cognitive Class](https://datascientistworkbench.com/), [More information](http://support.datascientistworkbench.com/knowledgebase)
-
-## Install
-
-`conx` requires Python3, Keras version 2.0.8 or greater, and some other Python modules that are installed automatically with pip.
-
-On Linux, you may need to install `libffi` and `libffi-dev` in order to render layers for the network display. If you attempt to display a network and it appears empty, or if you attempt to network.propagate_to_image() and it gives a PIL error, you need these libraries.
-
-On Ubuntu or other Debian-based system:
-
-```bash
-sudo apt install libffi-dev libffi6
-```
-Next, we use `pip` to install the Python packages. 
-
-**Note**: you may need to use `pip3`, or admin privileges (eg, sudo), or install into a user environment.
-
-```bash
-pip install conx -U
-```
-
-You will need to decide whether to use Theano, TensorFlow, or CNTK. Pick one. See [docs.microsoft.com](https://docs.microsoft.com/en-us/cognitive-toolkit/Setup-CNTK-on-your-machine) for installing CNTK on Windows or Linux. All platforms can also install either of the others using pip:
-
-```bash
-pip install theano
-```
-
-**or**
-
-```bash
-pip install tensorflow
-```
-
-On MacOS, you may also need to render the SVG visualizations:
-
-```bash
-brew install cairo
-```
-
-To make MP4 movies, you will need the `ffmpeg` executable installed and available on your default path.
-
-On MacOS, you could use:
-
-```bash
-brew install ffmpeg
-```
-
-On Windows:
-
-See, for example, https://github.com/adaptlearning/adapt_authoring/wiki/Installing-FFmpeg
-
-On Linux:
-
-```bash
-sudo apt install ffmpeg
-# or perhaps:
-sudo yum install ffmpeg
-```
-
-### Use with Jupyter Notebooks
-
-To use the Network.dashboard() and camera functions, you will need to enable `ipywidgets`:
-
-``` bash
-jupyter nbextension enable --py widgetsnbextension
-```
-
-If you install via conda, then it will already be enabled:
-
-``` bash
-conda install -c conda-forge ipywidgets
-```
-
-### Setting the Keras Backend
-
-To use a Keras backend other than TensorFlow, edit (or create) `~/.keras/kerson.json`, like:
-
-```json
-{
-    "backend": "theano",
-    "image_data_format": "channels_last",
-    "epsilon": 1e-07,
-    "floatx": "float32"
-}
-```
-
-### Troubleshooting
-
-1. If you have a problem after installing matplotlib with pip, and you already have matplotlib installed (say, with apt) you may want to remove the apt-installed version of matplotlib.
-2. Theano has many known problems. Don't use Theano, use TensorFlow.
-
 ## Examples
 
-See the [notebooks folder](https://github.com/Calysto/conx/tree/master/notebooks) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
+See [conx-notebooks](https://github.com/Calysto/conx-notebooks/tree/master/) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
 
+## Installation
+
+See [How To Run
+Conx](https://github.com/Calysto/conx-notebooks/tree/master/HowToRun#how-to-run-conx)
+to see options on running virtual machines, in the cloud, and personal
+installation.
