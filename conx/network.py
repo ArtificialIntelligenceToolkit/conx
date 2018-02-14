@@ -76,7 +76,7 @@ class ReportCallback(Callback):
             (epoch+1) % self.report_rate == 0):
             self.network.report_epoch(self.network.epoch_count, logs)
         if self.record != 0 and (epoch+1) % self.record == 0:
-            self.network.weight_history[self.network.epoch_count] = self.network.to_array()
+            self.network.weight_history[self.network.epoch_count] = self.network.get_weights()
 
 class PlotCallback(Callback):
     def __init__(self, network, report_rate, mpl_backend):
@@ -420,7 +420,7 @@ class Network():
             * `Network.get_weights_from_history`
         """
         epochs = epochs if epochs is not None else sorted(self.weight_history.keys())
-        return self.from_array(self.get_weights_from_history(index, epochs))
+        return self.set_weights(self.get_weights_from_history(index, epochs))
 
     def get_weights_from_history(self, index, epochs=None):
         """
@@ -1271,7 +1271,7 @@ class Network():
         if len(self.history) == 0:
             self.history = [results]
             if record:
-                self.weight_history[0] = self.to_array()
+                self.weight_history[0] = self.get_weights()
         if verbose > 0:
             print("Training...")
         if self.in_console(mpl_backend) and verbose > 0:
@@ -1324,7 +1324,7 @@ class Network():
                 print("Interrupted! Cleaning up...")
         last_epoch = self.history[-1]
         if record:
-            self.weight_history[self.epoch_count] = self.to_array()
+            self.weight_history[self.epoch_count] = self.get_weights()
         assert len(self.history) == self.epoch_count+1  # +1 is for epoch 0
         if verbose:
             print("=" * 56)
@@ -1526,11 +1526,7 @@ class Network():
                        if layer_name == layer.name][0]
             return [m.tolist() for m in weights]
         else:
-            weights = []
-            for i in range(len(self.model.layers)):
-                w = self.model.layers[i].get_weights()
-                weights.append(w)
-            return weights
+            return self.model.get_weights()
 
     def propagate(self, input, batch_size=32, class_id=None,
                   update_pictures=False, raw=False):
@@ -2379,7 +2375,9 @@ class Network():
         ## Build an optimizer:
         config = kwargs.get("config", {})
         for kw in list(kwargs.keys()):
-            if kw not in ["loss", "metrics", "optimizer"]:
+            if kw not in ["loss", "metrics", "optimizer",
+                          "loss_weights", "sample_weight_mode",
+                          "weighted_metrics", "target_tensors"]:
                 if kw != "config":
                     config[kw] = kwargs[kw]
                 del kwargs[kw]
@@ -3398,8 +3396,7 @@ require(['base/js/namespace'], function(Jupyter) {
         if self.model is None:
             raise Exception("need to compile network")
         if layer_name is None:
-            for i in range(len(self.model.layers)):
-                self.model.layers[i].set_weights(weights[i])
+            self.model.set_weights(weights)
         else:
             for i in range(len(self.model.layers)):
                 if self.model.layers[i].name == layer_name:
