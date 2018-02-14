@@ -1512,7 +1512,7 @@ class Network():
             >>> net = Network("Weight Get Test", 2, 2, 1, activation="sigmoid")
             >>> net.compile(error="mse", optimizer="sgd")
             >>> len(net.get_weights())
-            3
+            4
 
         See also:
             * `Network.to_array`
