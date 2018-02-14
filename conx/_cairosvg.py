@@ -102,6 +102,12 @@ def image(surface, node):
 
     image_surface = cairo.ImageSurface.create_from_png(png_file)
 
+    ### DSB
+    ## Added:
+    image_surface.pattern = cairo.SurfacePattern(image_surface)
+    image_surface.pattern.set_filter(cairo.FILTER_NEAREST)
+    ### DSB
+
     node.image_width = image_surface.get_width()
     node.image_height = image_surface.get_height()
     scale_x, scale_y, translate_x, translate_y = preserve_ratio(
@@ -120,6 +126,11 @@ def image(surface, node):
     surface.context.translate(x, y)
     surface.context.scale(scale_x, scale_y)
     surface.context.translate(translate_x, translate_y)
-    surface.context.set_source_surface(image_surface)
+    ### DSB
+    ## Removed:
+    #surface.context.set_source_surface(image_surface)
+    ## Added:
+    surface.context.set_source(image_surface.pattern)
+    ### DSB
     surface.context.paint()
     surface.context.restore()
