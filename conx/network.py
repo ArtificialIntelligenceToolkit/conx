@@ -1863,16 +1863,21 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           class_id=None, update_pictures=False, raw=False):
+                           class_id=None, update_pictures=False, raw=False, feature=None):
         """
         Gets an image of activations at a layer. Always returns image in
         proper orientation.
         """
         orig_rotate = self.config["svg_rotate"]
         self.config["svg_rotate"] = False
+        if feature is not None:
+            orig_feature = self[layer_name].feature
+            self[layer_name].feature = feature
         image = self._propagate_to_image(layer_name, input, batch_size, resize, scale,
                                          class_id, update_pictures, raw)
         self.config["svg_rotate"] = orig_rotate
+        if feature is not None:
+            self[layer_name].feature = orig_feature
         return image
 
     def _propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
