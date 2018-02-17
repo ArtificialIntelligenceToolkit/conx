@@ -2545,21 +2545,37 @@ class Network():
             vshape = layer.get_output_shape()
         return vshape
 
-    def build_struct(self, inputs, class_id, config):
-        ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
+    def _pre_process_struct(self, inputs, config, ordering):
+        """
+        Determine sizes and pre-compute images.
+        """
         ### find max_width, image_dims, and row_height
+        # Go through and build images, compute max_width:
+        row_heights = []
         max_width = 0
+        max_height = 0
         images = {}
         image_dims = {}
-        row_height = []
-        # Go through and build images, compute max_width:
+        #######################################################################
+        ## For each level:
+        #######################################################################
         for level_tups in ordering: ## output to input:
             # first make all images at this level
-            total_width = 0 # for this row
-            max_height = 0
+            row_width = 0 # for this row
+            row_height = 0 # for this row
+            #######################################################################
+            ## For each column:
+            #######################################################################
             for (layer_name, anchor, fname) in level_tups:
-                if not self[layer_name].visible or anchor: # not need to handle anchors here
+                if not self[layer_name].visible:
                     continue
+                elif anchor:
+                    # No need to handle anchors here
+                    # as they occupy no vertical space
+                    continue
+                #######################################################################
+                ## The rest of this for loop is handling image of bank
+                #######################################################################
                 if inputs is not None:
                     v = inputs
                 elif len(self.dataset.inputs) > 0:
@@ -2574,7 +2590,7 @@ class Network():
                         v = in_layer.make_dummy_vector()
                 if self[layer_name].model:
                     try:
-                        orig_svg_rotate = self.config["svg_rotate"] 
+                        orig_svg_rotate = self.config["svg_rotate"]
                         self.config["svg_rotate"] = config["svg_rotate"]
                         image = self._propagate_to_image(layer_name, v)
                         self.config["svg_rotate"] = orig_svg_rotate
@@ -2595,7 +2611,6 @@ class Network():
                     image_pixels_per_unit = config["image_pixels_per_unit"]
                 ## First, try based on shape:
                 #pwidth, pheight = np.array(image.size) * image_pixels_per_unit
-
                 vshape = self.vshape(layer_name)
                 if vshape is None:
                     pass # leave it define by image
@@ -2627,22 +2642,29 @@ class Network():
                 if width > image_maxdim:
                     width = image_maxdim
                 image_dims[layer_name] = (width, height)
-                total_width += width + config["hspace"] # space between
-                max_height = max(max_height, height)
-            row_height.append(max_height)
-            max_width = max(max_width, total_width)
+                row_width += width + config["hspace"] # space between
+                row_height = max(row_height, height)
+            row_heights.append(row_height)
+            max_width = max(max_width, row_width) # of all rows
+        return max_width, max_height, row_heights, images, image_dims
+
+    def _find_spacing(self, row, ordering, max_width):
+        """
+        Find the spacing for a row number
+        """
+        return max_width / (len(ordering[row]) + 1)
+
+    def build_struct(self, inputs, class_id, config):
+        ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
+        max_width, max_height, row_heights, images, image_dims = self._pre_process_struct(inputs, config, ordering)
         ### Now that we know the dimensions:
         struct = []
         cheight = config["border_top"] # top border
+        #######################################################################
         ## Display targets?
+        #######################################################################
         if config["show_targets"]:
-            # Find the spacing for row:
-            for (layer_name, anchor, fname) in ordering[0]:
-                if not self[layer_name].visible:
-                    continue
-                image = images[layer_name]
-                (width, height) = image_dims[layer_name]
-            spacing = max_width / (len(ordering[0]) + 1)
+            spacing = self._find_spacing(0, ordering, max_width)
             # draw the row of targets:
             cwidth = 0
             for (layer_name, anchor, fname) in ordering[0]: ## no anchors in output
@@ -2672,16 +2694,12 @@ class Network():
                 }])
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
-            cheight += row_height[0] + 10 # max height of row, plus some
+            cheight += row_heights[0] + 10 # max height of row, plus some
+        #######################################################################
         ## Display error?
+        #######################################################################
         if config["show_errors"]:
-            # Find the spacing for row:
-            for (layer_name, anchor, fname) in ordering[0]: # no anchors in output
-                if not self[layer_name].visible:
-                    continue
-                image = images[layer_name]
-                (width, height) = image_dims[layer_name]
-            spacing = max_width / (len(ordering[0]) + 1)
+            spacing = self._find_spacing(0, ordering, max_width)
             # draw the row of errors:
             cwidth = 0
             for (layer_name, anchor, fname) in ordering[0]: # no anchors in output
@@ -2711,12 +2729,36 @@ class Network():
                 }])
                 cwidth += width/2
             ## Then we need to add height for output layer again, plus a little bit
-            cheight += row_height[0] + 10 # max height of row, plus some
+            cheight += row_heights[0] + 10 # max height of row, plus some
+        #######################################################################
+        ## Show a separator that takes no space between output and targets/errors
+        #######################################################################
+        if config["show_errors"] or config["show_targets"]:
+            spacing = self._find_spacing(0, ordering, max_width)
+            ## Draw a line for each column in putput:
+            cwidth = spacing/2 + spacing/2 # border + middle of first column
+            # number of columns:
+            for level_tups in ordering[0]:
+                struct.append(["line_svg", {"x1":cwidth - spacing/2,
+                                            "y1":cheight - 5, # half the space between them
+                                            "x2":cwidth + spacing/2,
+                                            "y2":cheight - 5,
+                                            "arrow_color": "green",
+                                            "tooltip": "",
+                }])
+                cwidth += spacing
+        #######################################################################
         # Now we go through again and build SVG:
+        #######################################################################
         positioning = {}
         level_num = 0
-        for level_tups in ordering:
-            spacing = max_width / (len(level_tups) + 1)
+        #######################################################################
+        ## For each level:
+        #######################################################################
+        for row in range(len(ordering)):
+            level_tups = ordering[row]
+            ## how many space at this level for this column?
+            spacing = self._find_spacing(row, ordering, max_width)
             cwidth = 0
             # See if there are any connections up:
             any_connections_up = False
@@ -2724,7 +2766,8 @@ class Network():
                 if not self[layer_name].visible or anchor:
                     continue
                 for out in self[layer_name].outgoing_connections:
-                    if out.name not in positioning:
+                    if out.name not in positioning:  ## is it drawn yet? if not, continue,
+                        ## if yes, we need vertical space for arrows
                         continue
                     any_connections_up = True
             if any_connections_up:
@@ -2734,10 +2777,16 @@ class Network():
                 ## Right now, just skip any space at all
                 ## cheight += 5
                 pass
-            max_height = 0 # for row of images
+            row_height = 0 # for row of images
+            #######################################################################
+            # Draw each column:
+            #######################################################################
             for (layer_name, anchor, fname) in level_tups:
                 if not self[layer_name].visible:
                     continue
+                #######################################################################
+                ## Anchor
+                #######################################################################
                 if anchor:
                     anchor_name = "%s-%s-anchor%s" % (layer_name, fname, level_num)
                     cwidth += spacing
@@ -2778,6 +2827,9 @@ class Network():
                         print("that's weird!", layer_name, "is not in", prev)
                     continue
                 else:
+                    #######################################################################
+                    ## Bank positioning
+                    #######################################################################
                     image = images[layer_name]
                     (width, height) = image_dims[layer_name]
                     cwidth += (spacing - (width/2))
@@ -2795,24 +2847,9 @@ class Network():
                                                "rw": width + 2}
                     x1 = cwidth + width/2
                 y1 = cheight - 1
-                #### Background rects for arrow mouseovers
-                # for out in self[layer_name].outgoing_connections:
-                #     if out.name not in positioning:
-                #         continue
-                #     # draw background to arrows to allow mouseover tooltips:
-                #     x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
-                #     y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                #     rect_width = abs(x1 - x2)
-                #     rect_extra = 0
-                #     if rect_width < 20:
-                #         rect_extra = 10
-                #     tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
-                #     svg += arrow_rect.format(**{"tooltip": tooltip,
-                #                                 "rx": min(x2, x1) - rect_extra,
-                #                                 "ry": min(y2, y1) + 2, # bring down
-                #                                 "rw": rect_width + rect_extra * 2,
-                #                                 "rh": abs(y1 - y2) - 2})
-                # Draw all of the connections up from here:
+                #######################################################################
+                ## Arrows going up
+                #######################################################################
                 for out in self[layer_name].outgoing_connections:
                     if out.name not in positioning:
                         continue
@@ -2842,6 +2879,9 @@ class Network():
                                                      "arrow_color": config["arrow_color"],
                                                      "tooltip": tooltip
                         }])
+                #######################################################################
+                ## Bank images
+                #######################################################################
                 struct.append(["image_svg", positioning[layer_name]])
                 struct.append(["label_svg", {"x": positioning[layer_name]["x"] + positioning[layer_name]["width"] + 5,
                                              "y": positioning[layer_name]["y"] + positioning[layer_name]["height"]/2 + 2,
@@ -2901,9 +2941,9 @@ class Network():
                                                  "text_anchor": "start",
                     }])
                 cwidth += width/2
-                max_height = max(max_height, height)
+                row_height = max(row_height, height)
                 self._svg_counter += 1
-            cheight += max_height
+            cheight += row_height
             level_num += 1
         cheight += config["border_bottom"]
         ### DONE!
@@ -2962,7 +3002,9 @@ class Network():
         svg_scale = "%s%%" % int(scale_value * 100)
         scaled_width = (max_width * scale_value)
         scaled_height = (cheight * scale_value)
+        #######################################################################
         ### Need a top-level width, height because Jupyter peeks at it
+        #######################################################################
         if config["svg_rotate"]:
             svg_transform = """ transform="rotate(90) translate(0 -%s)" """ % scaled_height
             ### Swap them:
@@ -3110,6 +3152,7 @@ require(['base/js/namespace'], function(Jupyter) {
                     ordering[-1].append(tuples.pop(index))
         ## insert anchor points for any in next level
         ## that doesn't go to a bank in this level
+        order_cache = {}
         for level in range(len(ordering)): # input to output
             tuples = ordering[level]
             for (name, anchor, fname) in tuples:
@@ -3128,11 +3171,34 @@ require(['base/js/namespace'], function(Jupyter) {
                         if (layer.name, None) not in next_level:
                             ordering[level + 1].append((layer.name, True, name)) # add anchor point
             ## replace level with sorted level:
-            def input_index(name):
-                return min([self.input_bank_order.index(iname) for iname in self[name].input_names])
-            lev = sorted([(input_index(fname if anchor else name), name, anchor, fname) for (name, anchor, fname) in ordering[level]])
+            lev = sorted([(self._column_order(fname if anchor else name, order_cache), name, anchor, fname)
+                          for (name, anchor, fname) in ordering[level]])
             ordering[level] = [(name, anchor, fname) for (index, name, anchor, fname) in lev]
         return ordering
+
+    def _column_order(self, layer_name, order_cache):
+        """
+        Get the column order of a layer_name. Note that in this
+        version, the path grows on each split, and never shrinks.
+        """
+        ## special case to get started:
+        if layer_name in self.input_bank_order:
+            order_cache[layer_name] = [self.input_bank_order.index(layer_name)]
+        ## Get path to this node:
+        path = order_cache[layer_name]
+        ## Put next layer in cache:
+        if len(self[layer_name].outgoing_connections) > 1: ## split!
+            count = 0
+            for layer in self[layer_name].outgoing_connections:
+                order_cache[layer.name] = path + [count]
+                count += 1
+        elif len(self[layer_name].outgoing_connections) == 0: ## output layer
+            pass
+        else:
+            ## just one output, no split:
+            order_cache[self[layer_name].outgoing_connections[0].name] = path
+        ## should we worry about merges at all?
+        return order_cache[layer_name]
 
     def describe_connection_to(self, layer1, layer2):
         """
