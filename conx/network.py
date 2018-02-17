@@ -2559,6 +2559,7 @@ class Network():
         #######################################################################
         ## For each level:
         #######################################################################
+        hiding = {}
         for level_tups in ordering: ## output to input:
             # first make all images at this level
             row_width = 0 # for this row
@@ -2566,13 +2567,21 @@ class Network():
             #######################################################################
             ## For each column:
             #######################################################################
-            for (layer_name, anchor, fname) in level_tups:
+            for column in range(len(level_tups)):
+                (layer_name, anchor, fname) = level_tups[column]
                 if not self[layer_name].visible:
+                    if not hiding.get(column, False):
+                        row_height = max(row_height, config["vspace"]) # space for hidden indicator
+                    hiding[column] = True # in the middle of hiding some layers
+                    row_width += config["hspace"] # space between
+                    max_width = max(max_width, row_width) # of all rows
                     continue
                 elif anchor:
                     # No need to handle anchors here
-                    # as they occupy no vertical space
+                    # as they occupy no vertical or horizontal space
+                    hiding[column] = False
                     continue
+                hiding[column] = False
                 #######################################################################
                 ## The rest of this for loop is handling image of bank
                 #######################################################################
@@ -2755,6 +2764,7 @@ class Network():
         #######################################################################
         ## For each level:
         #######################################################################
+        hiding = {}
         for row in range(len(ordering)):
             level_tups = ordering[row]
             ## how many space at this level for this column?
@@ -2763,7 +2773,9 @@ class Network():
             # See if there are any connections up:
             any_connections_up = False
             for (layer_name, anchor, fname) in level_tups:
-                if not self[layer_name].visible or anchor:
+                if not self[layer_name].visible:
+                    continue
+                elif anchor:
                     continue
                 for out in self[layer_name].outgoing_connections:
                     if out.name not in positioning:  ## is it drawn yet? if not, continue,
@@ -2781,9 +2793,25 @@ class Network():
             #######################################################################
             # Draw each column:
             #######################################################################
-            for (layer_name, anchor, fname) in level_tups:
+            for  column in range(len(level_tups)):
+                (layer_name, anchor, fname) = level_tups[column]
                 if not self[layer_name].visible:
+                    if not hiding.get(column, False): # not already hiding, add some space:
+                        struct.append(["label_svg", {"x": cwidth + spacing - 50, ## center the text
+                                                     "y": cheight + 15,
+                                                     "label": "[hidden layers]",
+                                                     "font_size": config["font_size"],
+                                                     "font_color": "green",
+                                                     "font_family": config["font_family"],
+                                                     "text_anchor": "start",
+                                                     "rotate": False,
+                        }])
+                        row_height = max(row_height, config["vspace"])
+                    hiding[column] = True
+                    cwidth += spacing # leave full column width
                     continue
+                ## end run of hiding
+                hiding[column] = False
                 #######################################################################
                 ## Anchor
                 #######################################################################
@@ -3107,7 +3135,8 @@ require(['base/js/namespace'], function(Jupyter) {
         ## build the rest:
         for (template_name, dict) in struct:
             if template_name != "svg_head" and not template_name.startswith("_"):
-                if template_name == "label_svg" and config["svg_rotate"]:
+                rotate = dict.get("rotate", config["svg_rotate"])
+                if template_name == "label_svg" and rotate:
                     dict["x"] += 8
                     dict["text_anchor"] = "middle"
                     dict["transform"] = """ transform="rotate(-90 %s %s) translate(%s)" """ % (dict["x"], dict["y"], 2)
