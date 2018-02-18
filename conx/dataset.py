@@ -650,9 +650,6 @@ class Dataset():
         """
         Append a input, and a target or a list of [[input, target], ...].
 
-        Also can take a generator and a count where the generator gives the
-        format in one of the above formats.
-
         >>> ds = Dataset()
         >>> ds.append([0, 0], [0])
         >>> ds.append([0, 1], [1])
@@ -718,6 +715,8 @@ class Dataset():
                 if len(line) == 3: ## inputs, targets, labels
                     self._labels[count] = line[2]
                 count += 1
+                if count == inputs:
+                    break
             self._labels = np.array(self._labels, dtype=str)
             self._cache_values()
             return

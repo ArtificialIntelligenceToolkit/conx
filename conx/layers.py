@@ -98,6 +98,7 @@ class _BaseLayer():
         params["name"] = name
         self.shape = None
         self.vshape = None
+        self.keep_aspect_ratio = False
         self.image_maxdim = None
         self.image_pixels_per_unit = None
         self.visible = True
@@ -121,6 +122,11 @@ class _BaseLayer():
                 raise Exception('bad vshape: %s' % (vs,))
             else:
                 self.vshape = vs
+
+        if 'keep_aspect_ratio' in params:
+            ar = params['keep_aspect_ratio']
+            del params["keep_aspect_ratio"] # drop those that are not Keras parameters
+            self.keep_aspect_ratio = ar
 
         if 'image_maxdim' in params:
             imd = params['image_maxdim']
@@ -564,10 +570,14 @@ class ImageLayer(Layer):
             "depth": depth,
             "params": copy.copy(params),
         }
+        ## get value before processing
+        keep_aspect_ratio = params.get("keep_aspect_ratio", True)
         super().__init__(name, dimensions, **params)
         self._state = _state
         if self.vshape is None:
             self.vshape = self.shape
+        ## override defaults set in constructor:
+        self.keep_aspect_ratio = keep_aspect_ratio
         self.dimensions = dimensions
         self.depth = depth
         if K.image_data_format() == "channels_last":
