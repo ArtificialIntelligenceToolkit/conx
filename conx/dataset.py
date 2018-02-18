@@ -25,6 +25,7 @@ manipulating a set of inputs/targets.
 import numpy as np
 import copy, numbers, inspect, sys
 from IPython.display import display
+import types
 
 from .utils import *
 import conx.datasets
@@ -229,6 +230,9 @@ class DataVector():
                 raise Exception("targets bank_index is out of range")
             if len(self.dataset.targets) > 0:
                 return self.dataset._targets[bank_index].shape[1:]
+            elif self.dataset.network and self.dataset.network.model: ## compiled and connected
+                layer_name = self.dataset.network.output_bank_order[bank_index]
+                return self.dataset.network[layer_name].shape
             else:
                 return self.dataset._target_shapes[bank_index]
         elif self.item in ["inputs", "test_inputs", "train_inputs"]:
@@ -238,8 +242,11 @@ class DataVector():
                 raise Exception("inputs bank_index is out of range")
             if len(self.dataset.inputs) > 0:
                 return self.dataset._inputs[bank_index].shape[1:]
+            elif self.dataset.network and self.dataset.network.model: ## compiled and connected
+                layer_name = self.dataset.network.input_bank_order[bank_index]
+                return self.dataset.network[layer_name].shape
             else:
-                return self.dataset._target_shapes[bank_index]
+                return self.dataset._input_shapes[bank_index]
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
@@ -594,7 +601,6 @@ class Dataset():
         [[input-layer-1-vectors, ...], [input-layer-2-vectors, ...], ...]
 
         [[target-layer-1-vectors, ...], [target-layer-2-vectors, ...], ...]
-
         """
         ## inputs/targets are each [np.array(), ...], one np.array()
         ## per bank
@@ -607,11 +613,44 @@ class Dataset():
         self._cache_values()
 
     def load(self, pairs=None, inputs=None, targets=None, labels=None):
+        """
+        Dataset.load() will clear and load a new dataset.
+
+        You can load a dataset through a number of variations:
+
+        * dataset.load([[input, target], ...])
+        * dataset.load(inputs=[input, ...], targets=[target, ...])
+        * dataset.load(generator, count)
+
+        >>> ds = Dataset()
+        >>> ds.load([[[0, 0], [0]],
+        ...          [[0, 1], [1]],
+        ...          [[1, 0], [1]],
+        ...          [[1, 1], [0]]])
+        >>> len(ds)
+        4
+        >>> ds.load(inputs=[[0, 0], [0, 1], [1, 0], [1, 1]], # inputs
+        ...         targets=[[0], [1], [1], [0]]) # targets
+        >>> len(ds)
+        4
+        >>> def generator():
+        ...     for data in [[[0, 0], [0]],
+        ...                  [[0, 1], [1]],
+        ...                  [[1, 0], [1]],
+        ...                  [[1, 1], [0]]]:
+        ...         yield data
+        >>> ds.load(generator(), 4)
+        >>> len(ds)
+        4
+        """
         self._load(pairs, inputs, targets, labels, mode="load")
 
     def append(self, pairs=None, inputs=None):
         """
         Append a input, and a target or a list of [[input, target], ...].
+
+        Also can take a generator and a count where the generator gives the
+        format in one of the above formats.
 
         >>> ds = Dataset()
         >>> ds.append([0, 0], [0])
@@ -635,12 +674,6 @@ class Dataset():
         ...            [[1, 1], [0]]])
         >>> len(ds)
         8
-        >>> ds.load([[[0, 0], [0]],
-        ...          [[0, 1], [1]],
-        ...          [[1, 0], [1]],
-        ...          [[1, 1], [0]]])
-        >>> len(ds)
-        4
         """
         if inputs is None:
             self._load(pairs, mode="append")
@@ -658,7 +691,37 @@ class Dataset():
 
         See also :any:`matrix_to_channels_last` and :any:`matrix_to_channels_first`.
         """
-        if inputs is not None:
+        if isinstance(pairs, types.GeneratorType) and not isinstance(inputs, numbers.Integral):
+            raise Exception("load with a generator also requires integer number to load")
+        elif isinstance(pairs, types.GeneratorType) and isinstance(inputs, numbers.Integral):
+            ## do it all here:
+            ## create space
+            self._inputs = [np.zeros([inputs] + list(self.inputs.get_shape(i)), "float32")
+                            for i in range(self._num_input_banks())]
+            self._targets = [np.zeros([inputs] + list(self.targets.get_shape(i)), "float32")
+                             for i in range(self._num_target_banks())]
+            self._labels = ["" for i in range(inputs)] ## convert to numpy at end
+            count = 0
+            for line in pairs:
+                ## at least inputs, targets:
+                if self._num_input_banks() == 1:
+                    self._inputs[0][count] = line[0]
+                else:
+                    for i in range(self._num_input_banks()):
+                        self._inputs[i][count] = line[0][i]
+                if self._num_target_banks() == 1:
+                    self._targets[0][count] = line[1]
+                else:
+                    for i in range(self._num_target_banks()):
+                        self._targets[i][count] = line[1][i]
+                if len(line) == 3: ## inputs, targets, labels
+                    self._labels[count] = line[2]
+                count += 1
+            self._labels = np.array(self._labels, dtype=str)
+            self._cache_values()
+            return
+        ## else, either pairs=[[[inputs...], [targets...]]...] or pairs=inputs, inputs=targets
+        elif inputs is not None:
             if targets is not None:
                 if pairs is not None:
                     raise Exception("Use pairs or inputs/targets but not both")
