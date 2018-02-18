@@ -11,4 +11,6 @@ from .cmu_faces import cmu_faces_full_size
 from .cmu_faces import cmu_faces_half_size
 from .cmu_faces import cmu_faces_quarter_size
 
-from._gridfonts import gridfonts, figure_ground_a
+from ._gridfonts import gridfonts, figure_ground_a
+
+from ._fingers import fingers
