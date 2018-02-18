@@ -363,27 +363,28 @@ class DataVector():
         >>> len(net.dataset.train_targets)
         20
         """
-        size, num_train, num_test = self.dataset._get_split_sizes()
         if self.item == "targets":
-            return size
+            return 0 if len(self.dataset._targets) == 0 else len(self.dataset._targets[0])
         elif self.item == "labels":
-            return size
+            return len(self.dataset._labels)
         elif self.item == "inputs":
-            return size
-        elif self.item == "train_targets":
-            return num_train
-        elif self.item == "train_labels":
-            return num_train
-        elif self.item == "train_inputs":
-            return num_train
-        elif self.item == "test_targets":
-            return num_test
-        elif self.item == "test_labels":
-            return num_test
-        elif self.item == "test_inputs":
-            return num_test
+            return 0 if len(self.dataset._inputs) == 0 else len(self.dataset._inputs[0])
         else:
-            raise Exception("unknown vector type: %s" % (self.item,))
+            size, num_train, num_test = self.dataset._get_split_sizes()
+            if self.item == "train_targets":
+                return num_train
+            elif self.item == "train_labels":
+                return num_train
+            elif self.item == "train_inputs":
+                return num_train
+            elif self.item == "test_targets":
+                return num_test
+            elif self.item == "test_labels":
+                return num_test
+            elif self.item == "test_inputs":
+                return num_test
+            else:
+                raise Exception("unknown vector type: %s" % (self.item,))
 
     def __iter__(self):
         self._iter_index = 0
