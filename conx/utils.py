@@ -1579,15 +1579,15 @@ def format_collapse(ttype, dims):
     else:
         return format_collapse([ttype, dims[-1]], dims[:-1])
 
-def types(item):
+def cxtypes(item):
     """
     Get the types of (possibly) nested list(s), and collapse
     if possible.
 
-    >>> types(0)
+    >>> cxtypes(0)
     <class 'numbers.Number'>
 
-    >>> types([0, 1, 2])
+    >>> cxtypes([0, 1, 2])
     [<class 'numbers.Number'>, 3]
     """
     try:
@@ -1606,7 +1606,7 @@ def types(item):
     except:
         pass
     if array is None or array.dtype == object:
-        return [types(x) for x in item]
+        return [cxtypes(x) for x in item]
     else:
         dtype = array.dtype ## can be many things!
         return format_collapse(atype(dtype), array.shape)
@@ -1672,7 +1672,7 @@ def get_form(item):
     >>> get_form([1, [2, 5, 6], 3])
     [<class 'numbers.Number'>, [<class 'numbers.Number'>, 3], <class 'numbers.Number'>]
     """
-    return collapse(types(item))
+    return collapse(cxtypes(item))
 
 def get_shape(form):
     """
