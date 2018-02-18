@@ -2621,8 +2621,8 @@ class Network():
                 ## First, try based on shape:
                 #pwidth, pheight = np.array(image.size) * image_pixels_per_unit
                 vshape = self.vshape(layer_name)
-                if vshape is None:
-                    pass # leave it define by image
+                if vshape is None or self[layer_name].keep_aspect_ratio:
+                    pass ## let the image set the shape
                 elif len(vshape) == 1:
                     if vshape[0] is not None:
                         width = vshape[0] * image_pixels_per_unit
@@ -2640,16 +2640,22 @@ class Network():
                         elif vshape[1] is not None: # flatten
                             width = vshape[1] * image_pixels_per_unit
                             height = image_pixels_per_unit
-                ## make sure not too small:
-                if width < image_pixels_per_unit:
-                    width = image_pixels_per_unit
-                if height < image_pixels_per_unit:
-                    height = image_pixels_per_unit
-                ## make sure not too big:
-                if height > image_maxdim:
-                    height = image_maxdim
-                if width > image_maxdim:
-                    width = image_maxdim
+                ## keep aspect ratio:
+                if self[layer_name].keep_aspect_ratio:
+                    scale = image_maxdim / max(width, height)
+                    image = image.resize((int(width * scale), int(height * scale)))
+                    width, height = image.size
+                else:
+                    ## Change aspect ratio if too big/small
+                    if width < image_pixels_per_unit:
+                        width = image_pixels_per_unit
+                    if height < image_pixels_per_unit:
+                        height = image_pixels_per_unit
+                    ## make sure not too big:
+                    if height > image_maxdim:
+                        height = image_maxdim
+                    if width > image_maxdim:
+                        width = image_maxdim
                 image_dims[layer_name] = (width, height)
                 row_width += width + config["hspace"] # space between
                 row_height = max(row_height, height)
