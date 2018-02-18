@@ -2797,9 +2797,9 @@ class Network():
                 (layer_name, anchor, fname) = level_tups[column]
                 if not self[layer_name].visible:
                     if not hiding.get(column, False): # not already hiding, add some space:
-                        struct.append(["label_svg", {"x": cwidth + spacing - 50, ## center the text
+                        struct.append(["label_svg", {"x": cwidth + spacing - 80, ## center the text
                                                      "y": cheight + 15,
-                                                     "label": "[hidden layers]",
+                                                     "label": "[layer(s) not visible]",
                                                      "font_size": config["font_size"],
                                                      "font_color": "green",
                                                      "font_family": config["font_family"],
