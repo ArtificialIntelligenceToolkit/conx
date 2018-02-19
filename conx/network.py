@@ -2018,8 +2018,8 @@ class Network():
             print(s)
 
     def plot_layer_weights(self, layer_name, units='all', wrange=None, wmin=None, wmax=None,
-                           colormap='gray', vshape=None, cbar=True, ticks=5, figsize=(12,3),
-                           format=None):
+                           colormap='gray', vshape=None, cbar=True, ticks=5, format=None,
+                           layout=None, spacing=0.2, figsize=None, scale=None, title=None):
         """weight range displayed on the colorbar can be specified as wrange=(wmin, wmax),
         or individually via wmin/wmax keywords.  if wmin or wmax is None, the actual min/max
         value of the weight matrix is used. wrange overrides provided wmin/wmax values. ticks
@@ -2078,29 +2078,68 @@ class Network():
             raise Exception("wrange: expected a pair of numbers but got %s" % (wrange,))
         else: # wrange overrides provided wmin/wmax values
             wmin, wmax = wrange
-            return self.plot_layer_weights(layer_name, units, None, wmin, wmax, colormap, vshape,
-                                           cbar, ticks, figsize)
+            return self.plot_layer_weights(layer_name, units=units, wrange=None, wmin=wmin,
+                                           wmax=wmax, colormap=colormap, vshape=vshape,
+                                           cbar=cbar, ticks=ticks, format=format, layout=layout,
+                                           spacing=spacing, figsize=figsize, scale=scale,
+                                           title=title)
         if wmin >= wmax:
             raise Exception("specified weight range is empty")
         if not isinstance(ticks, numbers.Integral) or ticks < 2:
             raise Exception("invalid number of colorbar ticks: %s" % (ticks,))
         # clip weights to the range [wmin, wmax] and normalize to [0, 1]:
         scaled_W = (np.clip(W, wmin, wmax) - wmin) / (wmax - wmin)
-        fig, axes = plt.subplots(1, len(units), figsize=figsize)
-        if len(units) == 1:
-            axes = [axes]
-        for unit, ax in zip(units, axes):
+
+        if not 0 <= spacing <= 1:
+            raise Exception("spacing must be between 0 and 1")
+            return
+        if scale is None:
+            scale = 1
+        elif scale <= 0:
+            raise Exception("scale must be an int > 0")
+        if layout is None:
+            layout = (1, len(units))
+        layout_rows, layout_cols = layout
+        border = spacing / max(layout_rows, layout_cols)
+        if figsize is None:
+            size_factor = 2.5
+            width = min(10, size_factor*(layout_cols+1)*scale)
+            height = min(8, size_factor*layout_rows*scale)
+            figsize = (width, height)
+        fig, axes = plt.subplots(layout_rows, layout_cols, squeeze=False,
+                                 figsize=figsize, num=title,
+                                 gridspec_kw={'wspace': spacing,
+                                              'hspace': spacing,
+                                              'left': border,
+                                              'right': 1-border,
+                                              'bottom': border,
+                                              'top': 1-border})
+        if title is not None:
+            fig.canvas.set_window_title(title)
+        for ax in axes.reshape(axes.size):
             ax.axis('off')
-            ax.set_title('weights to %s[%d]' % (layer_name, unit))
-            im = scaled_W[unit,:].reshape((rows, cols))
-            axim = ax.imshow(im, cmap=colormap, vmin=0, vmax=1)
+        k = 0
+        for r in range(layout_rows):
+            for c in range(layout_cols):
+                if k < len(units):
+                    u = units[k]
+                    axes[r][c].set_title('%s[%d]' % (layer_name, u))
+                    axes[r][c].title.set_fontsize(8)
+                    im = scaled_W[u,:].reshape((rows, cols))
+                    axim = axes[r][c].imshow(im, cmap=colormap, vmin=0, vmax=1)
+                    k += 1
+        if k < len(units):
+            print("WARNING: could not plot all requested weights with layout %s" % (layout,),
+                  file=sys.stderr)
         if cbar:
             tick_locations = np.linspace(0, 1, ticks)
             tick_values = tick_locations * (wmax - wmin) + wmin
-            colorbar = fig.colorbar(axim, ticks=tick_locations)
+            s = 0.5 if layout_rows > 3 else 0.75 if 2 <= layout_rows <= 3 else 1
+            colorbar = fig.colorbar(axim, ax=axes, ticks=tick_locations, shrink=s)
             cbar_labels = ['0' if t == 0 else '%+.2f' % (t,) for t in tick_values]
             cbar_labels[0] = wmin_label
             cbar_labels[-1] = wmax_label
+            colorbar.ax.tick_params(labelsize=8)
             colorbar.ax.set_yticklabels(cbar_labels)
         if format is None:
             plt.show(block=False)
