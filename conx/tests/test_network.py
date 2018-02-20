@@ -88,6 +88,7 @@ def test_dataset():
     net.compile(optimizer="adam", error="binary_crossentropy")
     net.dataset.get("mnist")
     assert net is not None
+    net.dataset.clear()
 
 def test_dataset2():
     """
@@ -106,6 +107,7 @@ def test_dataset2():
     net.dataset.split(100)
     net.dataset.slice(100)
     assert net is not None
+    net.dataset.clear()
 
 def test_images():
     net = Network("MNIST")
@@ -123,6 +125,7 @@ def test_images():
     net.compile(optimizer="adam", error="binary_crossentropy")
     svg = net.to_svg()
     assert svg is not None
+    net.dataset.clear()
 
 def test_cifar10():
     """
@@ -165,3 +168,4 @@ def test_cifar10():
     net.dataset.split(.5)
     net.train(plot=False)
     net.propagate(net.dataset.inputs[0])
+    net.dataset.clear()
