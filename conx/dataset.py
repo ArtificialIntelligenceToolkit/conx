@@ -268,6 +268,8 @@ class DataVector():
             >>> shape(s)
             (5, 28, 28, 1)
 
+            >>> ds.clear()
+
         Arguments:
             function - callable that takes (i, dataset) and returns True/False
             slice - range of items/indices to return
@@ -366,7 +368,7 @@ class DataVector():
         if self.item == "targets":
             return 0 if len(self.dataset._targets) == 0 else len(self.dataset._targets[0])
         elif self.item == "labels":
-            return len(self.dataset._labels)
+            return 0 if len(self.dataset._labels) == 0 else len(self.dataset._labels[0])
         elif self.item == "inputs":
             return 0 if len(self.dataset._inputs) == 0 else len(self.dataset._inputs[0])
         else:
@@ -717,7 +719,7 @@ class Dataset():
                 count += 1
                 if count == inputs:
                     break
-            self._labels = np.array(self._labels, dtype=str)
+            self._labels = [np.array(self._labels, dtype=str)]
             self._cache_values()
             return
         ## else, either pairs=[[[inputs...], [targets...]]...] or pairs=inputs, inputs=targets
@@ -864,6 +866,8 @@ class Dataset():
         70000
         >>> ds.targets[0]
         [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+
+        >>> ds.clear()
         """
         return_it = False
         if isinstance(self, str):
@@ -1228,6 +1232,8 @@ class Dataset():
         >>> dataset.chop(0.10)
         >>> dataset.split()
         (54000, 0)
+
+        >>> dataset.clear()
         """
         if len(self.inputs) == 0:
             raise Exception("no dataset loaded")
