@@ -163,7 +163,18 @@ def is_array_like(item):
             (hasattr(item, "__getitem__") or
              hasattr(item, "__iter__")))
 
-def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
+def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, title=None):
+    """
+    View a list of images.
+
+    Arguments:
+        images (list) - a list of images
+        labels (str) - list of optional labels for each image
+        layout (tuple or list) - optional (rows, cols). Default: (1,n)
+        spacing (float) - space between images. Default: 0.1
+        scale (float) - size of entire resulting image. Default: 1
+        title (str) - optional title for console window.
+    """
     if not 0 <= spacing <= 1:
         print("spacing must be between 0 and 1")
         return
@@ -194,6 +205,8 @@ def view_image_list(images, layout=None, spacing=0.1, scale=1, title=None):
                 plt.show(block=False)
                 return  # no more images to display
             axes[r][c].imshow(images[k])
+            if labels:
+                axes[r][c].set_title(labels[k])
             k += 1
     plt.show(block=False)
     if k < len(images):
@@ -286,8 +299,22 @@ def view_network(net, title=None, background=(255, 255, 255, 255),
 
 def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs):
     """
-    Show an item from the console. item can be an
-    SVG image, PIL.Image, or filename.
+    Show an item from the console. item can any one of the following:
+
+    * Network
+    * HTML
+    * SVG image
+    * PIL.Image
+    * list of PIL.images
+    * Image filename (png or jpg)
+
+    For more information on each option, see:
+
+    * view_network
+    * view_svg
+    * view_image
+    * view_image_list
+
     """
     from IPython.display import Image, HTML, SVG
     from conx import Network
