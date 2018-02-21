@@ -18,3 +18,5 @@
 # Boston, MA 02110-1301  USA
 
 __version__ = "3.6.1"
+VERSION = tuple([(int(v) if v.isdigit() else v)
+                 for v in __version__.split(".")])
