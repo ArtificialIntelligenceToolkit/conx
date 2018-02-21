@@ -37,7 +37,7 @@ else:
             pass  ## Don't change if server has no DISPLAY but is connected to notebook
         else:
             matplotlib.use('Agg') # something that will work
-from ._version import __version__
+from ._version import __version__, VERSION
 from .network import *
 from .layers import *
 from .dataset import *
