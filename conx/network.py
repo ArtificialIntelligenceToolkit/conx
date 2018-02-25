@@ -1338,7 +1338,7 @@ class Network():
         if interrupted:
             raise KeyboardInterrupt
         if verbose == 0:
-            return (self.epoch_count, result)
+            return (self.epoch_count, self.history[-1])
 
     def report_epoch(self, epoch_count, results):
         """
