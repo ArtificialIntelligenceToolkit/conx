@@ -1254,18 +1254,18 @@ class Network():
                     self.report_epoch(self.epoch_count, results)
                     print("Validation dataset status:")
                     self.report_epoch(self.epoch_count, val_results)
-                    return
+                    return (self.epoch_count, results) if verbose == 0 else None
         else: ## regular training to stop, use_validation_to_stop is False
             if ((accuracy is not None) and (results_acc >= accuracy)):
                 print("No training required: accuracy already to desired value")
                 print("Training dataset status:")
                 self.report_epoch(self.epoch_count, results)
-                return
+                return (self.epoch_count, results) if verbose == 0 else None
             elif ((error is not None) and (results["loss"] <= error)):
                 print("No training required: error already to desired value")
                 print("Training dataset status:")
                 self.report_epoch(self.epoch_count, results)
-                return
+                return (self.epoch_count, results) if verbose == 0 else None
         ## Ok, now we know we need to train:
         results.update(val_results)
         if len(self.history) == 0:
