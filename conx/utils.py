@@ -741,6 +741,24 @@ def binary(i, width):
     b = [int(c) for c in bs]
     return b
 
+def find_all_paths(net, start_layer, end_layer, path=[]):
+    """
+    Given a start_layer and an end_layer, return a
+    list containing all pathways (does not include end_layer).
+
+    Recursive.
+    """
+    path = path + [start_layer]
+    if start_layer.name == end_layer.name:
+        return [path]
+    paths = []
+    for layer in net[start_layer.name].outgoing_connections:
+        if layer not in path:
+            newpaths = find_all_paths(net, layer, end_layer, path)
+            for newpath in newpaths:
+                paths.append(newpath)
+    return paths
+
 def find_path(net, start_layer, end_layer):
     """
     Given a conx network, a start layer, and an ending
