@@ -267,10 +267,12 @@ class Network():
                        'mean_squared_logarithmic_error', 'mse', 'msle', 'poisson',
                        'sparse_categorical_crossentropy', 'squared_hinge']
 
-    def __init__(self, name: str, *sizes: int, load_config=True, **config: Any):
+    def __init__(self, name: str, *sizes: int, load_config=True, debug=False,
+                 build_propagate_from_models=True, **config: Any):
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
-        self.debug = False
+        self.debug = debug
+        self.build_propagate_from_models = build_propagate_from_models
         ## Pick a place in the random stream, and remember it:
         ## (can override randomness with a particular seed):
         if not isinstance(name, str):
@@ -307,7 +309,7 @@ class Network():
         self.update_pictures = get_ipython() is not None
         self._comm = None
         self.model = None
-        self.prop_from_dict = {}
+        self.prop_from_dict = {} ## FIXME: can be multiple paths
         self._svg_counter = 1
         self._need_to_show_headings = True
         self._initialized_javascript = False
@@ -768,8 +770,8 @@ class Network():
         """
         self.epoch_count = 0
         self.history = []
-        self.weight_history = {}
-        self.prop_from_dict = {}
+        self.weight_history.clear()
+        self.prop_from_dict.clear()
         if self.model:
             if "seed" in overrides:
                 self.seed = overrides["seed"]
@@ -1612,29 +1614,15 @@ class Network():
                 output_layer_names = [output_layer_names]
         outputs = []
         for output_layer_name in output_layer_names:
-            if (layer_name, output_layer_name) not in self.prop_from_dict:
-                path = find_path(self, layer_name, output_layer_name)
-                # Make a new Input to start here:
-                if self[layer_name].shape is not None:
-                    input_k = k = keras.layers.Input(self[layer_name].shape, name=self[layer_name].name)
-                else:
-                    input_k = k = keras.layers.Input(shape(input), name=self[layer_name].name)
-                # So that we can display activations here:
-                if (layer_name, layer_name) not in self.prop_from_dict:
-                    self.prop_from_dict[(layer_name, layer_name)] = keras.models.Model(inputs=input_k,
-                                                                                       outputs=k)
-                for layer in path:
-                    k = layer.keras_layer(k)
-                    if (layer_name, layer.name) not in self.prop_from_dict:
-                        self.prop_from_dict[(layer_name, layer.name)] = keras.models.Model(inputs=input_k,
-                                                                                           outputs=k)
-            # Now we should be able to get the prop_from model:
+            # We should be able to get the prop_from model:
+            ## FIXME: could be multiple paths
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
             if raw:
                 inputs = input
             else:
                 inputs = np.array([input])
-            outputs.append([list(x) for x in prop_model.predict(inputs)][0])
+            if prop_model is not None:
+                outputs.append([list(x) for x in prop_model.predict(inputs)][0])
             ## FYI: outputs not shaped
         if update_pictures:
             if not self._comm:
@@ -1655,7 +1643,11 @@ class Network():
                     path = find_path(self, layer_name, output_layer_name)
                     if path is not None:
                         for layer in path:
-                            if not layer.visible: continue
+                            if not layer.visible:
+                                continue
+                            if (layer_name, layer.name) not in self.prop_from_dict:
+                                continue
+                            ## FIXME: could be multiple paths
                             model = self.prop_from_dict[(layer_name, layer.name)]
                             vector = model.predict(inputs)[0]
                             ## FYI: outputs not shaped
@@ -1668,7 +1660,7 @@ class Network():
                             self._comm.send({'class': class_id_name, "href": data_uri})
         if raw:
             return outputs
-        elif len(output_layer_names) == 1:
+        elif len(output_layer_names) == 1 and len(outputs) > 0:
             return outputs[0]
         else:
             return outputs
@@ -2496,6 +2488,7 @@ class Network():
         """
         Construct the layer.k, layer.input_names, and layer.model's.
         """
+        self.prop_from_dict.clear()
         sequence = topological_sort(self, self.layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
         for layer in sequence:
@@ -2504,6 +2497,7 @@ class Network():
                 layer.k = layer.make_input_layer_k()
                 layer.input_names = set([layer.name])
                 layer.model = keras.models.Model(inputs=layer.k, outputs=layer.k) # identity
+                self.prop_from_dict[(layer.name, layer.name)] = layer.model
             else:
                 if self.debug: print("making layer for", layer.name)
                 if len(layer.incoming_connections) == 0:
@@ -2530,9 +2524,38 @@ class Network():
                 layer.k = k
                 ## get the inputs to this branch, in order:
                 input_ks = self._get_input_ks_in_order(layer.input_names)
+                ## From all inputs to this layer:
                 layer.model = keras.models.Model(inputs=input_ks, outputs=layer.k)
-                ## IS THIS A BETTER WAY?:
-                #layer.model = keras.models.Model(inputs=input_ks, outputs=layer.keras_layer.output)
+        ## Build all prop_from models:
+        if self.build_propagate_from_models:
+            for in_layer_name in self.input_bank_order:
+                for out_layer_name in self.output_bank_order:
+                    layer = self[out_layer_name]
+                    if (in_layer_name, layer.name) in self.prop_from_dict:
+                        continue
+                    if self.debug: print("from %s to %s" % (in_layer_name, layer.name))
+                    all_paths = find_all_paths(self, self[in_layer_name], layer)
+                    for path in all_paths:
+                        for i in range(len(path) - 1):
+                            path_layer = path[i]
+                            if (path_layer.name, layer.name) in self.prop_from_dict:
+                                continue
+                            if self.debug: print("   %s to %s" % (path_layer.name, layer.name))
+                            if path_layer.shape is None:
+                                ## Skips FlattenLayer, Concat, etc. as from_layer
+                                if self.debug: print("   aborting this path; try next")
+                                continue
+                            k = starting_k = keras.layers.Input(path_layer.shape, name=path_layer.name)
+                            rest_of_path = path[i + 1:]
+                            for rest_of_path_layer in rest_of_path:
+                                if self.debug: print("      %s to %s" % (path_layer.name, rest_of_path_layer.name))
+                                kfuncs = rest_of_path_layer.make_keras_functions()
+                                for f in kfuncs:
+                                    k = f(k)
+                                ## FIXME: could be multiple paths
+                                self.prop_from_dict[
+                                    (path_layer.name, rest_of_path_layer.name)
+                                ] = keras.models.Model(inputs=starting_k, outputs=k)
 
     def _get_input_ks_in_order(self, layer_names):
         """
