@@ -422,7 +422,7 @@ def count_params(weights):
     import keras.backend as K
     return int(np.sum([K.count_params(p) for p in set(weights)]))
 
-def download(url, directory="./", force=False, unzip=True):
+def download(url, directory="./", force=False, unzip=True, filename=None):
     """
     Download a file into a local directory.
 
@@ -440,7 +440,7 @@ def download(url, directory="./", force=False, unzip=True):
     Using cached ...
     """
     result = urlparse(url)
-    filename = result.path.split("/")[-1]
+    filename = filename if filename is not None else result.path.split("/")[-1]
     file_path = os.path.join(directory, filename)
     ## First, download the file:
     if not os.path.isfile(file_path) or force:
