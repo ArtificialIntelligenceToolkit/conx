@@ -27,6 +27,10 @@ def mnist(dataset):
     x_test /= 255
     inputs = np.concatenate((x_train,x_test))
     labels = np.concatenate((y_train,y_test))
+    ###########################################
+    # fix mis-labeled image(s) in Keras dataset
+    labels[10994] = 9
+    ###########################################
     targets = to_categorical(labels)
     labels = np.array([str(label) for label in labels], dtype=str)
     dataset.name = "MNIST"

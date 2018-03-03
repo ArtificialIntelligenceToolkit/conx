@@ -422,7 +422,7 @@ def count_params(weights):
     import keras.backend as K
     return int(np.sum([K.count_params(p) for p in set(weights)]))
 
-def download(url, directory="./", force=False, unzip=True):
+def download(url, directory="./", force=False, unzip=True, filename=None):
     """
     Download a file into a local directory.
 
@@ -440,7 +440,7 @@ def download(url, directory="./", force=False, unzip=True):
     Using cached ...
     """
     result = urlparse(url)
-    filename = result.path.split("/")[-1]
+    filename = filename if filename is not None else result.path.split("/")[-1]
     file_path = os.path.join(directory, filename)
     ## First, download the file:
     if not os.path.isfile(file_path) or force:
@@ -740,6 +740,39 @@ def binary(i, width):
     bs = ("0" * width + bs)[-width:]
     b = [int(c) for c in bs]
     return b
+
+def binary_to_int(vector):
+    """
+    Given a binary vector, return the integer value.
+
+    >>> binary_to_int(binary(0, 5))
+    0
+
+    >>> binary_to_int(binary(15, 4))
+    15
+
+    >>> binary_to_int(binary(14, 4))
+    14
+    """
+    return sum([v * 2 ** (len(vector) - 1 - i) for i,v in enumerate(vector)])
+
+def find_all_paths(net, start_layer, end_layer, path=[]):
+    """
+    Given a start_layer and an end_layer, return a
+    list containing all pathways (does not include end_layer).
+
+    Recursive.
+    """
+    path = path + [start_layer]
+    if start_layer.name == end_layer.name:
+        return [path]
+    paths = []
+    for layer in net[start_layer.name].outgoing_connections:
+        if layer not in path:
+            newpaths = find_all_paths(net, layer, end_layer, path)
+            for newpath in newpaths:
+                paths.append(newpath)
+    return paths
 
 def find_path(net, start_layer, end_layer):
     """

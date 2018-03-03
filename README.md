@@ -14,8 +14,6 @@ Implements Deep Learning neural network algorithms using a simple interface with
 
 The network is specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
 
-## Example
-
 Computing XOR via a target function:
 
 ```python
@@ -40,11 +38,10 @@ Creates dynamic, rendered visualizations like this:
 
 ## Examples
 
-See [conx-notebooks](https://github.com/Calysto/conx-notebooks/tree/master/) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
+See [conx-notebooks](https://github.com/Calysto/conx-notebooks/blob/master/00_Index.ipynb) and the [documentation](http://conx.readthedocs.io/en/latest/) for additional examples.
 
 ## Installation
 
-See [How To Run
-Conx](https://github.com/Calysto/conx-notebooks/tree/master/HowToRun#how-to-run-conx)
+See [How To Run Conx](https://github.com/Calysto/conx-notebooks/tree/master/HowToRun#how-to-run-conx)
 to see options on running virtual machines, in the cloud, and personal
 installation.
