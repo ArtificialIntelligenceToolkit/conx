@@ -741,6 +741,21 @@ def binary(i, width):
     b = [int(c) for c in bs]
     return b
 
+def binary_to_int(vector):
+    """
+    Given a binary vector, return the integer value.
+
+    >>> binary_to_int(binary(0, 5))
+    0
+
+    >>> binary_to_int(binary(15, 4))
+    15
+
+    >>> binary_to_int(binary(14, 4))
+    14
+    """
+    return sum([v * 2 ** (len(vector) - 1 - i) for i,v in enumerate(vector)])
+
 def find_all_paths(net, start_layer, end_layer, path=[]):
     """
     Given a start_layer and an end_layer, return a
