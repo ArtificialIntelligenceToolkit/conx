@@ -2538,7 +2538,10 @@ class Network():
                     if self.debug: print("from %s to %s" % (in_layer_name, layer.name))
                     all_paths = find_all_paths(self, self[in_layer_name], layer)
                     for path in all_paths:
+                        abort_path = False
                         for i in range(len(path) - 1):
+                            if abort_path:
+                                break
                             path_layer = path[i]
                             if (path_layer.name, layer.name) in self.prop_from_dict:
                                 continue
@@ -2550,10 +2553,17 @@ class Network():
                             k = starting_k = keras.layers.Input(path_layer.shape, name=path_layer.name)
                             rest_of_path = path[i + 1:]
                             for rest_of_path_layer in rest_of_path:
+                                if abort_path:
+                                    break
                                 if self.debug: print("      %s to %s" % (path_layer.name, rest_of_path_layer.name))
                                 kfuncs = keras_functions[rest_of_path_layer.name]
                                 for f in kfuncs:
-                                    k = f(k)
+                                    try:
+                                        k = f(k)
+                                    except:
+                                        ## Can't make this pathway; probably a merge
+                                        abort_path = True
+                                        break
                                 ## FIXME: could be multiple paths
                                 self.prop_from_dict[
                                     (path_layer.name, rest_of_path_layer.name)
