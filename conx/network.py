@@ -2491,6 +2491,7 @@ class Network():
         self.prop_from_dict.clear()
         sequence = topological_sort(self, self.layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
+        keras_functions = {}
         for layer in sequence:
             if layer.kind() == 'input':
                 if self.debug: print("making input layer for", layer.name)
@@ -2503,6 +2504,7 @@ class Network():
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
                 kfuncs = layer.make_keras_functions()
+                keras_functions[layer.name] = kfuncs
                 if len(layer.incoming_connections) == 1:
                     if self.debug: print("single input", layer.incoming_connections[0])
                     k = layer.incoming_connections[0].k
@@ -2549,7 +2551,7 @@ class Network():
                             rest_of_path = path[i + 1:]
                             for rest_of_path_layer in rest_of_path:
                                 if self.debug: print("      %s to %s" % (path_layer.name, rest_of_path_layer.name))
-                                kfuncs = rest_of_path_layer.make_keras_functions()
+                                kfuncs = keras_functions[rest_of_path_layer.name]
                                 for f in kfuncs:
                                     k = f(k)
                                 ## FIXME: could be multiple paths
