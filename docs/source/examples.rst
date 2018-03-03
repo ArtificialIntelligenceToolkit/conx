@@ -28,3 +28,4 @@ Examples
    MakingMovies
    PCA
    Utilities
+   Two-Spirals
