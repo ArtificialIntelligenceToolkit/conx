@@ -310,6 +310,7 @@ class Network():
         self._comm = None
         self.model = None
         self.prop_from_dict = {} ## FIXME: can be multiple paths
+        self.keras_functions = {}
         self._svg_counter = 1
         self._need_to_show_headings = True
         self._initialized_javascript = False
@@ -772,6 +773,7 @@ class Network():
         self.history = []
         self.weight_history.clear()
         self.prop_from_dict.clear()
+        self.keras_functions.clear()
         if self.model:
             if "seed" in overrides:
                 self.seed = overrides["seed"]
@@ -2489,9 +2491,9 @@ class Network():
         Construct the layer.k, layer.input_names, and layer.model's.
         """
         self.prop_from_dict.clear()
+        self.keras_functions.clear()
         sequence = topological_sort(self, self.layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
-        keras_functions = {}
         for layer in sequence:
             if layer.kind() == 'input':
                 if self.debug: print("making input layer for", layer.name)
@@ -2504,7 +2506,7 @@ class Network():
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
                 kfuncs = layer.make_keras_functions()
-                keras_functions[layer.name] = kfuncs
+                self.keras_functions[layer.name] = kfuncs
                 if len(layer.incoming_connections) == 1:
                     if self.debug: print("single input", layer.incoming_connections[0])
                     k = layer.incoming_connections[0].k
@@ -2556,7 +2558,7 @@ class Network():
                                 if abort_path:
                                     break
                                 if self.debug: print("      %s to %s" % (path_layer.name, rest_of_path_layer.name))
-                                kfuncs = keras_functions[rest_of_path_layer.name]
+                                kfuncs = self.keras_functions[rest_of_path_layer.name]
                                 for f in kfuncs:
                                     try:
                                         k = f(k)
