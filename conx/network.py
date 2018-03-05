@@ -2654,8 +2654,12 @@ class Network():
                     continue
                 elif anchor:
                     # No need to handle anchors here
-                    # as they occupy no vertical or horizontal space
+                    # as they occupy no vertical space
                     hiding[column] = False
+                    # give it some hspace for this column
+                    # in case there is nothing else in this column
+                    row_width += config["hspace"]
+                    max_width = max(max_width, row_width)
                     continue
                 hiding[column] = False
                 #######################################################################
@@ -2900,7 +2904,7 @@ class Network():
                 if anchor:
                     anchor_name = "%s-%s-anchor%s" % (layer_name, fname, level_num)
                     cwidth += spacing
-                    positioning[anchor_name] = {"x": cwidth, "y": cheight}
+                    positioning[anchor_name] = {"x": cwidth, "y": cheight + row_heights[row]}
                     x1 = cwidth
                     ## now we are at an anchor. Is the thing that it anchors in the
                     ## lower row? level_num is increasing
@@ -2921,6 +2925,13 @@ class Network():
                                                         "arrow_color": config["arrow_color"],
                                                         "tooltip": tooltip
                             }])
+                            struct.append(["line_svg", {"x1":cwidth,
+                                                        "y1":cheight + row_heights[row],
+                                                        "x2":cwidth,
+                                                        "y2":cheight,
+                                                        "arrow_color": config["arrow_color"],
+                                                        "tooltip": tooltip
+                            }])
                         else:
                             ## draw a line to this bank
                             x2 = positioning[layer_name]["x"] + positioning[layer_name]["width"]/2
@@ -2930,6 +2941,13 @@ class Network():
                                                          "y1":cheight,
                                                          "x2":x2,
                                                          "y2":y2,
+                                                         "arrow_color": config["arrow_color"],
+                                                         "tooltip": tooltip
+                            }])
+                            struct.append(["line_svg",  {"x1":cwidth,
+                                                         "y1":cheight + row_heights[row],
+                                                         "x2":cwidth,
+                                                         "y2":cheight,
                                                          "arrow_color": config["arrow_color"],
                                                          "tooltip": tooltip
                             }])

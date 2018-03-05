@@ -12,6 +12,8 @@ import shutil
 
 sys.path.insert(0, os.path.abspath('../..'))
 
+blacklist = ["00_Index.ipynb"]
+
 ## dependencies: get ../../notebooks/*.ipynb files
 
 print("Copying updated ../../notebooks/ files ...")
@@ -19,6 +21,8 @@ print("Copying updated ../../notebooks/ files ...")
 def copyfiles(filenames, destination):
     for filename in filenames:
         path, dst = os.path.split(filename)
+        if dst in blacklist:
+            continue
         dst = os.path.join(destination, dst)
         if os.path.isfile(dst): # dst exists here
             dst_time = os.path.getmtime(dst)

@@ -1903,15 +1903,10 @@ class Experiment():
         """
         Apply a function to experimental runs.
 
-        function() takes either:
-
-            category, network-name, *args, and **kwargs
-
-        or
-
-            category, network, *args, **kwargs
-
-        depending on cache, and returns some results.
+        Arguments:
+            function - takes either: category, network-name, args, and kwargs;
+                or category, network, args, kwargs depending on cache, and
+                returns some results.
         """
         from conx import Network
         results = []

@@ -14,6 +14,7 @@ Examples
    Plotting
    Plot3D
    Autoencoder
+   AliceInWonderland
    Predicting and Generating Texts
    RecommendingMovies
    LSTM
@@ -27,3 +28,4 @@ Examples
    MakingMovies
    PCA
    Utilities
+   Two-Spirals
