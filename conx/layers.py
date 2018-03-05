@@ -46,7 +46,7 @@ from keras.optimizers import (SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nad
 from .utils import *
 
 #------------------------------------------------------------------------
-ON_RTD = False # os.environ.get('READTHEDOCS', None) == 'True'
+ON_RTD = os.environ.get('READTHEDOCS', None) == 'True'
 #------------------------------------------------------------------------
 
 pypandoc = None
