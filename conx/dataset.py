@@ -924,20 +924,32 @@ class Dataset():
 
     def _cache_values(self):
         if len(self.inputs) > 0:
-            self._inputs_range = list(zip([x.min() for x in self._inputs],
-                                          [x.max() for x in self._inputs]))
+            if isinstance(self._inputs[0], (np.ndarray,)):
+                self._inputs_range = list(zip([x.min() for x in self._inputs],
+                                              [x.max() for x in self._inputs]))
+            elif isinstance(self._inputs[0], (list, tuple)):
+                self._inputs_range = list(zip([min(x) for x in self._inputs],
+                                              [max(x) for x in self._inputs]))
+            else: ## assume it is a list of numbers
+                self._inputs_range = list(min(self._inputs), max(self._inputs))
         else:
             self._inputs_range = []
         if len(self.targets) > 0:
-            self._targets_range = list(zip([x.min() for x in self._targets],
-                                           [x.max() for x in self._targets]))
+            if isinstance(self._targets[0], (np.ndarray,)):
+                self._targets_range = list(zip([x.min() for x in self._targets],
+                                               [x.max() for x in self._targets]))
+            elif isinstance(self._targets[0], (list, tuple)):
+                self._targets_range = list(zip([min(x) for x in self._targets],
+                                               [max(x) for x in self._targets]))
+            else: ## assume it is a list of numbers
+                self._targets_range = list(min(self._targets), max(self._targets))
         else:
             self._targets_range = []
         ## Set shape cache:
         if len(self._inputs) > 0:
-            self._input_shapes = [x[0].shape for x in self._inputs]
+            self._input_shapes = [shape(x[0]) for x in self._inputs]
         if len(self._targets) > 0:
-            self._target_shapes = [x[0].shape for x in self._targets]
+            self._target_shapes = [shape(x[0]) for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
             print("WARNING: inputs/targets lengths do not match", file=sys.stderr)
