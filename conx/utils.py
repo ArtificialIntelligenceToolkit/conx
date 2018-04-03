@@ -694,18 +694,18 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
         minmax[1] = math.ceil(minmax[1])
     if shape is not None:
         array = array.reshape(shape)
-    if colormap is not None:
-        try:
-            cm_hot = cm.get_cmap(colormap)
-            array = cm_hot(array)
-        except:
-            pass
     array = rescale_numpy_array(array, minmax, (0,255), 'uint8',
                                 truncate=True)
     if len(array.shape) == 3 and array.shape[-1] == 1:
         array = array.reshape((array.shape[0], array.shape[1]))
     elif len(array.shape) == 1:
         array = np.array([array])
+    if colormap is not None:
+        try:
+            cm_hot = cm.get_cmap(colormap)
+            array = cm_hot(array)
+        except:
+            pass
     image = PIL.Image.fromarray(array)
     if scale != 1.0:
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
@@ -904,8 +904,8 @@ def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
         else:
             raise Exception('array values are outside range %s' % (old_range,))
     new_min, new_max = new_range
-    old_delta = old_max - old_min
-    new_delta = new_max - new_min
+    old_delta = float(old_max - old_min)
+    new_delta = float(new_max - new_min)
     if old_delta == 0:
         return ((a - old_min) + (new_min + new_max)/2).astype(new_dtype)
     else:
