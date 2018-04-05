@@ -891,6 +891,22 @@ def valid_vshape(x):
     # vshape must be a single int or a 2-dimensional tuple
     return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) == 2)
 
+def scale(a, new_range=(0,1), new_dtype="float", truncate=True):
+    """
+    Given a vector or matrix, scale it to new_range.
+
+    >>> import sys
+    >>> results = scale([-1, 0, 1])
+    >>> results[0] - 0.0 < sys.float_info.epsilon
+    True
+    >>> results[1] - 0.5 < sys.float_info.epsilon
+    True
+    >>> results[2] - 1.0 < sys.float_info.epsilon
+    True
+    """
+    a = np.array(a)
+    return rescale_numpy_array(a, (a.min(), a.max()), new_range, new_dtype, truncate).tolist()
+
 def rescale_numpy_array(a, old_range, new_range, new_dtype, truncate=False):
     """
     Given a numpy array, old min/max, a new min/max and a numpy type,
