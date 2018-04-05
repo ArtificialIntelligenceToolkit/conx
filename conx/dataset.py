@@ -738,7 +738,15 @@ class Dataset():
         if pairs is None:
             raise Exception("you need to call with pairs or with input/targets")
         ## first we check the form of the inputs and targets:
-        if len(pairs) == 0:
+        try:
+            length = len(pairs)
+        except:
+            try:
+                pairs = [_ for _ in pairs]
+                length = len(pairs)
+            except:
+                raise Exception("pairs should be a sequence, zip, or generator")
+        if length == 0:
             raise Exception("need more than zero pairs of inputs/targets")
         for pair in pairs:
             if len(pair) not in [2, 3]:
