@@ -21,8 +21,9 @@ import numbers
 import PIL
 import base64
 import itertools
+import functools
+import operator
 import io
-import os
 import numpy as np
 from keras.utils import to_categorical
 import keras
@@ -163,6 +164,26 @@ def is_array_like(item):
             (hasattr(item, "__getitem__") or
              hasattr(item, "__iter__")))
 
+def find_factors(n):
+    """
+    Find the integer factors of n.
+    """
+    return set(functools.reduce(
+        operator.add,
+        ([i, n//i] for i in range(1, int(pow(n, 0.5) + 1)) if n % i == 0)))
+
+def find_dimensions(n):
+    """
+    Find the best (most square) dimensions of n.
+    """
+    if n == 0:
+        return (0, 0)
+    factors = find_factors(n)
+    sqrt = int(pow(n, 0.5))
+    d1 = n // sqrt
+    d2 = math.ceil(n / d1)
+    return sorted([d1, d2])
+
 def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, title=None):
     """
     View a list of images.
@@ -174,14 +195,25 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, titl
         spacing (float) - space between images. Default: 0.1
         scale (float) - size of entire resulting image. Default: 1
         title (str) - optional title for console window.
+
+    layout (rows, cols) can be:
+        * None - find square-ish dimensions automatically
+        * (int, int) - set the layout; if more than can fit, don't show them
+        * (None, int) - determine rows automatically
+        * (int, None) - determine cols automatically
+
     """
     if not 0 <= spacing <= 1:
         print("spacing must be between 0 and 1")
         return
     if not scale > 0:
         print("scale must be > 0")
-    if layout is None:
-        layout = (1, len(images))
+    if layout is None or layout == (None, None):
+        layout = find_dimensions(len(images))
+    if layout[0] is None:
+        layout = (math.ceil(len(images)/layout[1]), layout[1])
+    elif layout[1] is None:
+        layout = (layout[0], math.ceil(len(images)/layout[0]))
     rows, cols = layout
     border = spacing / max(rows, cols)
     fig, axes = plt.subplots(rows, cols, squeeze=False,
