@@ -307,6 +307,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
     * PIL.Image
     * list of PIL.images
     * Image filename (png or jpg)
+    * array (to be converted via array_to_image)
 
     For more information on each option, see:
 
@@ -314,7 +315,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
     * view_svg
     * view_image
     * view_image_list
-
+    * array_to_image
     """
     from IPython.display import Image, HTML, SVG
     from conx import Network
@@ -350,8 +351,10 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
         elif isinstance(item[0], SVG):
             images = [svg_to_image(svg.data) for svg in item]
             return view_image_list(images, title=title, scale=scale, **kwargs)
-        else: ## assume that it is some numbers
-            return view_image(array_to_image(item), title=title, scale=scale)
+        else:
+            print("I don't know how to view this item")
+    elif isinstance(item, (np.ndarray,)):
+        return view_image(array_to_image(item), title=title, scale=scale)
     else:
         print("I don't know how to view this item")
 
@@ -682,6 +685,8 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
     ...      0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
     >>> array_to_image(m, shape=(2, 2, 3))       # doctest: +ELLIPSIS
     <PIL.Image.Image image mode=RGB size=2x2 at ...>
+    >>> array_to_image(m, shape=(2, 2, 3), colormap="bone")       # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGB size=2x2 at ...>
     """
     from matplotlib import cm
     array = np.array(array) # let's make sure
@@ -700,13 +705,13 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
         array = array.reshape((array.shape[0], array.shape[1]))
     elif len(array.shape) == 1:
         array = np.array([array])
+    image = PIL.Image.fromarray(array)
     if colormap is not None:
         try:
             cm_hot = cm.get_cmap(colormap)
-            array = cm_hot(array)
+            image = cm_hot(image)
         except:
             pass
-    image = PIL.Image.fromarray(array)
     if scale != 1.0:
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
     if image.mode not in ["RGB", "RGBA"]:

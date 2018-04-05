@@ -1090,7 +1090,7 @@ class Network():
             return # nothing to test
         for index in range(len(self.dataset._targets)):
             if len(self.dataset._targets[index].shape) > 2:
-                print("WARNING: network '%s' target bank #%s has a multi-dimensional shape, which is not allowed" %
+                print("WARNING: network '%s' target bank #%s has a multi-dimensional shape; is this correct?" %
                       (self.name, index), file=sys.stderr)
         for index in range(len(self.output_bank_order)):
             layer_name = self.output_bank_order[index]
