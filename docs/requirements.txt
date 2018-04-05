@@ -4,7 +4,7 @@ matplotlib
 ipywidgets>=7.0
 Pillow
 IPython
-tensorflow
+tensorflow<=1.4.0
 theano
 pypandoc
 sphinx_rtd_theme

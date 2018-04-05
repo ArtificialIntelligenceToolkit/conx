@@ -1454,6 +1454,35 @@ def scatter(data=[], width=6.0, height=6.0, xlabel="", ylabel="", title="", labe
             raise Exception("format must be None, 'svg', or 'image'")
     return result
 
+def scatter_images(images, xy, size=(800,800), scale=1.0):
+    """
+    Create a scatter plot of images.
+
+    Takes a list of images, a list of (x,y) coordinates between 0 and
+    1. Returns an image the size of size. Make the scale bigger or
+    smaller to show more images.
+
+    >>> scatter_images([array_to_image([[1]])], [(0.5, 0.5)]) # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGBA size=800x800 at ...>
+    """
+    def binify(pos, length, chunk):
+        """
+        Given position, length, and chunk size, return the bin.
+        """
+        x = int(pos * (length / chunk)) * chunk
+        return x
+
+    psize = images[0].resize((int(images[0].size[0] * scale),
+                              int(images[0].size[1] * scale))).size
+    background = PIL.Image.new('RGBA', size, (255, 255, 255, 255))
+    for i in range(len(images)):
+        img = images[i].resize((int(images[i].size[0] * scale),
+                                int(images[i].size[1] * scale)))
+        pos = xy[i]
+        background.paste(img, (binify(pos[0], size[0], psize[0]),
+                               size[1] - binify(pos[1], size[1], psize[1])))
+    return background
+
 def gif2mp4(filename):
     """
     Convert an animated gif into a mp4, to show with controls.
@@ -1545,7 +1574,7 @@ class PCA():
         """
         vectors_prime = self.pca.transform(vectors)
         if scale:
-            return np.array([self.scale(v) for v in vectors])
+            return np.array([self.scale(v) for v in vectors_prime])
         else:
             return vectors_prime
 
@@ -1611,8 +1640,9 @@ class PCA():
         """
         vector = np.array(ovector)
         for i in range(len(vector)):
-            span = (self.maxs[i] - self.mins[i])
-            vector[i] = (vector[i] - self.mins[i]) / span
+            if i in self.maxs:
+                span = (self.maxs[i] - self.mins[i])
+                vector[i] = (vector[i] - self.mins[i]) / span
         return vector
 
 def get_symbol(label: str, symbols: dict=None, default='o') -> str:

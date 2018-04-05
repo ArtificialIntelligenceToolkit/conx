@@ -1,12 +1,41 @@
 # Changelog
 
-## 3.6.2 
+## 3.6.5
+
+UnReleased
+
+* Removed examples; use notebooks or help instead
+* cx.view_image_list() can have layout=None, (int, None), or (None, int)
+* Added cx.scale(vector, range, dtype, truncate)
+* Added cx.scatter_images(images, xys) - creates scatter plot of images
+* Fixed pca.translate(scale=SCALE) bug
+* downgrade tensorflow on readthedocs because memory hog kills build
+
+## 3.6.4
+
+Released Thur April 5, 2018
+
+* changed "not allowed" warning on multi-dim outputs to
+  "are you sure?"
+* fix colormap on array_to_image; added tests
+* fix cx.view(array)
+* Allow dataset to load generators, zips, etc.
+
+## 3.6.3
+
+Released Tue April 3, 2018
+
+* Two fixes for array_to_image: div by float; move cmap conversion to end
+* Protection for list/array for range and shape
+* from kmader: Adding jyro to binder requirements
+
+## 3.6.2
 
 Released Tue March 6, 2018
 
 * added raw=False to conx.utilities image_to_array(), frange(), and reshape()
 
-## 3.6.1 
+## 3.6.1
 
 Released Mon March 5, 2018
 
@@ -30,7 +59,7 @@ Released Mon March 5, 2018
 * fixed bugs in net.get_weights()/set_weights()
 * added network.propagate_to_image(feature=NUM)
 
-## 3.6.0 
+## 3.6.0
 
 Released Mon Feb 12, 2018. Initial released version recommended for daily use.
 
