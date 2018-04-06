@@ -2,7 +2,7 @@
 
 ## 3.6.5
 
-UnReleased
+Released Fri April 6, 2018
 
 * Removed examples; use notebooks or help instead
 * cx.view_image_list() can have layout=None, (int, None), or (None, int)
