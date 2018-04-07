@@ -477,9 +477,6 @@ def download(url, directory="./", force=False, unzip=True, filename=None):
     result = urlparse(url)
     if filename is None:
         filename = result.path.split("/")[-1]
-    elif "/" in filename:
-        subdirs, _ = filename.rsplit("/", 1)
-        os.makedirs(subdirs, exist_ok=True)
     file_path = os.path.join(directory, filename)
     ## First, download the file:
     if not os.path.isfile(file_path) or force:
