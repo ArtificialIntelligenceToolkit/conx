@@ -25,7 +25,9 @@ manipulating a set of inputs/targets.
 import numpy as np
 import copy, numbers, inspect, sys
 from IPython.display import display
+from functools import reduce
 import types
+import operator
 
 from .utils import *
 import conx.datasets
@@ -180,12 +182,134 @@ class DataVector():
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
+    def delete_bank(self, position):
+        """
+        Delete a bank of inputs, targets, or labels.
+
+
+        >>> ds = Dataset()
+        >>> ds.load(inputs=[[0, 0]], targets=[[0, 0, 0]], labels=["zero"])
+        >>> ds.inputs.append_bank(4)
+        >>> ds.targets.append_bank(5)
+        >>> ds.labels.append_bank(10)
+
+        >>> ds.inputs.delete_bank(0)
+        >>> ds.targets.delete_bank(0)
+        >>> ds.labels.delete_bank(0)
+        """
+        if self.item == "targets":
+            del self.dataset._targets[position]
+        elif self.item == "inputs":
+            del self.dataset._inputs[position]
+        elif self.item == "labels":
+            del self.dataset._labels[position]
+        else:
+            raise Exception("remove_bank can only be applied to targets, inputs, and labels")
+        self.dataset._cache_values()
+
+    def append_bank(self, shape=None, dtype=None):
+        """
+        Add a new bank of inputs, targets, or labels with given shape.
+
+        For labels, shape is max length of any string in bank. dtype is
+        str for labels.
+
+        For inputs and targets, shape is shape of tensor. dtype is
+        'float32' by default.
+
+        Note:
+            labels and targets should have the same number of banks.
+
+        >>> ds = Dataset()
+        >>> ds.load(inputs=[[0,0], [1,1]], targets=[[0,0,0], [1,1,1]], labels=["zero", "one"])
+        >>> ds.inputs.append_bank(4)
+        >>> ds.inputs.shape
+        [(2,), (4,)]
+        >>> ds.targets.append_bank(5)
+        >>> ds.targets.shape
+        [(3,), (5,)]
+        >>> ds.labels.append_bank(1)
+        >>> ds.labels[0]
+        ['zero', ' ']
+        >>> ds.labels[1]
+        ['one', ' ']
+        """
+        if self.item == "targets":
+            if shape is not None:
+                if isinstance(shape, int):
+                    shape = [shape]
+            size = reduce(operator.mul, shape) * len(self.dataset)
+            new_shape = [len(self.dataset)] + list(shape)
+            dtype = 'float32' if dtype is None else dtype
+            array = np.array([0 for i in range(size)], dtype=dtype)
+            array = array.reshape(new_shape)
+            self.dataset._targets.append(array)
+        elif self.item == "inputs":
+            if shape is not None:
+                if isinstance(shape, int):
+                    shape = [shape]
+            size = reduce(operator.mul, shape) * len(self.dataset)
+            new_shape = [len(self.dataset)] + list(shape)
+            dtype = 'float32' if dtype is None else dtype
+            array = np.array([0 for i in range(size)], dtype=dtype)
+            array = array.reshape(new_shape)
+            self.dataset._inputs.append(array)
+        elif self.item == "labels":
+            if shape is None:
+                raise Exception("labels must have a maximum length of string for bank given as 'shape'")
+            size = len(self.dataset)
+            array = np.array([(" " * shape) for i in range(size)], dtype='str')
+            self.dataset._labels.append(array)
+        else:
+            raise Exception("append_bank can only be applied to targets, inputs, and labels")
+        self.dataset._cache_values()
+
     def __setitem__(self, pos, value):
         """
-        Assigning a value is not permitted.
+        Set the position in the inputs, targets, or label to a new value
+        (tensor, or string).
         """
-        raise Exception("setting value in a dataset is not permitted;" +
-                        " you'll have to recreate the dataset and re-load")
+        if self.item == "targets":
+            if isinstance(pos, slice):
+                for i in range(len(self.dataset.targets))[pos]:
+                    self.targets[i] = value
+            elif isinstance(pos, (list, tuple)):
+                for i in pos:
+                    self.targets[i] = value
+            else:
+                if self.dataset._num_target_banks() == 1:
+                    self.dataset._targets[0][pos] = np.array(value)
+                else:
+                    for bank in range(self.dataset._num_target_banks()):
+                        self.dataset._targets[bank][pos] = np.array(value[bank])
+        elif self.item == "inputs":
+            if isinstance(pos, slice):
+                for i in range(len(self.dataset.inputs))[pos]:
+                    self.inputs[i] = value
+            elif isinstance(pos, (list, tuple)):
+                for i in pos:
+                    self.inputs[i] = value
+            else:
+                if self.dataset._num_input_banks() == 1:
+                    self.dataset._inputs[0][pos] = np.array(value)
+                else:
+                    for bank in range(self.dataset._num_input_banks()):
+                        self.dataset._inputs[bank][pos] = np.array(value[bank])
+        elif self.item == "labels":
+            if isinstance(pos, slice):
+                for i in range(len(self.dataset.targets))[pos]:
+                    self.labels[i] = value
+            elif isinstance(pos, (list, tuple)):
+                for i in pos:
+                    self.labels[i] = value
+            else:
+                if self.dataset._num_target_banks() == 1:
+                    self.dataset._labels[0][pos] = value
+                else:
+                    for bank in range(self.dataset._num_target_banks()):
+                        self.dataset._labels[bank][pos] = value[bank]
+        else:
+             raise Exception("unknown vector: %s, should be inputs, targets, or labels" % (self.item,))
 
     def get_shape(self, bank_index=None):
         """
@@ -846,11 +970,11 @@ class Dataset():
         Can be called on the Dataset class.
 
         >>> len(Dataset.datasets())
-        9
+        10
 
         >>> ds = Dataset()
         >>> len(ds.datasets())
-        9
+        10
         """
         if self is None:
             self = Dataset()
@@ -1280,11 +1404,14 @@ class Dataset():
         Get an input from the internal dataset and
         format it in the human API.
         """
+        class DataVectorTopList(list):
+            def __setitem__(self, pos, value):
+                raise Exception("cannot assign to DataVector[item][position]; assign instead to DataVector[item]")
         size = self._get_size()
         if not 0 <= i < size:
             raise Exception("input index %d is out of bounds" % (i,))
         else:
-            data = [self._tolist(self._inputs[b][i], "inputs", b) for b in range(self._num_input_banks())]
+            data = DataVectorTopList([self._tolist(self._inputs[b][i], "inputs", b) for b in range(self._num_input_banks())])
         if self._num_input_banks() == 1:
             return data[0]
         else:
@@ -1299,6 +1426,9 @@ class Dataset():
                 self.network = network
                 self.item = item
                 self.bank = bank
+
+            def __setitem__(self, pos, value):
+                raise Exception("cannot assign to DataVector[item][position]; assign instead to DataVector[item]")
 
             def _repr_image_(self):
                 if self.network:

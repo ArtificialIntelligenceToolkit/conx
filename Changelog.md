@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.6.6
+
+Released Fri April 13, 2018
+
+* Added cx.view_image_list(pivot) - rotates list and layout
+* Added colors dataset
+* Added Dataset.delete_bank(), Dataset.append_bank()
+* Added Dataset.ITEM[V] = value
+	
 ## 3.6.5
 
 Released Fri April 6, 2018

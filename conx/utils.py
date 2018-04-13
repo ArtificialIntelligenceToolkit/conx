@@ -184,7 +184,8 @@ def find_dimensions(n):
     d2 = math.ceil(n / d1)
     return sorted([d1, d2])
 
-def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, title=None):
+def view_image_list(images, labels=None, layout=None, spacing=0.1,
+                    scale=1, title=None, pivot=False):
     """
     View a list of images.
 
@@ -195,6 +196,7 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, titl
         spacing (float) - space between images. Default: 0.1
         scale (float) - size of entire resulting image. Default: 1
         title (str) - optional title for console window.
+        pivot (bool) - rotates layout of images
 
     layout (rows, cols) can be:
         * None - find square-ish dimensions automatically
@@ -216,6 +218,8 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, titl
         layout = (layout[0], math.ceil(len(images)/layout[0]))
     rows, cols = layout
     border = spacing / max(rows, cols)
+    if pivot:
+        rows, cols = cols, rows
     fig, axes = plt.subplots(rows, cols, squeeze=False,
                              figsize=(cols*scale, rows*scale),
                              num=title,
@@ -231,15 +235,26 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1, scale=1, titl
     rows, cols = axes.shape
     for ax in axes.reshape(axes.size):
         ax.axis('off')
-    for r in range(rows):
+    if pivot:
         for c in range(cols):
-            if k >= len(images):
-                plt.show(block=False)
-                return  # no more images to display
-            axes[r][c].imshow(images[k])
-            if labels:
-                axes[r][c].set_title(labels[k])
-            k += 1
+            for r in range(rows):
+                if k >= len(images):
+                    plt.show(block=False)
+                    return  # no more images to display
+                axes[r][c].imshow(images[k])
+                if labels:
+                    axes[r][c].set_title(labels[k])
+                k += 1
+    else:
+        for r in range(rows):
+            for c in range(cols):
+                if k >= len(images):
+                    plt.show(block=False)
+                    return  # no more images to display
+                axes[r][c].imshow(images[k])
+                if labels:
+                    axes[r][c].set_title(labels[k])
+                k += 1
     plt.show(block=False)
     if k < len(images):
         print("WARNING: could not view all images with layout %s" % (layout,), file=sys.stderr)
