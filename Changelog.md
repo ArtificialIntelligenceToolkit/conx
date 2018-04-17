@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.6.7
+
+Released Tue April 17, 2018
+
+* Fixed bug in building hidden -> output intermediate models
+
 ## 3.6.6
 
 Released Fri April 13, 2018

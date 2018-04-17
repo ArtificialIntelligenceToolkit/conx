@@ -2540,10 +2540,8 @@ class Network():
                     if self.debug: print("from %s to %s" % (in_layer_name, layer.name))
                     all_paths = find_all_paths(self, self[in_layer_name], layer)
                     for path in all_paths:
-                        abort_path = False
                         for i in range(len(path) - 1):
-                            if abort_path:
-                                break
+                            abort_path = False
                             path_layer = path[i]
                             if (path_layer.name, layer.name) in self.prop_from_dict:
                                 continue
