@@ -586,6 +586,8 @@ class Network():
         self.config["svg_scale"] = scale
         if minmax:
             self.layers[0].minmax = minmax
+        elif len(self.dataset) == 0:
+            self.layers[0].minmax = (minimum(inputs), maximum(inputs))
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
         self.config["svg_rotate"] = orig_rotate
         self.config["show_errors"] = orig_show_errors
