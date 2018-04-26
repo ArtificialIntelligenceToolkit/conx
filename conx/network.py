@@ -23,6 +23,7 @@ The network module contains the code for the Network class.
 
 import collections
 import operator
+import inspect
 from functools import reduce
 import signal
 import string
@@ -49,6 +50,7 @@ import keras.backend as K
 from .utils import *
 from .layers import Layer
 from .dataset import Dataset
+import conx.networks
 
 try:
     from IPython import get_ipython
@@ -269,6 +271,8 @@ class Network():
 
     def __init__(self, name: str, *sizes: int, load_config=True, debug=False,
                  build_propagate_from_models=True, **config: Any):
+        self.NETWORKS = {name: function for (name, function) in
+                         inspect.getmembers(conx.networks, inspect.isfunction)}
         if not isinstance(name, str):
             raise Exception("first argument should be a name for the network")
         self.debug = debug
@@ -410,6 +414,31 @@ class Network():
     def __repr__(self):
         return "<Network name='%s' (%s)>" % (
             self.name, ("uncompiled" if not self.model else "compiled"))
+
+    def networks(self=None):
+        """
+        Returns the list of pre-made networks.
+
+        >>> len(Network.networks())
+        1
+
+        >>> net = Network("Test Me")
+        >>> len(net.networks())
+        1
+        """
+        if self is None:
+            self = Network("Temp")
+        return sorted(self.NETWORKS.keys())
+
+    @classmethod
+    def get(cls, network_name, *args, **kwargs):
+        self = cls("Temp")
+        if network_name.lower() in self.NETWORKS:
+            return self.NETWORKS[network_name.lower()](*args, **kwargs)
+        else:
+            raise Exception(
+                ("unknown network name '%s': should be one of %s" %
+                 (network_name, list(self.NETWORKS.keys()))))
 
     def set_weights_from_history(self, index, epochs=None):
         """

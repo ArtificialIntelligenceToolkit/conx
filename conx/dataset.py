@@ -23,7 +23,10 @@ manipulating a set of inputs/targets.
 """
 
 import numpy as np
-import copy, numbers, inspect, sys
+import copy
+import numbers
+import inspect
+import sys
 from IPython.display import display
 from functools import reduce
 import types
