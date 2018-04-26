@@ -1075,11 +1075,7 @@ def import_keras_model(model, network_name):
     for clayer in network.layers:
         clayer.input_names = network.input_bank_order
     # Finally, make the internal models:
-    for clayer in network.layers:
-        ## FIXME: the appropriate inputs:
-        if clayer.kind() != "input":
-            clayer.model = keras.models.Model(inputs=model.layers[0].input,
-                                              outputs=clayer.keras_layer.output)
+    network._build_intermediary_models()
     return network
 
 def movie(function, movie_name="movie.gif", play_range=None,
