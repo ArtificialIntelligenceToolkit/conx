@@ -555,7 +555,7 @@ class Network():
 
     def picture(self, inputs=None, dynamic=False, rotate=False, scale=None,
                 show_errors=False, show_targets=False, format="html", class_id=None,
-                **kwargs):
+                minmax=None, **kwargs):
         """
         Create an SVG of the network given some inputs (optional).
 
@@ -579,15 +579,19 @@ class Network():
         orig_show_errors = self.config["show_errors"]
         orig_show_targets = self.config["show_targets"]
         orig_svg_scale = self.config["svg_scale"]
+        orig_minmax = self.layers[0].minmax
         self.config["svg_rotate"] = rotate
         self.config["show_errors"] = show_errors
         self.config["show_targets"] = show_targets
         self.config["svg_scale"] = scale
+        if minmax:
+            self.layers[0].minmax = minmax
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
         self.config["svg_rotate"] = orig_rotate
         self.config["show_errors"] = orig_show_errors
         self.config["show_targets"] = orig_show_targets
         self.config["svg_scale"] = orig_svg_scale
+        self.layers[0].minmax = orig_minmax
         if format == "html":
             return HTML(svg)
         elif format == "svg":
