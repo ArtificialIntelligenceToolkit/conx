@@ -420,11 +420,11 @@ class Network():
         Returns the list of pre-made networks.
 
         >>> len(Network.networks())
-        1
+        2
 
         >>> net = Network("Test Me")
         >>> len(net.networks())
-        1
+        2
         """
         if self is None:
             self = Network("Temp")

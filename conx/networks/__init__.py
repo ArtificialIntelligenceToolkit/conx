@@ -3,4 +3,4 @@
 ## All modules must be named differently from their functions!
 ## Otherwise, confuses tools like nose, inspect, etc.
 
-from ._vgg16 import vgg16
+from ._keras import vgg16, vgg19
