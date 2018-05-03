@@ -339,7 +339,7 @@ class _BaseLayer():
         vector = scale_output_for_image(vector, self.get_act_minmax(), truncate=True)
         if len(vector.shape) == 1:
             vector = vector.reshape((1, vector.shape[0]))
-        size = config["pixels_per_unit"]
+        size = config.get("pixels_per_unit",1)
         new_width = vector.shape[0] * size # in, pixels
         new_height = vector.shape[1] * size # in, pixels
         if colormap is None:
@@ -370,7 +370,7 @@ class _BaseLayer():
             image = PIL.Image.fromarray(vector)
             image = image.resize((new_height, new_width))
         ## If rotated, and has features, rotate it:
-        if config["svg_rotate"]:
+        if config.get("svg_rotate", False):
             output_shape = self.get_output_shape()
             if ((isinstance(output_shape, tuple) and len(output_shape) >= 3) or
                 (self.vshape is not None and len(self.vshape) == 2)):
@@ -405,7 +405,7 @@ class _BaseLayer():
                 return in_layer.get_act_minmax()
             elif self.kind() == "input":
                 ## try to get from dataset
-                if self.network and self.network.dataset:
+                if self.network and len(self.network.dataset) > 0:
                     bank_idx = self.network.input_bank_order.index(self.name)
                     return self.network.dataset._inputs_range[bank_idx]
                 else:
@@ -460,7 +460,7 @@ class _BaseLayer():
         else:
             retval += "\n Keras class = %s" % self.CLASS.__name__
         for key in self.params:
-            if key in ["name"]:
+            if key in ["name"] or self.params[key] is None:
                 continue
             retval += "\n %s = %s" % (key, html.escape(str(self.params[key])))
         return retval
@@ -604,10 +604,9 @@ class ImageLayer(Layer):
                           self.dimensions[1],
                           self.depth)
         image = PIL.Image.fromarray(v)
-        if config["svg_rotate"]:
+        if config.get("svg_rotate", False):
             image = image.rotate(90, expand=1)
         return image
-
 
 class AddLayer(_BaseLayer):
     """

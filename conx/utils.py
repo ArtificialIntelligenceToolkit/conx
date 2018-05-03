@@ -693,6 +693,16 @@ def crop_image(image, x1, y1, x2, y2):
     from PIL import Image
     return image.crop((x1, y1, x2, y2))
 
+def image(item, resize=None):
+    """
+    Convert item into an image.
+    """
+    if isinstance(item, str):
+        image = PIL.Image.open(item)
+    if resize is not None:
+        image = image.resize(resize)
+    return image
+
 def image_to_array(image, resize=None, raw=False):
     """
     Convert an image filename or PIL.Image into a matrix (list of

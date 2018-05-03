@@ -30,8 +30,29 @@ def vgg16(*args, **kwargs):
         cache_subdir='models',
         file_hash='64373286793e3c8b2b4e3219cbf3544b')
     network.load_weights(*weights_path.rsplit("/", 1))
+    network.config["hspace"] = 200
     network.preprocess = vgg_preprocess
     network.postprocess = vgg_decode
+    network.information = """
+This network architecture comes from the paper:
+
+Very Deep Convolutional Networks for Large-Scale Image Recognition
+by Karen Simonyan and Andrew Zisserman.
+
+Their network was trained on the ImageNet challenge dataset.
+The dataset contains 32,326 images broken down into 1,000 categories.
+
+The network was trained for 74 epochs on the training data. This typically
+took 3 to 4 weeks time on a computer with 4 GPUs. This network's weights were
+converted from the original Caffe model into Keras.
+
+Sources:
+   * https://arxiv.org/pdf/1409.1556.pdf
+   * http://www.robots.ox.ac.uk/~vgg/research/very_deep/
+   * http://www.image-net.org/challenges/LSVRC/
+      * http://image-net.org/challenges/LSVRC/2014/
+      * http://image-net.org/challenges/LSVRC/2014/browse-synsets
+"""
     return network
 
 def vgg19(*args, **kwargs):
@@ -47,7 +68,27 @@ def vgg19(*args, **kwargs):
         cache_subdir='models',
         file_hash='253f8cb515780f3b799900260a226db6')
     network.load_weights(*weights_path.rsplit("/", 1))
+    network.config["hspace"] = 200
     network.preprocess = vgg_preprocess
     network.postprocess = vgg_decode
-    return network
+    network.information = """
+This network architecture comes from the paper:
 
+Very Deep Convolutional Networks for Large-Scale Image Recognition
+by Karen Simonyan and Andrew Zisserman.
+
+Their network was trained on the ImageNet challenge dataset.
+The dataset contains 32,326 images broken down into 1,000 categories.
+
+The network was trained for 74 epochs on the training data. This typically
+took 3 to 4 weeks time on a computer with 4 GPUs. This network's weights were
+converted from the original Caffe model into Keras.
+
+Sources:
+   * https://arxiv.org/pdf/1409.1556.pdf
+   * http://www.robots.ox.ac.uk/~vgg/research/very_deep/
+   * http://www.image-net.org/challenges/LSVRC/
+      * http://image-net.org/challenges/LSVRC/2014/
+      * http://image-net.org/challenges/LSVRC/2014/browse-synsets
+"""
+    return network

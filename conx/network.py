@@ -282,6 +282,7 @@ class Network():
         if not isinstance(name, str):
             raise Exception("conx layers need a name as a first parameter")
         self._check_network_name(name)
+        self.information = None
         self.name = name
         if "seed" in config:
             seed = config["seed"]
@@ -328,6 +329,28 @@ class Network():
         # Connect them together:
         for i in range(len(sizes) - 1):
             self.connect(autoname(i, len(sizes)), autoname(i+1, len(sizes)))
+
+    def info(self):
+        """
+        Get information about the network.
+        """
+        class NetworkInformation():
+            def __init__(self, net):
+                self.net = net
+            def __repr__(self):
+                return self.make_info()
+            def _repr_markdown_(self):
+                return self.make_info()
+            def make_info(self):
+                retval = ""
+                retval += "**Network**: %s\n\n" % self.net.name
+                retval += "   * **Status**: %s \n" % ("uncompiled" if not self.net.model else "compiled")
+                retval += "   * **Layers**: %s \n" % len(self.net.layers)
+                if self.net.information is not None:
+                    retval += self.net.information
+                    retval += "\n"
+                return retval
+        return display(NetworkInformation(self))
 
     def reset_config(self):
         """
@@ -559,12 +582,27 @@ class Network():
         """
         Create an SVG of the network given some inputs (optional).
 
-        >>> net = Network("Picture", 2, 2, 1)
-        >>> net.compile(error="mse", optimizer="adam")
-        >>> net.picture([.5, .5])
-        <IPython.core.display.HTML object>
-        >>> net.picture([.5, .5], dynamic=True)
-        <IPython.core.display.HTML object>
+        Arguments:
+            inputs: input values to propagate
+            dynamic (bool): if True, the picture will update with
+                propagations(update_picture=True)
+            rotate (bool): rotate picture to horizontal
+            scale (float): scale the picture
+            show_errors (bool): show the errors in resulting picture
+            show_targets (bool): show the targets in resulting picture
+            format (str): "html", "image", or "svg"
+            class_id (str): id for dynamic updates
+            minmax (tuple): provide override for input range (layer 0 only)
+
+        Examples:
+            >>> net = Network("Picture", 2, 2, 1)
+            >>> net.compile(error="mse", optimizer="adam")
+            >>> net.picture()
+            <IPython.core.display.HTML object>
+            >>> net.picture([.5, .5])
+            <IPython.core.display.HTML object>
+            >>> net.picture([.5, .5], dynamic=True)
+            <IPython.core.display.HTML object>
         """
         from IPython.display import HTML
         if any([(layer.kind() == "unconnected") for layer in self.layers]) or len(self.layers) == 0:
@@ -586,8 +624,9 @@ class Network():
         self.config["svg_scale"] = scale
         if minmax:
             self.layers[0].minmax = minmax
-        elif len(self.dataset) == 0:
+        elif len(self.dataset) == 0 and inputs is not None:
             self.layers[0].minmax = (minimum(inputs), maximum(inputs))
+        ## else, leave minmax as None
         svg = self.to_svg(inputs=inputs, class_id=class_id, **kwargs)
         self.config["svg_rotate"] = orig_rotate
         self.config["show_errors"] = orig_show_errors
@@ -1849,12 +1888,11 @@ class Network():
         retval = """<table><tr>"""
         if self._layer_has_features(layer_name):
             if html:
-                orig_feature = self[layer_name].feature
-                for i in range(output_shape[3]):
-                    self[layer_name].feature = i
-                    ## This should return in proper orientation, regardless of rotate setting:
-                    image = self.propagate_to_image(layer_name, inputs, class_id=class_id,
-                                                    update_pictures=update_pictures, raw=raw)
+                outputs = np.array(self.propagate_to(layer_name, inputs))
+                ## move the channel to first index:
+                outputs = np.moveaxis(outputs, -1, 0)
+                for i in range(outputs.shape[0]):
+                    image = self[layer_name].make_image(outputs[i])
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1865,7 +1903,6 @@ class Network():
                     if (i + 1) % cols == 0:
                         retval += """</tr><tr>"""
                 retval += "</tr></table>"
-                self[layer_name].feature = orig_feature
                 if display:
                     return HTML(retval)
                 else:
