@@ -29,3 +29,4 @@ Examples
    PCA
    Utilities
    Two-Spirals
+   VGG16 and ImageNet
