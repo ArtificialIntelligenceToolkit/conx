@@ -44,6 +44,8 @@ AVAILABLE_COLORMAPS = sorted(list(plt.cm.cmap_d.keys()))
 CURRENT_COLORMAP = "seismic_r"
 ERROR_COLORMAP = "seismic_r"
 
+array = np.array
+
 def set_colormap(s):
     """
     Set the global colormap for displaying all network activations.
@@ -757,19 +759,26 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
         minmax[1] = math.ceil(minmax[1])
     if shape is not None:
         array = array.reshape(shape)
-    array = rescale_numpy_array(array, minmax, (0,255), 'uint8',
-                                truncate=True)
     if len(array.shape) == 3 and array.shape[-1] == 1:
         array = array.reshape((array.shape[0], array.shape[1]))
     elif len(array.shape) == 1:
         array = np.array([array])
-    image = PIL.Image.fromarray(array)
     if colormap is not None:
+        array = rescale_numpy_array(array, minmax, (0,1), 'float',
+                                    truncate=True)
         try:
             cm_hot = cm.get_cmap(colormap)
-            image = cm_hot(image)
+            array = cm_hot(array)
         except:
-            pass
+            print("WARNING: invalid colormap; ignored", file=sys.stderr)
+            ## rescale again:
+        array = rescale_numpy_array(array, (0,1), (0,255), 'uint8',
+                                    truncate=True)
+        image = PIL.Image.fromarray(array, "RGBA")
+    else:
+        array = rescale_numpy_array(array, minmax, (0,255), 'uint8',
+                                    truncate=True)
+        image = PIL.Image.fromarray(array)
     if scale != 1.0:
         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
     if image.mode not in ["RGB", "RGBA"]:

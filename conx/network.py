@@ -1868,7 +1868,7 @@ class Network():
 
     def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
                               html=True, size=None, display=True, class_id=None,
-                              update_pictures=False, raw=False):
+                              update_pictures=False, raw=False, minmax=None):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1889,6 +1889,13 @@ class Network():
         if self._layer_has_features(layer_name):
             if html:
                 outputs = np.array(self.propagate_to(layer_name, inputs))
+                orig_minmax = self[layer_name].minmax
+                if minmax:
+                    self[layer_name].minmax = minmax
+                elif self[layer_name].kind() == "input":
+                    self[layer_name].minmax = (minimum(outputs), maximum(outputs))
+                else:
+                    pass # leave minmax alone
                 ## move the channel to first index:
                 outputs = np.moveaxis(outputs, -1, 0)
                 for i in range(outputs.shape[0]):
@@ -1902,6 +1909,7 @@ class Network():
                         self.name, layer_name, i, data_uri, i)
                     if (i + 1) % cols == 0:
                         retval += """</tr><tr>"""
+                self[layer_name].minmax = orig_minmax
                 retval += "</tr></table>"
                 if display:
                     return HTML(retval)

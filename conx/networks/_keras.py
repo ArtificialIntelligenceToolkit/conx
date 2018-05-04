@@ -47,11 +47,11 @@ took 3 to 4 weeks time on a computer with 4 GPUs. This network's weights were
 converted from the original Caffe model into Keras.
 
 Sources:
-   * https://arxiv.org/pdf/1409.1556.pdf
-   * http://www.robots.ox.ac.uk/~vgg/research/very_deep/
-   * http://www.image-net.org/challenges/LSVRC/
-      * http://image-net.org/challenges/LSVRC/2014/
-      * http://image-net.org/challenges/LSVRC/2014/browse-synsets
+   * https://arxiv.org/pdf/1409.1556.pdf 
+   * http://www.robots.ox.ac.uk/~vgg/research/very_deep/ 
+   * http://www.image-net.org/challenges/LSVRC/ 
+      * http://image-net.org/challenges/LSVRC/2014/ 
+      * http://image-net.org/challenges/LSVRC/2014/browse-synsets 
 """
     return network
 
