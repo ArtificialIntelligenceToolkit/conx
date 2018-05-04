@@ -746,7 +746,7 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
     >>> array_to_image(m, shape=(2, 2, 3))       # doctest: +ELLIPSIS
     <PIL.Image.Image image mode=RGB size=2x2 at ...>
     >>> array_to_image(m, shape=(2, 2, 3), colormap="bone")       # doctest: +ELLIPSIS
-    <PIL.Image.Image image mode=RGB size=2x2 at ...>
+    <PIL.Image.Image image mode=RGBA size=2x2 at ...>
     """
     from matplotlib import cm
     array = np.array(array) # let's make sure
