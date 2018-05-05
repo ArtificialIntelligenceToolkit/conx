@@ -2703,6 +2703,7 @@ class Network():
         """
         Determine sizes and pre-compute images.
         """
+        warned = False
         ### find max_width, image_dims, and row_height
         # Go through and build images, compute max_width:
         row_heights = []
@@ -2764,6 +2765,9 @@ class Network():
                     except:
                         image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 else:
+                    if not warned:
+                        print("WARNING: network is uncompiled; activations cannot be visualized", file=sys.stderr)
+                        warned = True
                     image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
