@@ -96,7 +96,7 @@ Sources:
 def inceptionv3_preprocess(input):
     batch = np.array(input).reshape((1, 299, 299, 3))
     batch *= 255
-    b = imagenet_utils.preprocess_input(batch, mode='tf')
+    b = preprocess_input(batch, mode='tf')
     return b[0].tolist()
 
 def inceptionv3(*args, **kwargs):
