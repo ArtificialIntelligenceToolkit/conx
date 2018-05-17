@@ -2559,14 +2559,14 @@ class Network():
             layer.input_names = set([])
             layer.model = None
 
-    def update_model(self, compile_options=None):
+    def update_model(self, starting_layers=None, compile_options=None):
         """
         Useful if you change, say, an activation function after training.
         """
         if compile_options is None:
             compile_options = self.compile_options
         self._reset_layer_metadata()
-        self._build_intermediary_models()
+        self._build_intermediary_models(starting_layers=starting_layers)
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
@@ -2653,15 +2653,18 @@ class Network():
         ## Remove input layer from network connections:
         self.delete_layer(network.layers[0].name)
         ## Rebuild starting with output_layers
-        self.update_model(compile_options=network.compile_options)
+        self.update_model(starting_layers=[self[output_layer_name]],
+                          compile_options=network.compile_options)
 
-    def _build_intermediary_models(self):
+    def _build_intermediary_models(self, starting_layers=None):
         """
         Construct the layer.k, layer.input_names, and layer.model's.
         """
-        self.prop_from_dict.clear()
-        self.keras_functions.clear()
-        sequence = topological_sort(self, self.layers)
+        if starting_layers is None:
+            starting_layers = self.layers
+            self.prop_from_dict.clear()
+            self.keras_functions.clear()
+        sequence = topological_sort(self, starting_layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
         for layer in sequence:
             if layer.kind() == 'input':

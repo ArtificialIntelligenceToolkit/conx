@@ -14,6 +14,13 @@ def vgg_preprocess(input):
     b =  preprocess_input(batch)
     return b[0].tolist()
 
+def inceptionv3_preprocess(input):
+    batch = np.array(input).reshape((1, 299, 299, 3))
+    assert np.min(batch) >= 0 and np.max(batch) <= 1
+    batch *= 255
+    b = preprocess_input(batch, mode='tf')
+    return b[0].tolist()
+
 def vgg_decode(probabilities, top=5):
     return decode_predictions(np.array(probabilities).reshape((1,1000)), top=top)[0]
 
@@ -92,12 +99,6 @@ Sources:
       * http://image-net.org/challenges/LSVRC/2014/browse-synsets
 """
     return network
-
-def inceptionv3_preprocess(input):
-    batch = np.array(input).reshape((1, 299, 299, 3))
-    batch *= 255
-    b = preprocess_input(batch, mode='tf')
-    return b[0].tolist()
 
 def inceptionv3(*args, **kwargs):
     WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.5'
