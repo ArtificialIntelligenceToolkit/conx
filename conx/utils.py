@@ -415,17 +415,8 @@ def svg_to_image(svg, background=(255, 255, 255, 255)):
         svg = svg.encode("utf-8")
     else:
         raise Exception("svg_to_image takes a str, rather than %s" % type(svg))
-    try:
-        image_bytes = cairosvg.svg2png(bytestring=svg)
-    except:
-        image_bytes = None
-    if image_bytes is None:
-        ## let's try to convert it ourselves
-        from ._cairosvg import image as _cairosvg_image
-        ## monkey patch cairosvg.surface:
-        cairosvg.surface.TAGS["image"] = _cairosvg_image
-        ## try again:
-        image_bytes = cairosvg.svg2png(bytestring=svg)
+
+    image_bytes = cairosvg.svg2png(bytestring=svg)
     image = PIL.Image.open(io.BytesIO(image_bytes))
     if background is not None:
         ## create a blank image, with background:
@@ -474,7 +465,8 @@ def count_params(weights):
     import keras.backend as K
     return int(np.sum([K.count_params(p) for p in set(weights)]))
 
-def download(url, directory="./", force=False, unzip=True, filename=None):
+def download(url, directory="./", force=False, unzip=True, filename=None,
+             verbose=1):
     """
     Download a file into a local directory.
 
@@ -483,6 +475,7 @@ def download(url, directory="./", force=False, unzip=True, filename=None):
         directory (str) - directory to download file into
         force (bool) - to force a new download
         unzip (bool) - unzip .zip file; use unzip=True with force=True to re-unzip
+        verbose (int) - if greater than zero, display the filenames in a ZIP file
 
     >>> download("https://raw.githubusercontent.com/Calysto/conx/master/README.md",
     ...          "/tmp/testme", force=True) # doctest: +ELLIPSIS
@@ -528,16 +521,18 @@ def download(url, directory="./", force=False, unzip=True, filename=None):
             print ("Done!")
         else:
             print("Not unzipping files.")
-        print("Items available from downloaded zip file:")
+        if verbose:
+            print("Items available from downloaded zip file:")
         exist_count = 0
         for name in zip_ref.namelist():
             name_path = os.path.join(directory, name)
             if os.path.exists(name_path):
-                print("    ", name_path)
+                if verbose:
+                    print("    ", name_path)
                 exist_count += 1
         print("Available: %s of %s." % (exist_count, total_count))
         if exist_count != total_count:
-            print("Deleted: %s. Use download(..., unzip=True) restore them" %
+            print("%s item(s) have been deleted. Use download(..., unzip=True) restore them" %
                   (total_count - exist_count,))
         zip_ref.close()
 
@@ -659,7 +654,11 @@ def minimum(seq):
     >>> minimum([[[5], [2]], [[3], [1]]])
     1
     """
-    return np.array(seq).min()
+    try:
+        seq[0][0]
+        return min([minimum(v) for v in seq])
+    except:
+        return np.array(seq).min()
 
 def maximum(seq):
     """
@@ -678,7 +677,11 @@ def maximum(seq):
     >>> maximum([[[0.5], [0.2]], [[0.3], [0.1]]])
     0.5
     """
-    return np.array(seq).max()
+    try:
+        seq[0][0]
+        return max([maximum(v) for v in seq])
+    except:
+        return np.array(seq).max()
 
 def crop_image(image, x1, y1, x2, y2):
     """
@@ -1035,7 +1038,7 @@ def get_device():
     else:
         return "unknown"
 
-def import_keras_model(model, network_name):
+def import_keras_model(model, network_name, build_propagate_from_models=True):
     """
     Import a keras model into conx.
 
@@ -1043,7 +1046,7 @@ def import_keras_model(model, network_name):
     from .network import Network
     import inspect
     import conx
-    network = Network(network_name)
+    network = Network(network_name, build_propagate_from_models=build_propagate_from_models)
     network.model = model
     conx_layers = {name: layer for (name,layer)
                    in inspect.getmembers(conx.layers, inspect.isclass)}
@@ -1080,17 +1083,13 @@ def import_keras_model(model, network_name):
             clayer.keras_layer = layer
         network.add(clayer)
     # Next, connect them up:
-    for layer_from in model.layers:
+    for layer in model.layers:
         if hasattr(layer, "outbound_nodes"):
             for node in layer.outbound_nodes:
-                network.connect(layer_from, node.outbound_layer.name)
-                print("connecting:", layer_from, node.outbound_layer.name)
+                network.connect(layer.name, node.outbound_layer.name)
         elif hasattr(layer, "_outbound_nodes"):
             for node in layer._outbound_nodes:
-                network.connect(layer_from, node.outbound_layer.name)
-                print("connecting:", layer_from, node.outbound_layer.name)
-    # Connect them all up, and set input banks:
-    network.connect()
+                network.connect(layer.name, node.outbound_layer.name)
     for clayer in network.layers:
         clayer.input_names = network.input_bank_order
     # Finally, make the internal models:

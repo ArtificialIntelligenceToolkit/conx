@@ -443,11 +443,11 @@ class Network():
         Returns the list of pre-made networks.
 
         >>> len(Network.networks())
-        2
+        3
 
         >>> net = Network("Test Me")
         >>> len(net.networks())
-        2
+        3
         """
         if self is None:
             self = Network("Temp")
@@ -798,25 +798,31 @@ class Network():
             ## Post connection hooks:
             to_layer.on_connect("to", from_layer)
             from_layer.on_connect("from", to_layer)
-            ## Compute input/target layers:
-            input_layers = [layer for layer in self.layers if layer.kind() == "input"]
-            self.num_input_layers = len(input_layers)
-            self.input_bank_order = [layer.name for layer in input_layers]
-            target_layers = [layer for layer in self.layers if layer.kind() == "output"]
-            self.num_target_layers = len(target_layers)
-            self.output_bank_order = [layer.name for layer in target_layers]
-            ## Set up a layer's input names, as best possible:
-            sequence = topological_sort(self, self.layers)
-            for layer in sequence:
-                if layer.kind() == 'input':
-                    layer.input_names = set([layer.name])
+            self._reset_layer_metadata()
+
+    def _reset_layer_metadata(self):
+        """
+        Reset num_input_layers, banks, ordering, etc.
+        """
+        ## Compute input/target layers:
+        input_layers = [layer for layer in self.layers if layer.kind() == "input"]
+        self.num_input_layers = len(input_layers)
+        self.input_bank_order = [layer.name for layer in input_layers]
+        target_layers = [layer for layer in self.layers if layer.kind() == "output"]
+        self.num_target_layers = len(target_layers)
+        self.output_bank_order = [layer.name for layer in target_layers]
+        ## Set up a layer's input names, as best possible:
+        sequence = topological_sort(self, self.layers)
+        for layer in sequence:
+            if layer.kind() == 'input':
+                layer.input_names = set([layer.name])
+            else:
+                if len(layer.incoming_connections) == 1:
+                    layer.input_names = layer.incoming_connections[0].input_names
                 else:
-                    if len(layer.incoming_connections) == 1:
-                        layer.input_names = layer.incoming_connections[0].input_names
-                    else:
-                        layer.input_names = set([item for sublist in
-                                                 [incoming.input_names for incoming in layer.incoming_connections]
-                                                 for item in sublist])
+                    layer.input_names = set([item for sublist in
+                                             [incoming.input_names for incoming in layer.incoming_connections]
+                                             for item in sublist])
     def depth(self):
         """
         Find the depth of the network graph of connections.
@@ -1714,7 +1720,7 @@ class Network():
                     if self.config["svg_rotate"]:
                         class_id_name += "-rotated"
                     if self.debug: print("propagate_from 1: class_id_name:", class_id_name)
-                    self._comm.send({'class': class_id_name, "href": data_uri})
+                    self._comm.send({'class': class_id_name, "xlink:href": data_uri})
                 for output_layer_name in output_layer_names:
                     path = find_path(self, layer_name, output_layer_name)
                     if path is not None:
@@ -1733,7 +1739,7 @@ class Network():
                             if self.config["svg_rotate"]:
                                 class_id_name += "-rotated"
                             if self.debug: print("propagate_from 2: class_id_name:", class_id_name)
-                            self._comm.send({'class': class_id_name, "href": data_uri})
+                            self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         if raw:
             return outputs
         elif len(output_layer_names) == 1 and len(outputs) > 0:
@@ -1763,7 +1769,7 @@ class Network():
                     class_id_name = "%s_%s" % (class_id, layer_name)
                 if self.debug: print("display_component: sending to class_id:", class_id_name + "_" + component)
                 self._comm.send({'class': class_id_name + "_" + component,
-                                 "href": data_uri})
+                                 "xlink:href": data_uri})
 
     def propagate_to(self, layer_name, inputs, batch_size=32, class_id=None,
                      update_pictures=False, update_path=True, raw=False):
@@ -1819,7 +1825,7 @@ class Network():
                             if self.config["svg_rotate"]:
                                 class_id_name += "-rotated"
                             if self.debug: print("propagate_to 1: sending to class_id_name:", class_id_name)
-                            self._comm.send({'class': class_id_name, "href": data_uri})
+                            self._comm.send({'class': class_id_name, "xlink:href": data_uri})
                             updated.add(input_layer_name)
                         path = find_path(self, input_layer_name, layer_name)
                         if path is not None:
@@ -1835,7 +1841,7 @@ class Network():
                                         if self.config["svg_rotate"]:
                                             class_id_name += "-rotated"
                                         if self.debug: print("propagate_to 2: sending to class_id_name:", class_id_name)
-                                        self._comm.send({'class': class_id_name, "href": data_uri})
+                                        self._comm.send({'class': class_id_name, "xlink:href": data_uri})
                                         updated.add(layer.name)
                 else: # not the whole path, just to the layer_name
                     image = self._propagate_to_image(layer_name, inputs, raw=raw)
@@ -1847,7 +1853,7 @@ class Network():
                     if self.config["svg_rotate"]:
                         class_id_name += "-rotated"
                     if self.debug: print("propagate_to 3: sending to class_id_name:", class_id_name)
-                    self._comm.send({'class': class_id_name, "href": data_uri})
+                    self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         ## Shape the outputs:
         if raw:
             return outputs
@@ -2523,10 +2529,6 @@ class Network():
                         print("WARNING: you are using a crossentropy error measure", file=sys.stderr)
                         print("         but not using the 'softmax' activation function on layer '%s'"
                               % layer.name, file=sys.stderr)
-        self._build_intermediary_models()
-        output_k_layers = self._get_output_ks_in_order()
-        input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
-        self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
         if "metrics" in kwargs and kwargs["metrics"] is not None:
             pass ## ok allow override
         elif using_softmax: ## let's use Keras' default acc function
@@ -2536,10 +2538,7 @@ class Network():
         else:
             kwargs['metrics'] = [self.acc] ## Conx's default
         self.compile_options = copy.copy(kwargs)
-        self.model.compile(**kwargs)
-        # set each conx layer to point to corresponding keras model layer
-        for layer in self.layers:
-            layer.keras_layer = self._find_keras_layer(layer.name)
+        self.update_model()
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
@@ -2560,11 +2559,101 @@ class Network():
             layer.input_names = set([])
             layer.model = None
 
-    def update_model(self):
+    def update_model(self, compile_options=None):
         """
         Useful if you change, say, an activation function after training.
         """
+        if compile_options is None:
+            compile_options = self.compile_options
+        self._reset_layer_metadata()
         self._build_intermediary_models()
+        output_k_layers = self._get_output_ks_in_order()
+        input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
+        self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
+        self.model.compile(**compile_options)
+        for layer in self.layers:
+            layer.keras_layer = self._find_keras_layer(layer.name)
+
+    def delete_layer(self, layer_name, update_model=True):
+        """
+        Delete an output layer_name from a network.
+
+        Note: if compiled, you will need to re-compile.
+
+        >>> net = Network("XOR", 2, 2, 3, 1)
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> len(net.layers) == 4
+        True
+        >>> len(net.propagate([-1, 1])) == 1
+        True
+        >>> net.delete_layer("output")
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> len(net.layers) == 3
+        True
+        >>> len(net.propagate([-1, 1])) == 3
+        True
+        >>> net.train_one([-1, 1], [-.5, .5, .5]) # doctest: +ELLIPSIS
+        (...
+        >>> net.delete_layer("hidden2")
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> len(net.layers) == 2
+        True
+        >>> len(net.propagate([-1, 1])) == 2
+        True
+        >>> net.train_one([-1, 1], [-.5, .5]) # doctest: +ELLIPSIS
+        (...
+        """
+        layer = self[layer_name]
+        self._delete_layer_from_connections(layer)
+
+    def _delete_layer_from_connections(self, layer):
+        ## Remove layer.outgoing_connections to deleted layer:
+        for incoming_layer in layer.incoming_connections:
+            if layer in incoming_layer.outgoing_connections:
+                index = incoming_layer.outgoing_connections.index(layer)
+                del incoming_layer.outgoing_connections[index]
+        ## Remove layer.incoming_connections to deleted layer:
+        for outgoing_layer in layer.outgoing_connections:
+            if layer in outgoing_layer.incoming_connections:
+                index = outgoing_layer.incoming_connections.index(layer)
+                del outgoing_layer.incoming_connections[index]
+        ## Delete from layer name dictionary:
+        del self.layer_dict[layer.name]
+        ## Remove layer from list:
+        for i in range(len(self.layers)):
+            if self.layers[i] is layer:
+                del self.layers[i]
+                break
+
+    def connect_network(self, output_layer_name, network):
+        """
+        Graft a network on to the end of this network.
+
+        >>> import conx as cx
+        >>> net1 = cx.Network("XOR1", 2, 2, 1)
+        >>> net1.compile(error="mse", optimizer="adam")
+        >>> net2 = cx.Network("XOR2")
+        >>> net2.add(cx.Layer("input2", 2),
+        ...          cx.Layer("hidden2", 2),
+        ...          cx.Layer("output2", 1))
+        'output2'
+        >>> net2.connect()
+        >>> net2.compile(error="mse", optimizer="adam")
+        >>> net1.delete_layer("output")
+        >>> net1.connect_network("hidden", net2)
+        """
+        ## Get new layers, skipping over input layer:
+        self.layers.extend(network.layers)
+        self.layer_dict.update({layer.name: layer
+                                for layer in network.layers})
+        ## Connect net1.output to net2.input:
+        output_layer = self[output_layer_name]
+        output_layer.outgoing_connections.append(network.layers[1])
+        network.layers[1].incoming_connections.append(output_layer)
+        ## Remove input layer from network connections:
+        self.delete_layer(network.layers[0].name)
+        ## Rebuild starting with output_layers
+        self.update_model(compile_options=network.compile_options)
 
     def _build_intermediary_models(self):
         """
@@ -3244,11 +3333,14 @@ class Network():
 require(['base/js/namespace'], function(Jupyter) {
     Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
         comm.on_msg(function(msg) {
+            console.log("received!")
+            console.log(msg)
             var data = msg["content"]["data"];
             var images = document.getElementsByClassName(data["class"]);
             for (var i = 0; i < images.length; i++) {
-                if (data["href"]) {
-                    images[i].setAttributeNS(null, "href", data["href"]);
+                if (data["xlink:href"]) {
+                    var xlinkns="http://www.w3.org/1999/xlink";
+                    images[i].setAttributeNS(xlinkns, "href", data["xlink:href"]);
                 }
                 if (data["src"]) {
                     images[i].setAttributeNS(null, "src", data["src"]);
@@ -3283,7 +3375,7 @@ require(['base/js/namespace'], function(Jupyter) {
         config.update(kwargs)
         struct = self.build_struct(inputs, class_id, config)
         ### Define the SVG strings:
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" image-rendering="optimizeSpeed" xlink:href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
                 "netname": class_id if class_id is not None else self.name,
                 "border_color": config["border_color"],
@@ -3293,7 +3385,7 @@ require(['base/js/namespace'], function(Jupyter) {
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" fill="{font_color}" alignment-baseline="central" {transform}>{label}</text>"""
-        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
+        svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
  <g {svg_transform}>
   <svg viewBox="0 0 {viewbox_width} {viewbox_height}" width="{width}px" height="{height}px">
     <defs>

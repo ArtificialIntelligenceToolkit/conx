@@ -23,7 +23,7 @@ def vgg16(*args, **kwargs):
     if "weights" not in kwargs:
         kwargs["weights"] = None
     model = keras.applications.VGG16(**kwargs)
-    network = import_keras_model(model, "VGG16")
+    network = import_keras_model(model, "VGG16", build_propagate_from_models=False)
     weights_path = get_file(
         WEIGHTS_NAME,
         os.path.join(WEIGHTS_PATH, WEIGHTS_NAME),
@@ -61,7 +61,7 @@ def vgg19(*args, **kwargs):
     if "weights" not in kwargs:
         kwargs["weights"] = None
     model = keras.applications.VGG19(**kwargs)
-    network = import_keras_model(model, "VGG19")
+    network = import_keras_model(model, "VGG19", build_propagate_from_models=False)
     weights_path = get_file(
         WEIGHTS_NAME,
         os.path.join(WEIGHTS_PATH, WEIGHTS_NAME),
@@ -90,5 +90,42 @@ Sources:
    * http://www.image-net.org/challenges/LSVRC/
       * http://image-net.org/challenges/LSVRC/2014/
       * http://image-net.org/challenges/LSVRC/2014/browse-synsets
+"""
+    return network
+
+def inceptionv3_preprocess(input):
+    batch = np.array(input).reshape((1, 299, 299, 3))
+    batch *= 255
+    b = imagenet_utils.preprocess_input(batch, mode='tf')
+    return b[0].tolist()
+
+def inceptionv3(*args, **kwargs):
+    WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.5'
+    WEIGHTS_NAME = 'inception_v3_weights_tf_dim_ordering_tf_kernels.h5'
+    if "weights" not in kwargs:
+        kwargs["weights"] = None
+    model = keras.applications.InceptionV3(**kwargs)
+    network = import_keras_model(model, "InceptionV3", build_propagate_from_models=False)
+    weights_path = get_file(
+        WEIGHTS_NAME,
+        os.path.join(WEIGHTS_PATH, WEIGHTS_NAME),
+        cache_subdir='models',
+        file_hash='9a0d58056eeedaa3f26cb7ebd46da564')
+    network.load_weights(*weights_path.rsplit("/", 1))
+    network.config["hspace"] = 200
+    network.preprocess = inceptionv3_preprocess
+    network.postprocess = vgg_decode
+    network.information = """
+This network architecture comes from the paper:
+
+Rethinking the Inception Architecture for Computer Vision
+
+The default input size for this model is 299 x 299.
+
+These weights are released under the [Apache License](https://github.com/tensorflow/models/blob/master/LICENSE).
+
+Sources:
+
+   * http://arxiv.org/abs/1512.00567
 """
     return network
