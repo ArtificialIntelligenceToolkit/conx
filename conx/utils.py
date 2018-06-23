@@ -1271,7 +1271,7 @@ def plot3D(function, x_range=None, y_range=None, width=4.0, height=4.0, xlabel="
 
 def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
          label="", symbols=None, default_symbol=None, ymin=None, xmin=None, ymax=None, xmax=None,
-         format='svg', xs=None):
+         format='svg', xs=None, xs_rotation=None):
     """
     Create a line or scatter plot given the y-coordinates of a set of
     lines.
@@ -1326,6 +1326,10 @@ def plot(data=[], width=8.0, height=4.0, xlabel="", ylabel="", title="",
         plt.xlim(xmin=xmin)
     if xmax is not None:
         plt.xlim(xmax=xmax)
+    if xs_rotation is not None:
+        plt.setp(ax.get_xticklabels(),
+                 rotation=xs_rotation,
+                 horizontalalignment='right')
     if format is None:
         plt.show(block=False)
         result = None

@@ -2290,7 +2290,7 @@ class Network():
 
     def plot(self, metrics=None, ymin=None, ymax=None, start=0, end=None, legend='best',
              label=None, symbols=None, default_symbol="-", title=None, return_fig_ax=False, fig_ax=None,
-             format=None):
+             format=None, xs_rotation=None):
         """Plots the current network history for the specific epoch range and
         metrics. metrics is '?', 'all', a metric keyword, or a list of metric keywords.
         if metrics is None, loss and accuracy are plotted on separate graphs.
@@ -2367,6 +2367,10 @@ class Network():
             plt.legend(loc=legend)
         if title is None:
             title = self.name
+        if xs_rotation is not None:
+            plt.setp(ax.get_xticklabels(),
+                     rotation=xs_rotation,
+                     horizontalalignment='right')
         plt.title(title)
         if return_fig_ax:
             return (fig, ax)
