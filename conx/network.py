@@ -2525,10 +2525,10 @@ class Network():
             if layer.kind() == "output":
                 if layer.activation is not None and layer.activation == "softmax":
                     using_softmax = True
-                    if "crossentropy" not in kwargs["loss"]:
+                    if "crossentropy" != kwargs["loss"]:
                         print("WARNING: you are using the 'softmax' activation function on layer '%s'" % layer.name, file=sys.stderr)
                         print("         but not using a 'crossentropy' error measure.", file=sys.stderr)
-                if "crossentropy" in kwargs["loss"]:
+                if "crossentropy" == kwargs["loss"]:
                     if layer.activation is not None and layer.activation != "softmax":
                         print("WARNING: you are using a crossentropy error measure", file=sys.stderr)
                         print("         but not using the 'softmax' activation function on layer '%s'"
@@ -2675,7 +2675,8 @@ class Network():
                 if self.debug: print("making input layer for", layer.name)
                 layer.k = layer.make_input_layer_k()
                 layer.input_names = set([layer.name])
-                layer.model = keras.models.Model(inputs=layer.k, outputs=layer.k) # identity
+                outputs = keras.layers.Lambda(lambda v: v + 0)(layer.k) # identity
+                layer.model = keras.models.Model(inputs=layer.k, outputs=outputs)
                 self.prop_from_dict[(layer.name, layer.name)] = layer.model
             else:
                 if self.debug: print("making layer for", layer.name)
