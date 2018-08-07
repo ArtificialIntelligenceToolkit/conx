@@ -303,6 +303,7 @@ class Network():
         self.num_target_layers = 0
         self.input_bank_order = []
         self.output_bank_order = []
+        self.additional_output_banks = []
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
@@ -2768,7 +2769,8 @@ class Network():
         """
         Get the Keras function for each output layer, in order.
         """
-        layer_ks = [self[layer_name].k for layer_name in self.output_bank_order]
+        layer_ks = [self[layer_name].k for layer_name
+                    in (self.additional_output_banks + self.output_bank_order)]
         if len(layer_ks) == 1:
             layer_ks = layer_ks[0]
         return layer_ks
