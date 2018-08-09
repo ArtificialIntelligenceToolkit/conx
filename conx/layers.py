@@ -706,6 +706,24 @@ class DotLayer(AddLayer):
         layers = [(layer.k if layer.k is not None else layer.keras_layer) for layer in self.layers]
         return Dot(**self.params)(layers)
 
+class LambdaLayer(Layer):
+    CLASS = keras.layers.Lambda
+    def __init__(self, name, size, function, **params):
+        params["function"] = function
+        super().__init__(name, size, **params)
+
+    def make_keras_function(self):
+        """
+        For all Keras-based functions. Returns the Keras class.
+        """
+        return self.CLASS(**self.params)
+
+    def make_keras_function_text(self):
+        """
+        For all Keras-based functions. Returns the Keras class.
+        """
+        return "keras.layers.%s(**%s)" % (self.CLASS.__name__, self.params)
+
 class EmbeddingLayer(Layer):
     """
     A class for embeddings. WIP.
@@ -767,7 +785,8 @@ keras_module = sys.modules["keras.layers"]
 for (name, obj) in inspect.getmembers(keras_module):
     if name in ["Embedding", "Input", "Dense", "TimeDistributed",
                 "Add", "Subtract", "Multiply", "Average",
-                "Maximum", "Concatenate", "Dot"]: continue
+                "Maximum", "Concatenate", "Dot", "Lambda"]:
+        continue
     if type(obj) == type and issubclass(obj, (keras.engine.Layer, )):
         new_name = "%sLayer" % name
         docstring = obj.__doc__

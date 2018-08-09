@@ -303,7 +303,6 @@ class Network():
         self.num_target_layers = 0
         self.input_bank_order = []
         self.output_bank_order = []
-        self.additional_output_banks = []
         self.dataset = Dataset(self)
         self.compile_options = {}
         self.train_options = {}
@@ -2486,6 +2485,13 @@ class Network():
 
         See https://keras.io/ `Model.compile` method for more details.
         """
+        if self.model is None:
+            self.build_model()
+        self.compile_model(**kwargs)
+
+    def process_compile_kwargs(self, kwargs):
+        """
+        """
         ## Error checking:
         if len(self.layers) == 0:
             raise Exception("network has no layers")
@@ -2542,8 +2548,7 @@ class Network():
                 print("WARNING: using softmax activation function; tolerance is ignored", file=sys.stderr)
         else:
             kwargs['metrics'] = [self.acc] ## Conx's default
-        self.compile_options = copy.copy(kwargs)
-        self.update_model()
+        return kwargs
 
     def acc(self, targets, outputs):
         # This is only used on non-multi-output-bank training:
@@ -2564,22 +2569,33 @@ class Network():
             layer.input_names = set([])
             layer.model = None
 
-    def update_model(self, starting_layers=None, compile_options=None):
+    def build_model(self, starting_layers=None):
         """
-        Useful if you change, say, an activation function after training.
+        Build the model.
         """
-        if compile_options is None:
-            compile_options = self.compile_options
         self._reset_layer_metadata()
         self._build_intermediary_models(starting_layers=starting_layers)
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        self.model.compile(**compile_options)
+        if (self.num_input_layers == 1 and
+            self.num_target_layers == 1):
+            self.prop_from_dict[
+                (self.input_bank_order[0], self.output_bank_order[0])
+            ] = self.model
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
 
-    def delete_layer(self, layer_name, update_model=True):
+    def compile_model(self, **kwargs):
+        """
+        Compile the model:
+        """
+        if kwargs:
+            kwargs = self.process_compile_kwargs(kwargs)
+            self.compile_options = copy.copy(kwargs)
+        self.model.compile(**self.compile_options)
+
+    def delete_layer(self, layer_name):
         """
         Delete an output layer_name from a network.
 
@@ -2610,6 +2626,7 @@ class Network():
         """
         layer = self[layer_name]
         self._delete_layer_from_connections(layer)
+        self.model = None
 
     def _delete_layer_from_connections(self, layer):
         ## Remove layer.outgoing_connections to deleted layer:
@@ -2658,8 +2675,8 @@ class Network():
         ## Remove input layer from network connections:
         self.delete_layer(network.layers[0].name)
         ## Rebuild starting with output_layers
-        self.update_model(starting_layers=[self[output_layer_name]],
-                          compile_options=network.compile_options)
+        self.build_model(starting_layers=[self[output_layer_name]])
+        self.compile_model(**network.compile_options)
 
     def _build_intermediary_models(self, starting_layers=None):
         """
@@ -2725,8 +2742,8 @@ class Network():
                                 continue
                             if self.debug: print("   %s to %s" % (path_layer.name, layer.name))
                             if path_layer.shape is None:
-                                ## Skips FlattenLayer, Concat, etc. as from_layer
-                                if self.debug: print("   aborting this path; try next")
+                                ## Skips FlattenLayer, Concat, Merge, etc. as from_layer
+                                if self.debug: print("   %s: aborting this path; try next" % path_layer.name)
                                 continue
                             k = starting_k = keras.layers.Input(path_layer.shape, name=path_layer.name)
                             rest_of_path = path[i + 1:]
@@ -2740,6 +2757,7 @@ class Network():
                                         k = f(k)
                                     except:
                                         ## Can't make this pathway; probably a merge
+                                        if self.debug: print("    merge; need other inputs")
                                         abort_path = True
                                         break
                                 ## FIXME: could be multiple paths
@@ -2769,8 +2787,7 @@ class Network():
         """
         Get the Keras function for each output layer, in order.
         """
-        layer_ks = [self[layer_name].k for layer_name
-                    in (self.additional_output_banks + self.output_bank_order)]
+        layer_ks = [self[layer_name].k for layer_name in self.output_bank_order]
         if len(layer_ks) == 1:
             layer_ks = layer_ks[0]
         return layer_ks
