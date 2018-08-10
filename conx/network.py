@@ -59,6 +59,21 @@ except:
 
 #------------------------------------------------------------------------
 
+def as_sum(item):
+    """
+    Given a result loss measure, return a value.
+    """
+    if isinstance(item, np.ndarray):
+        return item.sum()
+    else:
+        dims = shape(item)
+        if len(dims) == 1 and dims[0] != 0:
+            return sum(item)
+        elif isinstance(item, (float, int)):
+            return item
+        else:
+            return sum([as_sum(i) for i in item])
+
 class ReportCallback(Callback):
     def __init__(self, network, verbose, report_rate, mpl_backend, record):
         # mpl_backend is matplotlib backend
@@ -852,18 +867,29 @@ class Network():
         self.epoch_count = 0
         self.history = []
         self.weight_history.clear()
-        self.prop_from_dict.clear()
-        self.keras_functions.clear()
         if self.model:
             if "seed" in overrides:
                 self.seed = overrides["seed"]
                 np.random.seed(self.seed)
                 del overrides["seed"]
-            # Compile the whole model again:
+            ## Reset all weights and biases:
+            self.reset_weights()
+            ## Recompile with possibly new options:
             if clear:
                 self.compile_options = {}
             self.compile_options.update(overrides)
             self.compile(**self.compile_options)
+
+    def reset_weights(self):
+        """
+        Reset weights and biases.
+        """
+        session = K.get_session()
+        for layer in self.model.layers:
+            if hasattr(layer, 'kernel_initializer'):
+                layer.kernel.initializer.run(session=session)
+            if hasattr(layer, 'bias_initializer'):
+                layer.bias.initializer.run(session=session)
 
     def test(self, batch_size=32, show=False, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
@@ -1153,6 +1179,8 @@ class Network():
         if len(self.dataset.inputs) == 0:
             raise Exception("no dataset loaded")
         if self.model is None:
+            raise Exception("need to build and compile network")
+        if self.model.optimizer is None:
             raise Exception("need to compile network")
         (train_inputs, train_targets), (test_inputs, test_targets) = self.dataset._split_data()
         train_metrics = self.model.evaluate(train_inputs, train_targets, batch_size=batch_size, verbose=0)
@@ -1265,6 +1293,8 @@ class Network():
         else:
             mpl_backend = None
         if self.model is None:
+            raise Exception("need to build and compile network")
+        if self.model.optimizer is None:
             raise Exception("need to compile network")
         if not isinstance(report_rate, numbers.Integral) or report_rate < 1:
             raise Exception("bad report rate: %s" % (report_rate,))
@@ -1311,7 +1341,7 @@ class Network():
         if self.dataset._split == 0.0: ## None
             val_results = {}
         elif self.dataset._split == 1.0: ## special case; use entire set; already done!
-            val_results = {"val_%s" % key: results[key] for key in results}
+            val_results = {"val_%s" % key: as_sum(results[key]) for key in results}
         else: # split is greater than 0, less than 1
             if verbose > 0:
                 print("Evaluating initial validation metrics...")
@@ -1345,7 +1375,7 @@ class Network():
                 print("Training dataset status:")
                 self.report_epoch(self.epoch_count, results)
                 return (self.epoch_count, results) if verbose == 0 else None
-            elif ((error is not None) and (results["loss"] <= error)):
+            elif ((error is not None) and (as_sum(results["loss"]) <= error)):
                 print("No training required: error already to desired value")
                 print("Training dataset status:")
                 self.report_epoch(self.epoch_count, results)
@@ -1462,20 +1492,17 @@ class Network():
             self._need_to_show_headings = False
         s = "#%5d " % (epoch_count,)
         if 'loss' in results:
-            s += "| %9.5f " % (results['loss'],)
+            s += "| %9.5f " % (as_sum(results['loss']),)
         if 'acc' in results:
             s += "| %9.5f " % (results['acc'],)
         if 'val_loss' in results:
-            s += "| %9.5f " % (results['val_loss'],)
+            s += "| %9.5f " % (as_sum(results['val_loss']),)
         if 'val_acc' in results:
             s += "| %9.5f " % (results['val_acc'],)
         for other in sorted(results):
             if other not in ["loss", "acc", "val_loss", "val_acc"]:
                 if not other.endswith("_loss"):
-                    other_str = other
-                    if other.endswith("_acc"):
-                        other_str = other[:-4] + " accuracy"
-                    s += "| %9.5f " % results[other]
+                    s += "| %9.5f " % as_sum(results[other])
         print(s)
 
     def set_dataset(self, dataset):
@@ -1549,7 +1576,7 @@ class Network():
         if not isinstance(layer_name, str):
             raise Exception("layer_name should be a string")
         if self.model is None:
-            raise Exception("need to compile network")
+            raise Exception("need to build network")
         weights = [layer.get_weights() for layer in self.model.layers
                    if layer_name == layer.name][0]
         weights = weights[0] # get the weight matrix, not the biases
@@ -1604,7 +1631,7 @@ class Network():
             * `Network.get_weights_as_image`
         """
         if self.model is None:
-            raise Exception("need to compile network")
+            raise Exception("need to build network")
         if layer_name is not None:
             weights = [layer.get_weights() for layer in self.model.layers
                        if layer_name == layer.name][0]
@@ -1632,7 +1659,7 @@ class Network():
         5
         """
         if self.model is None:
-            raise Exception("Need to compile network first")
+            raise Exception("Need to build network first")
         if isinstance(input, dict):
             input = [input[name] for name in self.input_bank_order]
             if self.num_input_layers == 1:
@@ -1742,7 +1769,17 @@ class Network():
                             self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         if raw:
             return outputs
-        elif len(output_layer_names) == 1 and len(outputs) > 0:
+        index = 0
+        for layer_name in output_layer_names:
+            shape = self[layer_name].shape
+            if shape and all([isinstance(v, numbers.Integral) for v in shape]):
+                try:
+                    outputs[index] = reshape(outputs[index], shape)
+                except:
+                    outputs[index] = map(float, outputs[index])
+            else:
+                pass ## leave alone?
+        if len(output_layer_names) == 1 and len(outputs) > 0:
             return outputs[0]
         else:
             return outputs
@@ -2489,6 +2526,34 @@ class Network():
             self.build_model()
         self.compile_model(**kwargs)
 
+    def add_loss(self, layer_name, function):
+        """
+        Add an error/loss function to a layer.
+
+        >>> from conx import Network
+        >>> import keras.backend as K
+        >>> from keras.losses import mse
+
+        >>> net = Network("XOR", 2, 5, 1, activation="sigmoid", seed=1234)
+        >>> net.build_model()
+
+        >>> def loss(inputs):
+        ...     return mse(0.50, inputs[:,0])
+
+        >>> net.add_loss("hidden", loss)
+
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> ds = [[[0, 0], [0]],
+        ...       [[0, 1], [1]],
+        ...       [[1, 0], [1]],
+        ...       [[1, 1], [0]]]
+        >>> net.dataset.load(ds)
+
+        >>> net.train(1, plot=False)  # doctest: +ELLIPSIS
+        Evaluating ...
+        """
+        self[layer_name].keras_layer.add_loss(function(self[layer_name].k), None)
+
     def process_compile_kwargs(self, kwargs):
         """
         """
@@ -2578,11 +2643,6 @@ class Network():
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
-        if (self.num_input_layers == 1 and
-            self.num_target_layers == 1):
-            self.prop_from_dict[
-                (self.input_bank_order[0], self.output_bank_order[0])
-            ] = self.model
         for layer in self.layers:
             layer.keras_layer = self._find_keras_layer(layer.name)
 
@@ -2590,6 +2650,8 @@ class Network():
         """
         Compile the model:
         """
+        if self.model is None:
+            raise Exception("need to build network")
         if kwargs:
             kwargs = self.process_compile_kwargs(kwargs)
             self.compile_options = copy.copy(kwargs)
@@ -2689,6 +2751,7 @@ class Network():
         sequence = topological_sort(self, starting_layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
         for layer in sequence:
+            if self.debug: print("sequence:", layer.name)
             if layer.kind() == 'input':
                 if self.debug: print("making input layer for", layer.name)
                 layer.k = layer.make_input_layer_k()
@@ -2700,7 +2763,7 @@ class Network():
                 if self.debug: print("making layer for", layer.name)
                 if len(layer.incoming_connections) == 0:
                     raise Exception("non-input layer '%s' with no incoming connections" % layer.name)
-                kfuncs = layer.make_keras_functions()
+                kfuncs = self.keras_functions.get(layer.name, layer.make_keras_functions())
                 self.keras_functions[layer.name] = kfuncs
                 if len(layer.incoming_connections) == 1:
                     if self.debug: print("single input", layer.incoming_connections[0])
@@ -2725,13 +2788,13 @@ class Network():
                 input_ks = self._get_input_ks_in_order(layer.input_names)
                 ## From all inputs to this layer:
                 layer.model = keras.models.Model(inputs=input_ks, outputs=layer.k)
-        ## Build all prop_from models:
+                if len(layer.input_names) == 1:
+                    self.prop_from_dict[(list(layer.input_names)[0], layer.name)] = layer.model
+        ## Build all other prop_from models:
         if self.build_propagate_from_models:
             for in_layer_name in self.input_bank_order:
                 for out_layer_name in self.output_bank_order:
                     layer = self[out_layer_name]
-                    if (in_layer_name, layer.name) in self.prop_from_dict:
-                        continue
                     if self.debug: print("from %s to %s" % (in_layer_name, layer.name))
                     all_paths = find_all_paths(self, self[in_layer_name], layer)
                     for path in all_paths:
@@ -2761,9 +2824,10 @@ class Network():
                                         abort_path = True
                                         break
                                 ## FIXME: could be multiple paths
-                                self.prop_from_dict[
-                                    (path_layer.name, rest_of_path_layer.name)
-                                ] = keras.models.Model(inputs=starting_k, outputs=k)
+                                if (path_layer.name, rest_of_path_layer.name) not in self.prop_from_dict:
+                                    self.prop_from_dict[
+                                        (path_layer.name, rest_of_path_layer.name)
+                                    ] = keras.models.Model(inputs=starting_k, outputs=k)
 
     def _get_input_ks_in_order(self, layer_names):
         """
@@ -3599,7 +3663,7 @@ require(['base/js/namespace'], function(Jupyter) {
                                              if dir is None else dir), "wb") as fp:
                 pickle.dump(self, fp)
         else:
-            raise Exception("need to compile network before saving")
+            raise Exception("need to build network before saving")
 
     def load_model(self, dir=None, filename=None):
         """
@@ -3627,7 +3691,7 @@ require(['base/js/namespace'], function(Jupyter) {
                 os.makedirs(dir)
             self.model.save(os.path.join(dir, filename))
         else:
-            raise Exception("need to compile network before saving")
+            raise Exception("need to build network before saving")
 
     def load_history(self, dir=None, filename=None):
         """
@@ -3678,7 +3742,7 @@ require(['base/js/namespace'], function(Jupyter) {
             self.model.load_weights(os.path.join(dir, filename))
             self.load_history(dir)
         else:
-            raise Exception("need to compile network before loading weights")
+            raise Exception("need to build network before loading weights")
 
     def save_weights(self, dir=None, filename=None):
         """
@@ -3696,7 +3760,7 @@ require(['base/js/namespace'], function(Jupyter) {
             self.model.save_weights(os.path.join(dir, filename))
             self.save_history(dir)
         else:
-            raise Exception("need to compile network before saving weights")
+            raise Exception("need to build network before saving weights")
 
     def dashboard(self, width="95%", height="550px", play_rate=0.5):
         """
@@ -3795,7 +3859,7 @@ require(['base/js/namespace'], function(Jupyter) {
         >>> net.set_weights(hw, "hidden")
         """
         if self.model is None:
-            raise Exception("need to compile network")
+            raise Exception("need to build network")
         if layer_name is None:
             self.model.set_weights(weights)
         else:
@@ -3821,7 +3885,7 @@ require(['base/js/namespace'], function(Jupyter) {
             All of weights and biases of the network in a single, flat list.
         """
         if self.model is None:
-            raise Exception("need to compile network")
+            raise Exception("need to build network")
         array = []
         for layer in self.model.layers:
             for weight in layer.get_weights():
@@ -3845,7 +3909,7 @@ require(['base/js/namespace'], function(Jupyter) {
             103
         """
         if self.model is None:
-            raise Exception("need to compile network")
+            raise Exception("need to build network")
         position = 0
         for layer in self.model.layers:
             weights = layer.get_weights()

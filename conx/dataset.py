@@ -860,6 +860,20 @@ class Dataset():
                     pairs = list(zip(inputs, targets))
             else:
                 raise Exception("you cannot set inputs without targets")
+                ## FIXME: make more general, and set targets to [None, None, ...]
+                # if self._num_input_banks() > 1: ## for incoming format
+                #     ins = []
+                #     for i in range(len(ins[0])):
+                #         ins.append(np.array([row[i] for row in inputs], "float32"))
+                # else:
+                #     ins = [np.array(inputs, "float32")]
+                # if len(self._inputs) == 0:
+                #     self._inputs = ins
+                # else:
+                #     for i in range(len(self._inputs)):
+                #         self._inputs[i] = np.append(self._inputs[i], ins[i], 0)
+                # self._cache_values()
+                # return
         elif targets is not None:
             raise Exception("you cannot set targets without inputs")
         if pairs is None:
