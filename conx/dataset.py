@@ -377,6 +377,66 @@ class DataVector():
         else:
             raise Exception("unknown vector: %s" % (self.item,))
 
+    def test(self, tolerance=None, slice=None, index=False, batch_size=32):
+        """
+        Test the inputs, train_inputs, or test_inputs to see which
+        ones are correct (within tolerance).
+
+        Examples:
+            >>> from conx import Network, Layer, Dataset
+            >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
+            >>> net.compile(error='mean_squared_error',
+            ...             optimizer="SGD", lr=0.3, momentum=0.9)
+            >>> ds = [[[0, 0], [0]],
+            ...       [[0, 1], [1]],
+            ...       [[1, 0], [1]],
+            ...       [[1, 1], [0]]]
+            >>> net.dataset.load(ds)
+            >>> net.dataset.inputs.test(tolerance=0.0, index=True)
+            []
+            >>> net.dataset.inputs.test(tolerance=1.0, index=True)
+            [0, 1, 2, 3]
+        """
+        tolerance = tolerance if tolerance else self.dataset.network.tolerance
+
+        def test(i, tolerance):
+            length = len(self.dataset)
+            if self.item == "inputs":
+                inputs = [[column[i]] for column in self.dataset._inputs]
+                targets = [[column[i]] for column in self.dataset._targets]
+            elif self.item == "train_inputs":
+                inputs = [[column[i]] for column in self.dataset._inputs]
+                targets = [[column[i]] for column in self.dataset._targets]
+            elif self.item == "test_inputs":
+                inputs = [[column[i + int((1.0 - self.dataset._split) * length)]] for column in self.dataset._inputs]
+                targets = [[column[i + int((1.0 - self.dataset._split) * length)]] for column in self.dataset._targets]
+            outputs = self.dataset.network.model.predict(inputs, batch_size=batch_size)
+            if self.dataset.network.num_target_layers > 1:
+                correct = self.dataset.network.compute_correct(outputs, targets, tolerance)
+            else:
+                ## Warning:
+                ## keras returns outputs as a single column
+                ## conx targets are always multi-column
+                correct = self.dataset.network.compute_correct([outputs], targets, tolerance)
+            return correct[0]
+
+        if self.item == "inputs":
+            retval = (i if index else self.dataset.inputs[i]
+                      for i in range(len(self.dataset.inputs)) if test(i, tolerance))
+        elif self.item == "train_inputs":
+            retval = (i if index else self.dataset.train_inputs[i]
+                      for i in range(len(self.dataset.train_inputs)) if test(i, tolerance))
+        elif self.item == "test_inputs":
+            retval = (i if index else self.dataset.test_inputs[i]
+                      for i in range(len(self.dataset.test_inputs)) if test(i, tolerance))
+        if slice is None:
+            return list(retval)
+        else:
+            if not isinstance(slice, (list, tuple)):
+                slice = (slice,)
+            args = py_slice(*slice)
+            return list(itertools.islice(retval, args.start, args.stop, args.step))
+
     def select(self, function, slice=None, index=False):
         """
         select selects items or indices from a dataset pattern.

@@ -1036,10 +1036,10 @@ class Network():
 
         Examples:
 
-            >>> from conx import Network, Layer, SGD, Dataset
+            >>> from conx import Network, Layer, Dataset
             >>> net = Network("XOR", 2, 2, 1, activation="sigmoid")
             >>> net.compile(error='mean_squared_error',
-            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            ...             optimizer="sgd", lr=0.3, momentum=0.9)
             >>> ds = [[[0, 0], [0]],
             ...       [[0, 1], [1]],
             ...       [[1, 0], [1]],
@@ -1052,7 +1052,7 @@ class Network():
             >>> len(err)
             1
 
-            >>> from conx import Network, Layer, SGD, Dataset
+            >>> from conx import Network, Layer, Dataset
             >>> net = Network("XOR2")
             >>> net.add(Layer("input%d", shape=1))
             'input1'
@@ -1075,14 +1075,14 @@ class Network():
             >>> net.connect("shared-hidden", "output1")
             >>> net.connect("shared-hidden", "output2")
             >>> net.compile(error='mean_squared_error',
-            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            ...             optimizer="sgd", lr=0.3, momentum=0.9)
             >>> ds = [([[0],[0]], [[0],[0]]),
             ...       ([[0],[1]], [[1],[1]]),
             ...       ([[1],[0]], [[1],[1]]),
             ...       ([[1],[1]], [[0],[0]])]
             >>> net.dataset.load(ds)
             >>> net.compile(error='mean_squared_error',
-            ...             optimizer=SGD(lr=0.3, momentum=0.9))
+            ...             optimizer="sgd", lr=0.3, momentum=0.9)
             >>> out, err = net.train_one({"input1": [0], "input2": [0]},
             ...                          {"output1": [0], "output2": [0]})
             >>> len(out)
