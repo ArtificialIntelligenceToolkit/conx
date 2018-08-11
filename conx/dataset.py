@@ -402,14 +402,16 @@ class DataVector():
         def test(i, tolerance):
             length = len(self.dataset)
             if self.item == "inputs":
-                inputs = [[column[i]] for column in self.dataset._inputs]
-                targets = [[column[i]] for column in self.dataset._targets]
+                inputs = [np.array([column[i]]) for column in self.dataset._inputs]
+                targets = [np.array([column[i]]) for column in self.dataset._targets]
             elif self.item == "train_inputs":
-                inputs = [[column[i]] for column in self.dataset._inputs]
-                targets = [[column[i]] for column in self.dataset._targets]
+                inputs = [np.array([column[i]]) for column in self.dataset._inputs]
+                targets = [np.array([column[i]]) for column in self.dataset._targets]
             elif self.item == "test_inputs":
-                inputs = [[column[i + int((1.0 - self.dataset._split) * length)]] for column in self.dataset._inputs]
-                targets = [[column[i + int((1.0 - self.dataset._split) * length)]] for column in self.dataset._targets]
+                inputs = [np.array([column[i + int((1.0 - self.dataset._split) * length)]])
+                          for column in self.dataset._inputs]
+                targets = [np.array([column[i + int((1.0 - self.dataset._split) * length)]])
+                           for column in self.dataset._targets]
             outputs = self.dataset.network.model.predict(inputs, batch_size=batch_size)
             if self.dataset.network.num_target_layers > 1:
                 correct = self.dataset.network.compute_correct(outputs, targets, tolerance)
