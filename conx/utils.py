@@ -846,16 +846,19 @@ def scale_output_for_image(vector, minmax, truncate=False):
     return rescale_numpy_array(vector, minmax, (0,255), 'uint8',
                                truncate=truncate)
 
-def onehot(i, width):
+def onehot(i, width, values=[0,1]):
     """
     >>> onehot(0, 5)
     [1, 0, 0, 0, 0]
 
     >>> onehot(3, 5)
     [0, 0, 0, 1, 0]
+
+    >>> onehot(3, 5, values=[False, True])
+    [False, False, False, True, False]
     """
-    v = [0] * width
-    v[i] = 1
+    v = [values[0]] * width
+    v[i] = values[1]
     return v
 
 def binary(i, width):
