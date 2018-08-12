@@ -2597,10 +2597,10 @@ class Network():
             if layer.kind() == "output":
                 if layer.activation is not None and layer.activation == "softmax":
                     using_softmax = True
-                    if "crossentropy" != kwargs["loss"]:
+                    if "crossentropy" not in kwargs["loss"]:
                         print("WARNING: you are using the 'softmax' activation function on layer '%s'" % layer.name, file=sys.stderr)
                         print("         but not using a 'crossentropy' error measure.", file=sys.stderr)
-                if "crossentropy" == kwargs["loss"]:
+                if "crossentropy" in kwargs["loss"]:
                     if layer.activation is not None and layer.activation != "softmax":
                         print("WARNING: you are using a crossentropy error measure", file=sys.stderr)
                         print("         but not using the 'softmax' activation function on layer '%s'"
