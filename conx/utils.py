@@ -536,17 +536,31 @@ def download(url, directory="./", force=False, unzip=True, filename=None,
                   (total_count - exist_count,))
         zip_ref.close()
 
-def choice(seq=None, p=None):
+def replace_value(data, value=0, new_value=sys.float_info.min):
+    """
+    Replace all values in an array with new value.
+    """
+    data = np.asarray(data).astype('float64')
+    data[data == value] = new_value
+    return data
+
+def choice(seq=None, p=None, temperature=None, index=False):
     """
     Get a random choice from sequence, optionally given a probability
-    distribution.
+    distribution and temperature.
 
     Arguments:
         seq - a list of choices, or None if choices are range(len(p))
         p - a list of probabilities, or None if even chance
+        temperature - randomness control
+           * 0.0 - biggest p wins deterministically
+           * 1.0 - use p as regular probabilities
+           * > 1.0 - ignore p, randomness
+        index - return the index rather than value?
 
     Returns:
-        One of the choices, picked with given probabilty.
+        One of the choices (or index), picked with given probabilty
+        and temperature.
 
     Examples:
         >>> choice(1)
@@ -563,21 +577,57 @@ def choice(seq=None, p=None):
 
         >>> choice("aaaaa")
         'a'
+        >>> choice("ab", p=[0, 1], temperature=1.0)
+        'b'
+
+    Deterministically use p to determine winner (temperature is low,
+    close to zero):
+
+        >>> bin = [0, 0]
+        >>> for i in range(1000):
+        ...     bin[choice([0, 1], p=[0.4, 0.6], temperature=0.01)] += 1
+        >>> assert bin[0] == 0, bin[0]
+        >>> assert bin[1] == 1000, bin[1]
+
+    Use p as regular propabilities (temperature is close to 1):
+
+        >>> bin = [0, 0]
+        >>> for i in range(1000):
+        ...     bin[choice([0, 1], p=[0.4, 0.6], temperature=1.0)] += 1
+        >>> assert bin[0] < bin[1], "%s < %s" % (bin[0], bin[1])
+
+    High randomness, (temperature is greater than 1):
+
+        >>> bin = [0, 0]
+        >>> for i in range(1000):
+        ...     bin[choice([0, 1], p=[0.4, 0.6], temperature=100.0)] += 1
+        >>> assert abs(bin[0] - bin[1]) < 50, "%s == %s" % (bin[0], bin[1])
     """
     if seq is None and p is None:
         raise Exception("seq and p can't both be None")
     elif seq is None:
         seq = len(p)
-    ## Allow seq to be a number:
-    if isinstance(seq, numbers.Real):
-        seq = range(int(seq))
+        length = seq
+    else:
+        length = seq if isinstance(seq, numbers.Real) else len(seq)
+    if temperature is not None:
+        if p is None:
+            raise Exception("p can't be None with temperature")
+        p = np.array(p) ** (1.0 / temperature)
     if p is not None:
         # Make sure that it sums to 1.0
         # or else np.random.choice will crash
         total = sum(p)
         p = [item/total for item in p]
-    pick = np.random.choice(len(seq), 1, p=p)[0]
-    return seq[pick]
+    pick = np.random.choice(length, 1, p=p)[0]
+    if index:
+        return pick
+    else:
+        ## Allow seq to be a number:
+        if isinstance(seq, numbers.Real):
+            return pick
+        else:
+            return seq[pick]
 
 def frange(start, stop=None, step=1.0, raw=False):
     """
@@ -1744,7 +1794,7 @@ def atype(dtype):
     >>> atype(np.float64(23).dtype)
     <class 'numbers.Number'>
     """
-    if dtype.kind in ["i", "f", "u"]:
+    if dtype.kind in ["i", "f", "u", "b"]:
         return numbers.Number
     elif dtype.kind in ["U", "S"]:
         return str
@@ -1779,7 +1829,7 @@ def cxtypes(item):
         length = len(item)
     except:
         return (numbers.Number
-                if isinstance(item, numbers.Number)
+                if isinstance(item, (numbers.Number, bool))
                 else type(item))
     if isinstance(item, str):
         return str
