@@ -134,6 +134,42 @@ def get_colormap():
 #------------------------------------------------------------------------
 # utility functions
 
+def get_dtype(item):
+    """
+    Attempt to get the datatype from an item.
+
+    >>> get_dtype(1)
+    'float32'
+
+    >>> get_dtype(True)
+    'bool'
+
+    >>> get_dtype(1.1)
+    'float32'
+
+    >>> get_dtype([1])
+    'float32'
+
+    >>> get_dtype([[[1, 2, 3]]])
+    'float32'
+
+    >>> get_dtype(np.array([True, False, True], dtype=bool))
+    'bool'
+    """
+    if hasattr(item, "dtype"):
+        return item.dtype.name
+    elif isinstance(item, bool):
+        return "bool"
+    elif isinstance(item, str):
+        return "str"
+    elif isinstance(item, numbers.Real):
+        return "float32"
+    else:
+        try:
+            return get_dtype(item[0])
+        except:
+            return None
+
 def clear_session():
     """
     Needed to clear the session if memory is growing.

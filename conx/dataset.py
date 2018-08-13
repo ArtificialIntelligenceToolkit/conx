@@ -980,7 +980,8 @@ class Dataset():
         # Test the inputs, see if outputs match:
         if self.network and self.network.model:
             #### Get one to test output: list of np.array() per banks
-            inputs = [np.array([bank], "float32") for bank in inputs[0]]
+            dtype = get_dtype(inputs[0]) or "float32"
+            inputs = [np.array([bank], dtype) for bank in inputs[0]]
             ## Predict:
             try:
                 prediction = self.network.model.predict(inputs, batch_size=1)
@@ -988,13 +989,15 @@ class Dataset():
                 raise Exception("Invalid input form: %s did not propagate through network" % (inputs,))
             ## NOTE: output of targets varies by number of target banks!!!
             if self._num_target_banks() > 1:
-                targets = [np.array([bank], "float32") for bank in targets[0]]
+                dtype = get_dtype(targets[0]) or "float32"
+                targets = [np.array([bank], dtype) for bank in targets[0]]
                 for i in range(len(targets[0])):
                     shape = targets[0][i].shape
                     if prediction[0][i].shape != shape:
                         raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (i, shape, prediction[0][i].shape))
             else:
-                targets = [np.array(bank, "float32") for bank in targets[0]]
+                dtype = get_dtype(targets[0]) or "float32"
+                targets = [np.array(bank, dtype) for bank in targets[0]]
                 shape = targets[0].shape
                 if prediction[0].shape != shape:
                     raise Exception("Invalid output shape on bank #%d; got %s, expecting %s" % (0, shape, prediction[0].shape))
@@ -1006,15 +1009,19 @@ class Dataset():
         if self._num_input_banks() > 1: ## for incoming format
             inputs = []
             for i in range(len(pairs[0][0])):
-                inputs.append(np.array([x[0][i] for x in pairs], "float32"))
+                dtype = get_dtype(pairs[0][0][0]) or "float32"
+                inputs.append(np.array([x[0][i] for x in pairs], dtype))
         else:
-            inputs = [np.array([x[0] for x in pairs], "float32")]
+            dtype = get_dtype(pairs[0][0]) or "float32"
+            inputs = [np.array([x[0] for x in pairs], dtype)]
         if self._num_target_banks() > 1: ## for incoming format
             targets = []
+            dtype = get_dtype(pairs[0][1][0]) or "float32"
             for i in range(len(pairs[0][1])):
-                targets.append(np.array([y[1][i] for y in pairs], "float32"))
+                targets.append(np.array([y[1][i] for y in pairs], dtype))
         else:
-            targets = [np.array([y[1] for y in pairs], "float32")]
+            dtype = get_dtype(pairs[0][1]) or "float32"
+            targets = [np.array([y[1] for y in pairs], dtype)]
         labels = []
         if len(pairs[0]) == 3:
             if self._num_target_banks() > 1: ## for incoming format
