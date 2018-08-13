@@ -629,7 +629,7 @@ def choice(seq=None, p=None, temperature=None, index=False):
         else:
             return seq[pick]
 
-def frange(start, stop=None, step=1.0, raw=False):
+def frange(start, stop=None, step=1.0, sequence=False):
     """
     Like range(), but with floats.
 
@@ -653,7 +653,7 @@ def frange(start, stop=None, step=1.0, raw=False):
         stop = start
         start = 0.0
     v = np.arange(start, stop, step)
-    if not raw:
+    if not sequence:
         v = v.tolist()
     return v
 
@@ -758,7 +758,7 @@ def image(item, resize=None):
         image = image.resize(resize)
     return image
 
-def image_to_array(image, resize=None, raw=False):
+def image_to_array(image, resize=None, sequence=False):
     """
     Convert an image filename or PIL.Image into a matrix (list of
     lists).
@@ -778,7 +778,7 @@ def image_to_array(image, resize=None, raw=False):
     if resize is not None:
         image = image.resize(resize)
     image = (np.array(image, "float32") / 255.0)
-    if not raw:
+    if not sequence:
         image = image.tolist()
     return image
 
@@ -1936,7 +1936,7 @@ def get_shape(form):
     else:
         return (form, [0]) # scalar
 
-def reshape(matrix, new_shape, raw=False):
+def reshape(matrix, new_shape, sequence=False):
     """
     Given a list of lists of ... and a new_shape, reformat the
     matrix in the new shape.
@@ -1956,7 +1956,7 @@ def reshape(matrix, new_shape, raw=False):
     if isinstance(new_shape, int):
         new_shape = (new_shape,)
     matrix = np.array(matrix).reshape(new_shape)
-    if not raw:
+    if not sequence:
         matrix = matrix.tolist()
     return matrix
 

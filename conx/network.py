@@ -1640,7 +1640,7 @@ class Network():
             return self.model.get_weights()
 
     def propagate(self, input, batch_size=32, class_id=None,
-                  update_pictures=False, raw=False):
+                  update_pictures=False, sequence=False):
         """
         Propagate an input (in human API) through the network.
         If visualizing, the network image will be updated.
@@ -1669,7 +1669,7 @@ class Network():
         ## End of input setup
         if not is_array_like(input):
             raise Exception("inputs should be an array")
-        if raw:
+        if sequence:
             outputs = self.model.predict(np.array(input), batch_size=batch_size)
         elif self.num_input_layers == 1:
             outputs = self.model.predict(np.array([input]), batch_size=batch_size)
@@ -1677,7 +1677,7 @@ class Network():
             inputs = [np.array([x], "float32") for x in input]
             outputs = self.model.predict(inputs, batch_size=batch_size)
         ## Shape the outputs:
-        if raw:
+        if sequence:
             pass
         elif self.num_target_layers == 1:
             shape = self[self.output_bank_order[0]].shape
@@ -1692,11 +1692,11 @@ class Network():
         if update_pictures:
             for layer in self.layers:
                 self.propagate_to(layer.name, input, batch_size, class_id=class_id,
-                                  update_pictures=update_pictures, raw=raw, update_path=False)
+                                  update_pictures=update_pictures, sequence=sequence, update_path=False)
         return outputs
 
     def propagate_from(self, layer_name, input, output_layer_names=None,
-                       batch_size=32, update_pictures=False, raw=False):
+                       batch_size=32, update_pictures=False, sequence=False):
         """
         Propagate activations from the given layer name to the output layers.
         """
@@ -1726,7 +1726,7 @@ class Network():
             # We should be able to get the prop_from model:
             ## FIXME: could be multiple paths
             prop_model = self.prop_from_dict.get((layer_name, output_layer_name), None)
-            if raw:
+            if sequence:
                 inputs = input
             else:
                 inputs = np.array([input])
@@ -1767,7 +1767,7 @@ class Network():
                                 class_id_name += "-rotated"
                             if self.debug: print("propagate_from 2: class_id_name:", class_id_name)
                             self._comm.send({'class': class_id_name, "xlink:href": data_uri})
-        if raw:
+        if sequence:
             return outputs
         index = 0
         for layer_name in output_layer_names:
@@ -1809,7 +1809,7 @@ class Network():
                                  "xlink:href": data_uri})
 
     def propagate_to(self, layer_name, inputs, batch_size=32, class_id=None,
-                     update_pictures=False, update_path=True, raw=False):
+                     update_pictures=False, update_path=True, sequence=False):
         """
         Computes activation at a layer. Side-effect: updates live SVG.
 
@@ -1818,7 +1818,7 @@ class Network():
             inputs - list of numbers, vector to propagate
             batch_size (int) - size of batch
             update_pictures (bool) - send images to notebook SVG images
-            raw (bool) - if True, don't process inputs or outputs
+            sequence (bool) - if True, treat inputs/outputs as sequences
         """
         if not isinstance(layer_name, str):
             raise Exception("layer_name should be a string")
@@ -1833,7 +1833,7 @@ class Network():
         ## End of input setup
         if not is_array_like(inputs):
             raise Exception("inputs should be an array")
-        if raw:
+        if sequence:
             outputs = self[layer_name].model.predict(np.array(inputs), batch_size=batch_size)
         elif self.num_input_layers == 1:
             outputs = self[layer_name].model.predict(np.array([inputs]), batch_size=batch_size)
@@ -1853,7 +1853,7 @@ class Network():
                     updated = set([])
                     for input_layer_name in self.input_bank_order:
                         if input_layer_name not in updated:
-                            image = self._propagate_to_image(input_layer_name, inputs, raw=raw)
+                            image = self._propagate_to_image(input_layer_name, inputs, sequence=sequence)
                             data_uri = self._image_to_uri(image)
                             if class_id is None:
                                 class_id_name = "%s_%s" % (self.name, input_layer_name)
@@ -1869,7 +1869,7 @@ class Network():
                             for layer in path:
                                 if layer.visible and layer.model is not None:
                                     if layer.name not in updated:
-                                        image = self._propagate_to_image(layer.name, inputs, raw=raw)
+                                        image = self._propagate_to_image(layer.name, inputs, sequence=sequence)
                                         data_uri = self._image_to_uri(image)
                                         if class_id is None:
                                             class_id_name = "%s_%s" % (self.name, layer.name)
@@ -1881,7 +1881,7 @@ class Network():
                                         self._comm.send({'class': class_id_name, "xlink:href": data_uri})
                                         updated.add(layer.name)
                 else: # not the whole path, just to the layer_name
-                    image = self._propagate_to_image(layer_name, inputs, raw=raw)
+                    image = self._propagate_to_image(layer_name, inputs, sequence=sequence)
                     data_uri = self._image_to_uri(image)
                     if class_id is None:
                         class_id_name = "%s_%s" % (self.name, layer_name)
@@ -1892,7 +1892,7 @@ class Network():
                     if self.debug: print("propagate_to 3: sending to class_id_name:", class_id_name)
                     self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         ## Shape the outputs:
-        if raw:
+        if sequence:
             return outputs
         shape = self[layer_name].shape
         if shape and all([isinstance(v, numbers.Integral) for v in shape]):
@@ -1911,7 +1911,7 @@ class Network():
 
     def propagate_to_features(self, layer_name, inputs, cols=5, resize=None, scale=1.0,
                               html=True, size=None, display=True, class_id=None,
-                              update_pictures=False, raw=False, minmax=None):
+                              update_pictures=False, sequence=False, minmax=None):
         """
         if html is True, then generate HTML, otherwise send images.
         """
@@ -1964,7 +1964,7 @@ class Network():
                     self[layer_name].feature = i
                     ## This should return in proper orientation, regardless of rotate setting:
                     image = self.propagate_to_image(layer_name, inputs, class_id=class_id,
-                                                    update_pictures=update_pictures, raw=raw)
+                                                    update_pictures=update_pictures, sequence=sequence)
                     if resize is not None:
                         image = image.resize(resize)
                     if scale != 1.0:
@@ -1980,7 +1980,7 @@ class Network():
             raise Exception("layer '%s' has no features" % layer_name)
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                           class_id=None, update_pictures=False, raw=False, feature=None):
+                           class_id=None, update_pictures=False, sequence=False, feature=None):
         """
         Gets an image of activations at a layer. Always returns image in
         proper orientation.
@@ -1991,14 +1991,14 @@ class Network():
             orig_feature = self[layer_name].feature
             self[layer_name].feature = feature
         image = self._propagate_to_image(layer_name, input, batch_size, resize, scale,
-                                         class_id, update_pictures, raw)
+                                         class_id, update_pictures, sequence)
         self.config["svg_rotate"] = orig_rotate
         if feature is not None:
             self[layer_name].feature = orig_feature
         return image
 
     def _propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
-                            class_id=None, update_pictures=False, raw=False):
+                            class_id=None, update_pictures=False, sequence=False):
         """
         Internal version. Draws to whatever rotation is set.
         """
@@ -2014,7 +2014,7 @@ class Network():
         if not isinstance(layer_name, str):
             raise Exception("layer_name should be a string")
         outputs = self.propagate_to(layer_name, input, batch_size, class_id=class_id,
-                                    update_pictures=update_pictures, raw=raw)
+                                    update_pictures=update_pictures, sequence=sequence)
         array = np.array(outputs)
         image = self[layer_name].make_image(array, config=self.config)
         if resize is not None:
