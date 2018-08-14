@@ -1332,7 +1332,7 @@ class Network():
         else:
             if verbose > 0:
                 print("Evaluating initial training metrics...")
-            values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
+            values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=kverbose)
             if not isinstance(values, list): # if metrics is just a single value
                 values = [values]
             results = {metric: value for metric,value in zip(self.model.metrics_names, values)}
@@ -1349,7 +1349,7 @@ class Network():
             length = len(self.dataset.test_targets)
             targets = [column[-length:] for column in self.dataset._targets]
             inputs = [column[-length:] for column in self.dataset._inputs]
-            val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=0)
+            val_values = self.model.evaluate(inputs, targets, batch_size=batch_size, verbose=kverbose)
             val_results = {"val_%s" % metric: value for metric,value in zip(self.model.metrics_names, val_values)}
         if val_results:
             val_results_acc = self._compute_result_acc(val_results)
