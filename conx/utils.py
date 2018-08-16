@@ -1960,17 +1960,55 @@ def get_shape(form):
         isinstance(form[1], numbers.Number)):
         ## Is it [type, count]
         if isinstance(form[0], (np.dtype, numbers.Number, type)):
-            return (form[0], [form[1]])
+            retval = (form[0], [form[1]])
         else:
             f = get_shape(form[0])
             if isinstance(f, tuple): ## FIXME: and same
-                return (f[0], [form[1]] + f[1])
+                retval = (f[0], [form[1]] + f[1])
             else:
-                return ([get_shape(f) for f in form], [len(form)])
+                retval = ([get_shape(f) for f in form], [len(form)])
     elif isinstance(form, list):
-        return ([get_shape(x) for x in form], [len(form)])
+        retval = ([get_shape(x) for x in form], [len(form)])
     else:
-        return (form, [0]) # scalar
+        retval = (form, [0]) # scalar
+    return retval
+
+def get_dim(array, dims):
+    """
+    Get the values of an array given dimensions, where
+    dims is an int or tuple of indicies, where an index can
+    be None.. None means the entire dimension.
+
+    >>> test = [
+    ...     [[1], [2], [3]],
+    ...     [[11], [22], [33]],
+    ...     [[111], [222], [333]],
+    ...     [[1111], [2222], [3333]],
+    ... ]
+
+    >>> get_dim(test, 0)
+    [[1], [2], [3]]
+
+    >>> get_dim(test, 1)
+    [[11], [22], [33]]
+
+    >>> get_dim(test, (None, 0, 0))
+    [1, 11, 111, 1111]
+
+    >>> get_dim(test, (None, None, 0))
+    [[1, 2, 3], [11, 22, 33], [111, 222, 333], [1111, 2222, 3333]]
+
+    >>> get_dim(test, (0, None, 0))
+    [1, 2, 3]
+    """
+    if isinstance(dims, int):
+        dims = (dims,)
+    if len(dims) == 0:
+        return array
+    elif dims[0] is None:
+        return [get_dim(col, dims[1:]) for col in array]
+    else:
+        return get_dim(array[dims[0]], dims[1:])
 
 def reshape(matrix, new_shape, sequence=False):
     """
@@ -1996,7 +2034,7 @@ def reshape(matrix, new_shape, sequence=False):
         matrix = matrix.tolist()
     return matrix
 
-def shape(item):
+def shape(item, summary=False):
     """
     Given a matrix or vector, return the shape as a tuple
     of dimensions.
@@ -2007,14 +2045,60 @@ def shape(item):
     (2,)
     >>> shape([[1, 2, 3], [4, 5, 6]])
     (2, 3)
+
+    >>> shape([[1, 2, 3], [4, 5, 6]], summary=True)
+    {'shape': (2, 3), 'ranges': [(1, 6)]}
     """
-    s = get_shape(get_form(item))
+    form = get_form(item)
+    s = get_shape(form)
     if (isinstance(s, tuple) and
         len(s) == 2 and
         all([isinstance(v, (np.dtype, numbers.Number, type)) for v in s[1]])):
-        return tuple(s[1])
+        retval = tuple(s[1])
     else:
-        return [tuple(v[1]) for v in s]
+        retval = [tuple(v[1]) for v in s]
+    if summary:
+        return {
+            "shape": retval,
+            "ranges": get_ranges(item, form),
+        }
+    else:
+        return retval
+
+def get_ranges(items, form, dims=tuple()):
+    """
+
+    form - like [[[[numbers.Number, 4], 427], 266], [type, len], ...]
+
+    >>> test = [
+    ...     [[1], [2], [3]],
+    ...     [[11], [22], [33]],
+    ...     [[111], [222], [333]],
+    ...     [[1111], [2222], [3333]],
+    ... ]
+
+    >>> shape(test)
+    (4, 3, 1)
+
+    >>> form = get_form(test)
+    >>> get_ranges(test, form)
+    [(1, 3333)]
+
+    """
+    ### items, form=[[Number, M], N]
+    if form == numbers.Number:
+        v = get_dim(items, dims)
+        return minimum(v), maximum(v)
+    elif not isinstance(form, list):
+        return None ## something other than Number
+    elif (len(form) == 2 and isinstance(form[1], int)):
+        if isinstance(form[0], list):
+            return get_ranges(items, form[0], dims+(None,))
+        else:
+            return [(minimum(get_dim(items, dims)),
+                     maximum(get_dim(items, dims)))]
+    else:
+        return [get_ranges(items, form[i], dims+(i,)) for i in range(len(form))]
 
 class Experiment():
     """
