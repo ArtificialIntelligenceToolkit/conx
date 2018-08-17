@@ -1796,6 +1796,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = True, load_direct = True, with function(batch):
@@ -1817,6 +1819,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = True, load_direct = False, with generator function():
@@ -1832,6 +1836,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = True, load_direct = True, with generator function():
@@ -1854,6 +1860,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = True, load_direct = False, with generator function() (showing another
@@ -1868,6 +1876,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = False, load_direct = False, with generator function():
@@ -1882,6 +1892,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
 
     ordered = False, load_direct = True, with generator function():
@@ -1903,6 +1915,8 @@ class VirtualDataset(Dataset):
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ... else:
+    ...     print("Evaluating initial ...")
     Evaluating initial ...
     """
     Vector = VirtualDataVector
