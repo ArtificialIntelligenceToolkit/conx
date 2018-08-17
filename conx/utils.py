@@ -777,25 +777,31 @@ def crop_image(image, x1, y1, x2, y2):
 
     >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
     ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
-    >>> image = array_to_image(m)
-    >>> crop_image(image, 0, 0, 1, 1) # doctest: +ELLIPSIS
+    >>> img = array_to_image(m)
+    >>> crop_image(img, 0, 0, 1, 1) # doctest: +ELLIPSIS
     <PIL.Image.Image image mode=RGB size=1x1 at ...>
     """
-    from PIL import Image
     return image.crop((x1, y1, x2, y2))
 
-def image(item, resize=None):
+def image(img, resize=None):
     """
     Given a filename, load it. Optionally, given a picture,
     resize it.
 
-    >>> image()
+    >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
+    ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
+    >>> img = array_to_image(m)
+    >>> img                      # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGB size=2x2 at ...>
+
+    >>> image(img, resize=(4,4)) # doctest: +ELLIPSIS
+    <PIL.Image.Image image mode=RGB size=4x4 at ...>
     """
-    if isinstance(item, str):
-        image = PIL.Image.open(item)
+    if isinstance(img, str):
+        img = PIL.Image.open(img)
     if resize is not None:
-        image = image.resize(resize)
-    return image
+        img = img.resize(resize)
+    return img
 
 def image_remove_alpha(image):
     """
@@ -815,7 +821,7 @@ def image_resize(image, resize=None):
         image = image.resize(resize)
     return image
 
-def image_to_array(image, resize=None, raw=False):
+def image_to_array(img, resize=None, raw=False):
     """
     Convert an image filename or PIL.Image into a matrix (list of
     lists).
@@ -823,23 +829,23 @@ def image_to_array(image, resize=None, raw=False):
 
     >>> m = [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]],
     ...      [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
-    >>> image = array_to_image(m)
-    >>> np.array(image).tolist()
+    >>> img = array_to_image(m)
+    >>> np.array(img).tolist()
     [[[0, 255, 255], [255, 0, 0]], [[0, 255, 255], [255, 0, 0]]]
-    >>> image_to_array(image)
+    >>> image_to_array(img)
     [[[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]], [[0.0, 1.0, 1.0], [1.0, 0.0, 0.0]]]
 
     """
-    if isinstance(image, str):
-        image = PIL.Image.open(image)
+    if isinstance(img, str):
+        img = PIL.Image.open(img)
     if resize is not None:
-        image = image.resize(resize)
-    if image.mode != "RGB":
-        image = image.convert("RGB")
-    image = (np.array(image, "float32") / 255.0)
+        img = img.resize(resize)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img = (np.array(img, "float32") / 255.0)
     if not raw:
-        image = image.tolist()
-    return image
+        img = img.tolist()
+    return img
 
 def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
     """
@@ -847,10 +853,10 @@ def array_to_image(array, scale=1.0, minmax=None, colormap=None, shape=None):
 
     >>> m = [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]],
     ...      [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
-    >>> image = array_to_image(m)
-    >>> np.array(image).tolist()
+    >>> img = array_to_image(m)
+    >>> np.array(img).tolist()
     [[[255, 255, 255], [0, 0, 0]], [[0, 0, 0], [255, 255, 255]]]
-    >>> image_to_array(image)
+    >>> image_to_array(img)
     [[[1.0, 1.0, 1.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]]
 
     >>> m = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
