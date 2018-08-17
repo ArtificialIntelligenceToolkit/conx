@@ -1709,17 +1709,21 @@ class VirtualDataVector(DataVector):
             self.dataset._cached = (batch*self.dataset._batch_size,
                                     min((batch+1)*self.dataset._batch_size, len(self.dataset)))
             if batch != (self.dataset._current_batch + 1) and self.dataset._ordered:
-                self.dataset._generator = self.dataset._function()
-                ## first, find the set to skip over, if needed:
-                if self.dataset._load_direct:
-                    for i in range(0, batch):
-                        inputs, targets = next(self.dataset._generator)
-                else:
-                    for i in range(0, self.dataset._cached[0]):
-                        inputs, targets = next(self.dataset._generator)
+                if self.dataset._generator:
+                    self.dataset._generator = self.dataset._function()
+                    ## first, find the set to skip over, if needed:
+                    if self.dataset._load_direct:
+                        for i in range(0, batch):
+                            inputs, targets = next(self.dataset._generator)
+                    else:
+                        for i in range(0, self.dataset._cached[0]):
+                            inputs, targets = next(self.dataset._generator)
             ## now fill the cached values with these:
             if self.dataset._load_direct:
-                all_inputs, all_targets = next(self.dataset._generator)
+                if self.dataset._generator:
+                    all_inputs, all_targets = next(self.dataset._generator)
+                else:
+                    all_inputs, all_targets = self.dataset._generate(batch)
                 self.dataset._inputs = all_inputs
                 self.dataset._targets = all_targets
             else:
@@ -1727,7 +1731,10 @@ class VirtualDataVector(DataVector):
                 all_targets = []
                 for i in range(self.dataset._cached[0],
                                self.dataset._cached[1]):
-                    inputs, targets = next(self.dataset._generator)
+                    if self.dataset._generator:
+                        inputs, targets = next(self.dataset._generator)
+                    else:
+                        inputs, targets = self.dataset._generate(i)
                     all_inputs.append(inputs)
                     all_targets.append(targets)
                 self.dataset._inputs = []
@@ -1745,10 +1752,17 @@ class VirtualDataset(Dataset):
     """
     Create a virtual dataset. VirtualData set takes:
 
-    * a generator function (no arguments) that returns an
-      input and output if load_direct is False, otherwise
-      should return a low-level numpy input and target
-      batch, one np.array() for each input/target bank
+    * a function that is either:
+      * a generator function (no arguments) that returns an
+        input and output if load_direct is False, otherwise
+        should return a low-level numpy input and target
+        batch, one np.array() for each input/target bank
+      * a generate(pos OR batch) function that takes a position
+        (if load_direct) or batch (if not load_direct). If
+        load_direct, the function(batch) returns a low-level
+        numpy input and target batch, one np.array() for each
+        input/target bank. If not load_direct, return an
+        input/target pair.
     * shape of inputs
     * shape of targets
     * ranges of inputs
@@ -1769,7 +1783,43 @@ class VirtualDataset(Dataset):
     >>> import conx as cx
     >>> import numpy as np
     >>> import keras
+    >>> import random
     >>> from distutils.version import LooseVersion
+
+    ordered = True, load_direct = False, with function(position):
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
+    ...     def f(pos):
+    ...        return ([pos/100, pos/100], [pos/100])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], batch_size=16)
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     net.set_dataset(dataset)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    Evaluating initial ...
+
+    ordered = True, load_direct = True, with function(batch):
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
+    ...     def f(batch):
+    ...         i = batch * 16
+    ...         while True:
+    ...             all_inputs = [[]]
+    ...             all_targets = [[]]
+    ...             while i < (batch + 1) * 16:
+    ...                 all_inputs[0].append([i/100, i/100])
+    ...                 all_targets[0].append([i/100])
+    ...                 i += 1
+    ...             return ([np.array(inputs) for inputs in all_inputs],
+    ...                     [np.array(targets) for targets in all_targets])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], load_direct=True, batch_size=16)
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     net.set_dataset(dataset)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    Evaluating initial ...
+
+    ordered = True, load_direct = False, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
     ...     def f():
@@ -1777,24 +1827,78 @@ class VirtualDataset(Dataset):
     ...         while True:
     ...             yield ([i/100, i/100], [i/100])
     ...             i += 1
-    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], batch_size=100)
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], batch_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
     ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
     Evaluating initial ...
 
+    ordered = True, load_direct = True, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
     ...     def f():
-    ...         all_inputs = [[]]
-    ...         all_targets = [[]]
+    ...         i = 0
+    ...         while True:
+    ...             i_16 = i + 16
+    ...             all_inputs = [[]]
+    ...             all_targets = [[]]
+    ...             while i < i_16:
+    ...                 all_inputs[0].append([i/100, i/100])
+    ...                 all_targets[0].append([i/100])
+    ...                 i += 1
+    ...             yield ([np.array(inputs) for inputs in all_inputs],
+    ...                    [np.array(targets) for targets in all_targets])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], load_direct=True, batch_size=16)
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     net.set_dataset(dataset)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    Evaluating initial ...
+
+    ordered = True, load_direct = False, with generator function() (showing another
+    function style):
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
+    ...     def f():
     ...         for i in range(100):
-    ...             all_inputs[0].append([i/100, i/100])
-    ...             all_targets[0].append([i/100])
-    ...         yield ([np.array(inputs) for inputs in all_inputs],
-    ...                [np.array(targets) for targets in all_targets])
-    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], load_direct=True, batch_size=100)
+    ...             yield ([i/100, i/100], [i/100])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], batch_size=16)
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     net.set_dataset(dataset)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    Evaluating initial ...
+
+    ordered = False, load_direct = False, with generator function():
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
+    ...     def f():
+    ...         while True:
+    ...             r = random.random()
+    ...             yield ([r, r], [r])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], ordered=False, batch_size=16)
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     net.set_dataset(dataset)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    Evaluating initial ...
+
+    ordered = False, load_direct = True, with generator function():
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
+    ...     def f():
+    ...         while True:
+    ...             all_inputs = [[]]
+    ...             all_targets = [[]]
+    ...             for i in range(16):
+    ...                 r = random.random()
+    ...                 all_inputs[0].append([r, r])
+    ...                 all_targets[0].append([r])
+    ...             yield ([np.array(inputs) for inputs in all_inputs],
+    ...                    [np.array(targets) for targets in all_targets])
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,), [(0,1)], [(0,1)], ordered=False,
+    ...                                 load_direct=True, batch_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1828,7 +1932,12 @@ class VirtualDataset(Dataset):
         return self._length
 
     def reset(self):
-        self._generator = self._function()
+        try:
+            self._generator = self._function()
+            self._generate = False
+        except:
+            self._generator = None
+            self._generate = self._function
         self._cached = [-1, -1]
         self._current_batch = -1
         ## Force a load of first batch:
