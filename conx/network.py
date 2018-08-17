@@ -49,7 +49,7 @@ import keras.backend as K
 
 from .utils import *
 from .layers import Layer
-from .dataset import Dataset
+from .dataset import Dataset, VirtualDataset
 import conx.networks
 
 try:
@@ -1115,7 +1115,12 @@ class Network():
             targs = []
             for i in range(len(pairs[0][1])):
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
-        history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
+        if isinstance(self.dataset, VirtualDataset):
+            history = self.model.fit_generator(generator=self.dataset.get_generator(),
+                                               epochs=1, verbose=0)
+        else:
+            history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
+
         ## may need to update history?
         outputs = self.propagate(inputs, batch_size=batch_size, update_pictures=update_pictures)
         if len(self.output_bank_order) == 1:
@@ -1406,7 +1411,14 @@ class Network():
             for (on_method, function) in callbacks:
                 kcallbacks.append(FunctionCallback(self, on_method, function))
         with _InterruptHandler(self) as handler:
-            if self.dataset._split == 1:
+            if isinstance(self.dataset, VirtualDataset):
+                result = self.model.fit_generator(generator=self.dataset.get_generator(),
+                                                  epochs=epochs,
+                                                  callbacks=kcallbacks,
+                                                  shuffle=shuffle,
+                                                  class_weight=class_weight,
+                                                  verbose=kverbose)
+            elif self.dataset._split == 1:
                 result = self.model.fit(self.dataset._inputs,
                                         self.dataset._targets,
                                         batch_size=batch_size,
@@ -2926,7 +2938,7 @@ class Network():
                 #######################################################################
                 if inputs is not None:
                     v = inputs
-                elif len(self.dataset.inputs) > 0:
+                elif len(self.dataset.inputs) > 0 and not isinstance(self.dataset, VirtualDataset):
                     v = self.dataset.inputs[0]
                 else:
                     if self.num_input_layers > 1:
