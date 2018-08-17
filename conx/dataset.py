@@ -30,6 +30,7 @@ import sys
 from IPython.display import display
 from functools import reduce
 import types
+import keras
 import operator
 
 from .utils import *
@@ -611,6 +612,8 @@ class Dataset():
     input_shapes = [shape, ...]
     target_shapes = [shape, ...]
     """
+    Vector = DataVector
+
     def __init__(self,
                  network=None,
                  name=None,
@@ -652,7 +655,7 @@ class Dataset():
                 "train_inputs", "train_targets",
                 "labels", "test_labels", "train_labels",
         ]:
-            return DataVector(self, item)
+            return self.Vector(self, item)
         else:
             raise AttributeError("type object 'Dataset' has no attribute '%s'" % (item,))
 
@@ -1690,3 +1693,99 @@ class Dataset():
             return self._inputs[0].shape[0]
         else:
             return 0
+
+class VirtualDataVector(DataVector):
+    def __getitem__(self, pos):
+        ## if pos is not in cached values:
+        batch = int(np.floor(pos / self.dataset._batch_size))
+        if not(self.dataset._cached[0] <= pos < self.dataset._cached[1]):
+            self.dataset.reset()
+            ## find the min/max batch_size around pos, and fill:
+            self.dataset._cached = (batch*self.dataset._batch_size,
+                                    (batch+1)*self.dataset._batch_size)
+            print("LOADING! %s" % (self.dataset._cached,))
+            ## first, find the set to skip over, if needed:
+            for i in range(0, self.dataset._cached[0]):
+                inputs, targets = next(self.dataset._generator)
+            ## now fill the cached values with these:
+            all_inputs = []
+            all_targets = []
+            for i in range(self.dataset._cached[0],
+                           self.dataset._cached[1]):
+                inputs, targets = next(self.dataset._generator)
+                all_inputs.append(inputs)
+                all_targets.append(targets)
+            self.dataset._inputs = []
+            self.dataset._targets = []
+            self.dataset.load(inputs=all_inputs, targets=all_targets)
+            # if self.dataset._num_input_banks() > 1:
+            #     self.datatset._inputs = [np.array([v]) for v in inputs]
+            # else:
+            #     self.dataset._inputs = [np.array([inputs])]
+            # if self.dataset._num_target_banks() > 1:
+            #     self.dataset._targets = [np.array([v]) for v in targets]
+            # else:
+            #     self.dataset._targets = [np.array([targets])]
+        ## Do match to get the actual position:
+        return super().__getitem__(pos - (batch * self.dataset._batch_size))
+
+    def __len__(self):
+        ## FIXME: handle test lengths based on split
+        return len(self.dataset)
+
+class VirtualDataset(Dataset):
+    Vector = VirtualDataVector
+
+    def __init__(self, function, length, input_shapes, target_shapes,
+                 batch_size=32, network=None, name=None, description=None):
+        super().__init__(network, name, description, input_shapes, target_shapes)
+        self._function = function
+        self._length = length
+        self._batch_size = batch_size
+        self.reset()
+
+    def _get_size(self):
+        return self._length
+
+    def reset(self):
+        self._generator = self._function()
+        self._cached = [-1, -1]
+
+    def get_generator(self):
+        return DatasetGenerator(self)
+
+class DatasetGenerator(keras.utils.Sequence):
+    """
+    DatasetGenerator takes a VirtualDataset and can be trained
+    without using a lot of memory.
+
+    >>> import conx as cx
+    >>> import keras
+    >>> from distutils.version import LooseVersion
+
+    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.1"):
+    ...     def f():
+    ...         i = 0
+    ...         while True:
+    ...             yield ([i, i], [i])
+    ...             i += 1
+    ...     dataset = cx.VirtualDataset(f, 100, (2,), (1,))
+    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    ...     net.compile(error="mse", optimizer="adam")
+    ...     history = net.model.fit_generator(generator=dataset.get_generator(), steps_per_epoch=1,
+    ...                                       use_multiprocessing=True,
+    ...                                       workers=6, verbose=0)
+    """
+    def __init__(self, dataset):
+        """
+        dataset - a VirtualDataset
+        """
+        self.dataset = dataset
+
+    def __len__(self):
+        return int(np.ceil(len(self.dataset) / float(self.dataset._batch_size)))
+
+    def __getitem__(self, batch):
+        i = batch * self.dataset._batch_size
+        self.dataset.inputs[i] ## force to load in _inputs/_targets
+        return (self.dataset._inputs, self.dataset._targets)
