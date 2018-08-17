@@ -665,7 +665,7 @@ def choice(seq=None, p=None, temperature=None, index=False):
         else:
             return seq[pick]
 
-def frange(start, stop=None, step=1.0, sequence=False):
+def frange(start, stop=None, step=1.0, raw=False):
     """
     Like range(), but with floats.
 
@@ -689,7 +689,7 @@ def frange(start, stop=None, step=1.0, sequence=False):
         stop = start
         start = 0.0
     v = np.arange(start, stop, step)
-    if not sequence:
+    if not raw:
         v = v.tolist()
     return v
 
@@ -786,7 +786,10 @@ def crop_image(image, x1, y1, x2, y2):
 
 def image(item, resize=None):
     """
-    Convert item into an image.
+    Given a filename, load it. Optionally, given a picture,
+    resize it.
+
+    >>> image()
     """
     if isinstance(item, str):
         image = PIL.Image.open(item)
@@ -794,7 +797,25 @@ def image(item, resize=None):
         image = image.resize(resize)
     return image
 
-def image_to_array(image, resize=None, sequence=False):
+def image_remove_alpha(image):
+    """
+    Given an image with an alpha channel, return an
+    image with alpha channel removed.
+    """
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    return image
+
+def image_resize(image, resize=None):
+    """
+    Given an image and resize tuple (w,h), return an
+    image with new size.
+    """
+    if resize is not None:
+        image = image.resize(resize)
+    return image
+
+def image_to_array(image, resize=None, raw=False):
     """
     Convert an image filename or PIL.Image into a matrix (list of
     lists).
@@ -813,8 +834,10 @@ def image_to_array(image, resize=None, sequence=False):
         image = PIL.Image.open(image)
     if resize is not None:
         image = image.resize(resize)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     image = (np.array(image, "float32") / 255.0)
-    if not sequence:
+    if not raw:
         image = image.tolist()
     return image
 
@@ -1047,8 +1070,8 @@ def valid_vshape(x):
     """
     Is this a valid shape (i.e., size) to display vectors using PIL?
     """
-    # vshape must be a single int or a 2-dimensional tuple
-    return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) == 2)
+    # vshape must be a single int or a 2- or 3-dimensional tuple
+    return valid_shape(x) and (isinstance(x, numbers.Integral) or len(x) in [2,3])
 
 def scale(a, new_range=(0,1), new_dtype="float", truncate=True):
     """
@@ -2010,7 +2033,7 @@ def get_dim(array, dims):
     else:
         return get_dim(array[dims[0]], dims[1:])
 
-def reshape(matrix, new_shape, sequence=False):
+def reshape(matrix, new_shape, raw=False):
     """
     Given a list of lists of ... and a new_shape, reformat the
     matrix in the new shape.
@@ -2030,7 +2053,7 @@ def reshape(matrix, new_shape, sequence=False):
     if isinstance(new_shape, int):
         new_shape = (new_shape,)
     matrix = np.array(matrix).reshape(new_shape)
-    if not sequence:
+    if not raw:
         matrix = matrix.tolist()
     return matrix
 
