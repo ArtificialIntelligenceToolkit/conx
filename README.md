@@ -1,4 +1,4 @@
-# Conx Neural Networks
+# ConX Neural Networks
 
 ## The On-Ramp to Deep Learning
 
@@ -10,9 +10,9 @@ Read the documentation at [conx.readthedocs.io](http://conx.readthedocs.io/)
 
 Ask questions on the mailing list: [conx-users](https://groups.google.com/forum/#!forum/conx-users)
 
-Implements Deep Learning neural network algorithms using a simple interface with easy visualizations and useful analytical. Built on top of Keras, which can use either [TensorFlow](https://www.tensorflow.org/), [Theano](http://www.deeplearning.net/software/theano/), or [CNTK](https://www.cntk.ai/pythondocs/).
+Implements Deep Learning neural network algorithms using a simple interface with easy visualizations and useful analytics. Built on top of Keras, which can use either [TensorFlow](https://www.tensorflow.org/), [Theano](http://www.deeplearning.net/software/theano/), or [CNTK](https://www.cntk.ai/pythondocs/).
 
-The network is specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer.
+A network can be specified to the constructor by providing sizes. For example, Network("XOR", 2, 5, 1) specifies a network named "XOR" with a 2-node input layer, 5-unit hidden layer, and a 1-unit output layer. However, any complex network can be constructed using the `net.connect()` method.
 
 Computing XOR via a target function:
 
