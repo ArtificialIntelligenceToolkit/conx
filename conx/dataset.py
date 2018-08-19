@@ -1785,7 +1785,9 @@ class VirtualDataset(Dataset):
     >>> import random
     >>> from distutils.version import LooseVersion
 
-    >>> def test_dataset(ds):
+    >>> def test_dataset(net):
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False)
+    ...     ds = net.dataset
     ...     i0t0 = ds.inputs[0]
     ...     i50t0 = ds.inputs[50]
     ...     i0t1 = ds.inputs[0]
@@ -1811,11 +1813,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = False, load_batch_direct = True, with function(batch):
 
@@ -1838,11 +1839,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = True, load_batch_direct = False, with generator function():
 
@@ -1859,11 +1859,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = True, load_batch_direct = True, with generator function():
 
@@ -1887,11 +1886,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = True, load_batch_direct = False, with generator function() (showing another
     function style):
@@ -1907,11 +1905,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = False, load_batch_direct = False, with generator function():
 
@@ -1927,11 +1924,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
 
     generator_ordered = False, load_batch_direct = True, with generator function():
 
@@ -1953,11 +1949,10 @@ class VirtualDataset(Dataset):
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False) # doctest: +ELLIPSIS
+    ...     test_dataset(net) # doctest: +ELLIPSIS
     ... else:
     ...     print("Evaluating initial ...")
     Evaluating initial ...
-    >>> test_dataset(dataset)
     """
     Vector = VirtualDataVector
 
