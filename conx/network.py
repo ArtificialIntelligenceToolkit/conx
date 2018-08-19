@@ -2540,21 +2540,20 @@ class Network():
 
     def add_loss(self, layer_name, function):
         """
-        Add an error/loss function to a layer.
+        Add an error/loss function(s) to a layer.
 
         >>> from conx import Network
         >>> import keras.backend as K
         >>> from keras.losses import mse
 
         >>> net = Network("XOR", 2, 5, 1, activation="sigmoid", seed=1234)
-        >>> net.build_model()
 
         >>> def loss(inputs):
         ...     return mse(0.50, inputs[:,0])
 
-        >>> net.add_loss("hidden", loss)
-
-        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.compile(error={"output": "mse",
+        ...                    "hidden": loss},
+        ...             optimizer="adam")
         >>> ds = [[[0, 0], [0]],
         ...       [[0, 1], [1]],
         ...       [[1, 0], [1]],
@@ -2564,7 +2563,14 @@ class Network():
         >>> net.train(1, plot=False)  # doctest: +ELLIPSIS
         Evaluating ...
         """
-        self[layer_name].keras_layer.add_loss(function(self[layer_name].k), None)
+        losses = self[layer_name].keras_layer.get_losses_for(None)
+        if len(losses) > 0:
+            raise Exception("to add multiple error functions on layer named '%s' add all at once" % (layer_name,))
+        if isinstance(function, (list, tuple)):
+            for error_function in function:
+                self[layer_name].keras_layer.add_loss(error_function(self[layer_name].k), None)
+        else:
+            self[layer_name].keras_layer.add_loss(function(self[layer_name].k), None)
 
     def process_compile_kwargs(self, kwargs):
         """
@@ -2625,6 +2631,15 @@ class Network():
                 print("WARNING: using softmax activation function; tolerance is ignored", file=sys.stderr)
         else:
             kwargs['metrics'] = [self.acc] ## Conx's default
+        ## Handle loss functions on internal layers:
+        if "loss" in kwargs and isinstance(kwargs["loss"], dict):
+            for layer_name in list(kwargs["loss"]):
+                if self[layer_name].kind() == "hidden":
+                    self.add_loss(layer_name, kwargs["loss"][layer_name])
+                    del kwargs["loss"][layer_name]
+                elif self[layer_name].kind() != "output":
+                    raise Exception("cannot put an error function " +
+                                    "on layer named '%s' of type '%s'" % (layer_name, self[layer_name].kind()))
         return kwargs
 
     def acc(self, targets, outputs):
