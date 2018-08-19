@@ -19,7 +19,7 @@ def colors(dataset, path='colors.csv',
         labels.append(name)
         count += 1
     inputs = np.array(inputs, dtype='float32')
-    targets = np.array(targets, dtype='uint8')
+    targets = np.array(targets, dtype='uint16')
     dataset.name = "Colors"
     dataset.description = """
 Original source: https://github.com/andrewortman/colorbot
