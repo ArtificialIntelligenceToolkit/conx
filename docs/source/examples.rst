@@ -11,6 +11,7 @@ Examples
    CIFAR10_CNN
    Auto-encoder with Conv2D
    Datasets
+   VirtualDatasets
    Plotting
    Plot3D
    Autoencoder
