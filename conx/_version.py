@@ -17,6 +17,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA 02110-1301  USA
 
-__version__ = "3.7.3"
+__version__ = "3.7.4"
 VERSION = tuple([(int(v) if v.isdigit() else v)
                  for v in __version__.split(".")])
