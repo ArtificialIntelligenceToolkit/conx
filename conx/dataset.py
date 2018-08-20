@@ -1724,6 +1724,11 @@ class Dataset():
 
 class VirtualDataVector(DataVector):
     def __getitem__(self, pos):
+        ## FIXME: allow slices:
+        if isinstance(pos, slice):
+            raise Exception("virtual dataset cannot yet handle slice")
+        elif isinstance(pos, int) and pos < 0:
+            pos = len(self.dataset) + pos
         ## if pos is not in cached values:
         batch = int(np.floor(pos / self.dataset._batch_size))
         if not(self.dataset._cached[0] <= pos < self.dataset._cached[1]):
