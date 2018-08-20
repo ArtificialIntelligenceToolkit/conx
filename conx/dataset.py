@@ -50,6 +50,10 @@ class DataVector():
 
     def __getitem__(self, pos):
         """
+        Get a pos (positive or negative) or a slice from the
+        vector.
+
+
         >>> from conx import Network, Dataset
         >>> net = Network("Test 0", 3, 2)
         >>> net.compile(error="mse", optimizer="adam")
@@ -117,6 +121,8 @@ class DataVector():
                         range(len(self.dataset.targets))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_target(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_target(len(self.dataset.targets) + pos)
             else:
                 return self.dataset._get_target(pos)
         elif self.item == "labels":
@@ -125,12 +131,16 @@ class DataVector():
                         range(len(self.dataset.labels))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_label(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_label(len(self.dataset.labels) + pos)
             else:
                 return self.dataset._get_label(pos)
         elif self.item == "test_labels":
             if isinstance(pos, slice):
                 return [self.dataset._get_test_label(i) for i in
                         range(len(self.dataset.test_labels))[pos]]
+            elif pos < 0:
+                return self.dataset._get_test_label(len(self.dataset.test_labels) + pos)
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_test_label(i) for i in pos]
             else:
@@ -141,6 +151,8 @@ class DataVector():
                         range(len(self.dataset.train_labels))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_train_label(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_train_label(len(self.dataset.train_labels) + pos)
             else:
                 return self.dataset._get_train_label(pos)
         elif self.item == "inputs":
@@ -149,6 +161,8 @@ class DataVector():
                         range(len(self.dataset.inputs))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_input(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_input(len(self.dataset.inputs) + pos)
             else:
                 return self.dataset._get_input(pos)
         elif self.item == "test_inputs":
@@ -157,6 +171,8 @@ class DataVector():
                         range(len(self.dataset.test_inputs))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_test_input(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_test_input(len(self.dataset.test_inputs) + pos)
             else:
                 return self.dataset._get_test_input(pos)
         elif self.item == "train_inputs":
@@ -165,6 +181,8 @@ class DataVector():
                         range(len(self.dataset.train_inputs))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_train_input(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_train_input(len(self.dataset.train_inputs) + pos)
             else:
                 return self.dataset._get_train_input(pos)
         elif self.item == "test_targets":
@@ -173,6 +191,8 @@ class DataVector():
                         range(len(self.dataset.test_targets))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_test_target(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_test_target(len(self.dataset.test_targets) + pos)
             else:
                 return self.dataset._get_test_target(pos)
         elif self.item == "train_targets":
@@ -181,6 +201,8 @@ class DataVector():
                         range(len(self.dataset.train_targets))[pos]]
             elif isinstance(pos, (list, tuple)):
                 return [self.dataset._get_train_target(i) for i in pos]
+            elif pos < 0:
+                return self.dataset._get_train_target(len(self.dataset.train_targets) + pos)
             else:
                 return self.dataset._get_train_target(pos)
         else:
