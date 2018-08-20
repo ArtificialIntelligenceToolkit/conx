@@ -950,10 +950,10 @@ class Network():
         Testing TEST with tolerance None...
         # | inputs | targets | outputs | result
         ---------------------------------------
-        0 | [[0.00,0.00]] | [[0.00]] | [0.50] | X
-        1 | [[0.00,1.00]] | [[1.00]] | [0.50] | X
-        2 | [[1.00,0.00]] | [[1.00]] | [0.50] | X
-        3 | [[1.00,1.00]] | [[0.00]] | [0.50] | X
+        0 | [[0.00, 0.00]] | [[0.00]] | [0.50] | X
+        1 | [[0.00, 1.00]] | [[1.00]] | [0.50] | X
+        2 | [[1.00, 0.00]] | [[1.00]] | [0.50] | X
+        3 | [[1.00, 1.00]] | [[0.00]] | [0.50] | X
         Total count: 4
               correct: 0
               incorrect: 4
@@ -3856,10 +3856,10 @@ require(['base/js/namespace'], function(Jupyter) {
             '[1.01]'
 
             >>> net.pf(range(10), precision=2)
-            '[0,1,2,3,4,5,6,7,8,9]'
+            '[0.00, 1.00, 2.00, 3.00, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00]'
 
             >>> net.pf([0]*10000) # doctest: +ELLIPSIS
-            '[0,0,0,...]'
+            '[0.00, 0.00, 0.00, ...]'
         """
         if isinstance(vector, collections.Iterable):
             vector = list(vector)
@@ -3870,8 +3870,9 @@ require(['base/js/namespace'], function(Jupyter) {
         precision  = "{0:.%df}" % config["precision"]
         return np.array2string(
             vector,
-            formatter={'float_kind': precision.format},
-            separator=",",
+            formatter={'float_kind': precision.format,
+                       'int_kind': precision.format},
+            separator=", ",
             max_line_width=79).replace("\n", "")
 
     def set_weights(self, weights, layer_name=None):
