@@ -1171,6 +1171,9 @@ class Dataset():
                 self.network.test_dataset_ranges()
                 self._verify_network_dataset_match()
             return
+        self._cache_values_actual()
+
+    def _cache_values_actual(self):
         ## Regular dataset:
         if len(self.inputs) > 0:
             if isinstance(self._inputs[0], (np.ndarray,)):
@@ -1736,7 +1739,10 @@ class VirtualDataVector(DataVector):
             self.dataset._cached = (batch*self.dataset._batch_size,
                                     min((batch+1)*self.dataset._batch_size, len(self.dataset)))
             if batch != (self.dataset._current_batch + 1) and self.dataset._generator_ordered:
-                self.dataset._generator = self.dataset._function()
+                if self.dataset._pass_self:
+                    self.dataset._generator = self.dataset._function(self.dataset)
+                else:
+                    self.dataset._generator = self.dataset._function()
                 ## first, find the set to skip over, if needed:
                 if self.dataset._load_batch_direct:
                     for i in range(0, batch):
@@ -1749,7 +1755,10 @@ class VirtualDataVector(DataVector):
                 if self.dataset._generator:
                     all_inputs, all_targets = next(self.dataset._generator)
                 else:
-                    all_inputs, all_targets = self.dataset._generate(batch)
+                    if self.dataset._pass_self:
+                        all_inputs, all_targets = self.dataset._generate(self.dataset, batch)
+                    else:
+                        all_inputs, all_targets = self.dataset._generate(batch)
                 self.dataset._inputs = all_inputs
                 self.dataset._targets = all_targets
             else:
@@ -1760,7 +1769,10 @@ class VirtualDataVector(DataVector):
                     if self.dataset._generator:
                         inputs, targets = next(self.dataset._generator)
                     else:
-                        inputs, targets = self.dataset._generate(i)
+                        if self.dataset._pass_self:
+                            inputs, targets = self.dataset._generate(self.dataset, i)
+                        else:
+                            inputs, targets = self.dataset._generate(i)
                     all_inputs.append(inputs)
                     all_targets.append(targets)
                 self.dataset._inputs = []
@@ -1985,7 +1997,8 @@ class VirtualDataset(Dataset):
 
     def __init__(self, function, length, input_shapes, target_shapes,
                  inputs_range, targets_range, generator_ordered=False, batch_size=32,
-                 load_batch_direct=False, network=None, name=None, description=None):
+                 load_batch_direct=False, network=None, name=None, description=None,
+                 pass_self=False):
         super().__init__(network, name, description, input_shapes, target_shapes)
         self._function = function
         self._length = length
@@ -1994,6 +2007,7 @@ class VirtualDataset(Dataset):
         self._inputs_range = inputs_range
         self._targets_range = targets_range
         self._load_batch_direct = load_batch_direct
+        self._pass_self = pass_self
         self.reset()
 
     def split(self, split=None):
@@ -2009,7 +2023,10 @@ class VirtualDataset(Dataset):
 
     def reset(self):
         try:
-            self._generator = self._function()
+            if self._pass_self:
+                self._generator = self._function(self)
+            else:
+                self._generator = self._function()
             self._generate = False
         except:
             self._generator = None
@@ -2045,3 +2062,41 @@ class DatasetGenerator(keras.utils.Sequence):
         i = batch * self.dataset._batch_size
         self.dataset.inputs[i] ## force to load in _inputs/_targets
         return (self.dataset._inputs, self.dataset._targets)
+
+class H5Dataset(VirtualDataset):
+    """
+    A h5py dataset wrapper.
+    """
+
+    def __init__(self, f, filename, key, batch_size, input_banks, target_banks,
+                 name=None, description=None, network=None):
+        """
+        >>> def f(self, pos):
+        ...     return self.h5[self.key][0][pos], self.h5[self.key][0][pos]
+
+        >>> if os.path.exists("fonts.hdf5"):
+        ...     ds = cx.H5Dataset(f, "fonts.hdf5", "fonts", 32, 1, 1, name="Fonts",
+        ...                   description='''
+        ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
+        ... ''')
+
+        """
+        import h5py
+        self.key = key
+        self.h5 = h5py.File(filename)
+        super().__init__(f, len(self.h5[self.key]),
+                         generator_ordered=False,
+                         load_batch_direct=False,
+                         batch_size=batch_size,
+                         name=name, description=description, network=network,
+                         ## dummy values, for now:
+                         input_shapes=[(None,) for i in range(input_banks)],
+                         target_shapes=[(None,) for i in range(target_banks)],
+                         inputs_range=[(0,1) for i in range(input_banks)],
+                         targets_range=[(0,1) for i in range(target_banks)],
+                         pass_self=True)
+        ## Now fill in dummy values:
+        ## Normally, don't call this with a virtual dataset, but we want shapes and ranges
+        ## so we use first batch as sample:
+        self._cache_values_actual()
+        ## FIXME: this good, sample more, or get stats from all?
