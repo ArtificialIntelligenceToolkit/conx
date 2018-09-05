@@ -1,7 +1,9 @@
+import conx as cx
 import numpy as np
 from keras.utils import get_file
 
-def gridfonts(dataset):
+def gridfonts(*args, **kwargs):
+    dataset = cx.Dataset()
     url = "https://raw.githubusercontent.com/Calysto/conx/master/data/gridfonts.npy"
     path = get_file("gridfonts.npy", origin=url)
     ds = np.load(path)
@@ -31,6 +33,7 @@ You can read a thesis using part of this dataset here:
 https://repository.brynmawr.edu/compsci_pubs/78/
 """
     dataset.load_direct([letters], [targets], [labels])
+    return dataset
 
 def figure_ground_a(dataset):
     url = "https://raw.githubusercontent.com/Calysto/conx/master/data/figure_ground_a.npy"

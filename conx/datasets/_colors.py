@@ -1,8 +1,11 @@
+import conx as cx
 import numpy as np
 import csv
 
-def colors(dataset, path='colors.csv',
-           url="https://raw.githubusercontent.com/Calysto/conx/master/data/colors.csv"):
+def colors(*args, path='colors.csv',
+           url="https://raw.githubusercontent.com/Calysto/conx/master/data/colors.csv",
+           **kwargs):
+    dataset = cx.Dataset()
     from keras.utils import get_file
     path = get_file(path, origin=url)
     fp = open(path, "r")
@@ -48,3 +51,4 @@ For example:
 ```
 """
     dataset.load_direct([inputs], [targets], [labels])
+    return dataset

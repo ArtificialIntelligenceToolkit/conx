@@ -470,8 +470,8 @@ class DataVector():
         filter will return all items that match the filter.
 
         Examples:
-            >>> ds = Dataset()
-            >>> print("Downloading...");ds.get("mnist") # doctest: +ELLIPSIS
+            >>> import conx as cx
+            >>> print("Downloading...");ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
             Downloading...
             >>> ds.inputs.select(lambda i,dataset: True, slice=10, index=True)
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -1081,47 +1081,41 @@ class Dataset():
         Can be called on the Dataset class.
 
         >>> len(Dataset.datasets())
-        10
+        11
 
         >>> ds = Dataset()
         >>> len(ds.datasets())
-        10
+        11
         """
         if self is None:
             self = Dataset()
         return sorted(self.DATASETS.keys())
 
-    def get(self, dataset_name=None, *args, **kwargs):
+    @classmethod
+    def get(cls, dataset_name, *args, **kwargs):
         """
         Get a known dataset by name.
 
-        Can be called on the Dataset class. If it is, returns a new
-        Dataset instance.
+        Must be called from the Dataset class. 
 
-        >>> print("Downloading..."); ds = Dataset.get("mnist") # doctest: +ELLIPSIS
+        >>> import conx as cx
+        >>> print("Downloading..."); ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(ds.inputs)
-        70000
-
-        >>> ds = Dataset()
-        >>> ds.get("mnist")
-        >>> len(ds.targets)
         70000
         >>> ds.targets[0]
         [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 
         >>> ds.clear()
         """
-        return_it = False
-        if isinstance(self, str):
-            dataset_name, self = self, Dataset()
-            return_it = True
-        else:
-            self._split = 0
+        self = Dataset() ## a dummy to load the datasets
         if dataset_name.lower() in self.DATASETS:
-            self.DATASETS[dataset_name.lower()](self, *args, **kwargs)
-            if return_it:
-                return self
+            if isinstance(dataset_name, str):
+                return self.DATASETS[dataset_name.lower()](*args, **kwargs)
+            else:
+                raise Exception(
+                    ("dataset_name should be one of %s" %
+                     (list(self.DATASETS.keys(),))))
         else:
             raise Exception(
                 ("unknown dataset name '%s': should be one of %s" %
@@ -1482,8 +1476,9 @@ class Dataset():
         """Chop off the specified amount of input and target patterns from the
         dataset, starting from the end. Amount can be a fraction in the range
         0-1, or an integer number of patterns to drop.
-        >>> dataset = Dataset()
-        >>> print("Downloading..."); dataset.get("mnist") # doctest: +ELLIPSIS
+
+        >>> import conx as cx
+        >>> print("Downloading..."); dataset = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(dataset)
         70000
@@ -2010,13 +2005,15 @@ class VirtualDataset(Dataset):
         self._pass_self = pass_self
         self.reset()
 
-    def split(self, split=None):
-        ## FIXME?
-        print("WARNING: split is currently ignored in virtual datasets", file=sys.stderr)
-
     def chop(self, amount):
-        ## FIXME?
-        print("WARNING: chop is currently ignored in virtual datasets", file=sys.stderr)
+        if isinstance(amount, numbers.Real):
+            if not 0 <= amount < 1:
+                raise Exception("not in the interval [0,1): %s" % amount)
+            amount = int(len(self.inputs) * amount)
+        self._length = self._length - amount
+        if self._split > 0:
+            print("WARNING: dataset split reset to 0", file=sys.stderr)
+        self._split = 0
 
     def _get_size(self):
         return self._length
@@ -2041,6 +2038,13 @@ class VirtualDataset(Dataset):
     def get_generator(self):
         return DatasetGenerator(self)
 
+    def get_validation_generator(self):
+        if self._split == 0:
+            return None ## there is no validation partition
+        else:
+            ## split can be 1.0 (use all), or > 0 and < 1
+            return DatasetGenerator(self, validation_set=True)
+
 class DatasetGenerator(keras.utils.Sequence):
     """
     DatasetGenerator takes a VirtualDataset and can be trained
@@ -2049,19 +2053,28 @@ class DatasetGenerator(keras.utils.Sequence):
     See `VirtualDataset` for more information.
 
     """
-    def __init__(self, dataset):
+    def __init__(self, dataset, validation_set=False):
         """
         dataset - a VirtualDataset
         """
         self.dataset = dataset
+        self.validation_set = validation_set
 
     def __len__(self):
-        return int(np.ceil(len(self.dataset) / float(self.dataset._batch_size)))
+        if self.validation_set == False or self.dataset._split == 1:
+            return int(np.ceil(len(self.dataset) / float(self.dataset._batch_size)))
+        else:
+            return int(np.ceil(len(self.dataset.test_inputs) / float(self.dataset._batch_size)))
 
     def __getitem__(self, batch):
-        i = batch * self.dataset._batch_size
-        self.dataset.inputs[i] ## force to load in _inputs/_targets
-        return (self.dataset._inputs, self.dataset._targets)
+        if self.validation_set == False or self.dataset._split == 1:
+            i = batch * self.dataset._batch_size
+            self.dataset.inputs[i] ## force to load in _inputs/_targets
+            return (self.dataset._inputs, self.dataset._targets)
+        else:
+            i = batch * self.dataset._batch_size
+            self.dataset.test_inputs[i] ## force to load in _inputs/_targets
+            return (self.dataset._inputs, self.dataset._targets)
 
 class H5Dataset(VirtualDataset):
     """

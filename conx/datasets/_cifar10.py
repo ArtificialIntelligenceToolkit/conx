@@ -1,7 +1,9 @@
 import numpy as np
+import conx as cx
 from keras.utils import to_categorical
 
-def cifar10(dataset):
+def cifar10(*args, **kwargs):
+    dataset = cx.Dataset()
     from keras.datasets import cifar10
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
     inputs = np.concatenate((x_train, x_test))
@@ -25,3 +27,4 @@ things of that sort. "Truck" includes only big trucks. Neither
 includes pickup trucks.
 """
     dataset.load_direct([inputs], [targets], [labels])
+    return dataset

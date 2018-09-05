@@ -1,7 +1,9 @@
+import conx as cx
 import numpy as np
 from keras.utils import to_categorical
 
-def cifar100(dataset):
+def cifar100(*args, **kwargs):
+    dataset = cx.Dataset()
     from keras.datasets import cifar100
     (x_train, y_train), (x_test, y_test) = cifar100.load_data()
     inputs = np.concatenate((x_train, x_test))
@@ -45,3 +47,4 @@ vehicles 2                     | lawn-mower, rocket, streetcar, tank, tractor
 
 """
     dataset.load_direct([inputs], [targets], [labels])
+    return dataset

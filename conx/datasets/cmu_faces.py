@@ -1,6 +1,8 @@
+import conx as cx
 import numpy as np
 
-def cmu_faces_full_size(dataset, path="cmu_faces_full_size.npz"):
+def cmu_faces_full_size(*args, path="cmu_faces_full_size.npz", **kwargs):
+    dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_full_size.npz")
@@ -8,9 +10,10 @@ def cmu_faces_full_size(dataset, path="cmu_faces_full_size.npz"):
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
 """
-    process_face_data(dataset, inputs, labels)
+    return process_face_data(dataset, inputs, labels)
 
-def cmu_faces_quarter_size(dataset, path="cmu_faces_quarter_size.npz"):
+def cmu_faces_quarter_size(*args, path="cmu_faces_quarter_size.npz", **kwargs):
+    dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_quarter_size.npz")
@@ -18,9 +21,10 @@ def cmu_faces_quarter_size(dataset, path="cmu_faces_quarter_size.npz"):
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
 """
-    process_face_data(dataset, inputs, labels)
+    return process_face_data(dataset, inputs, labels)
 
-def cmu_faces_half_size(dataset, path="cmu_faces_half_size.npz"):
+def cmu_faces_half_size(*args, path="cmu_faces_half_size.npz", **kwargs):
+    dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_half_size.npz")
@@ -28,7 +32,7 @@ def cmu_faces_half_size(dataset, path="cmu_faces_half_size.npz"):
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
 """
-    process_face_data(dataset, inputs, labels)
+    return process_face_data(dataset, inputs, labels)
 
 def load_dataset_npz(path, url):
     """loads an .npz file of saved image data, and returns the images and their
@@ -50,3 +54,4 @@ def create_pose_targets(labels):
 def process_face_data(dataset, inputs, labels):
     targets = create_pose_targets(labels)
     dataset.load_direct([inputs], [targets], [labels])
+    return dataset

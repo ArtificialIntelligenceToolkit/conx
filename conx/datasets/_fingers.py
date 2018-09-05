@@ -1,6 +1,8 @@
+import conx as cx
 import numpy as np
 
-def fingers(dataset, path='fingers.npz'):
+def fingers(*args, path='fingers.npz', **kwargs):
+    dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
         "https://raw.githubusercontent.com/Calysto/conx/master/data/fingers.npz")
@@ -21,6 +23,7 @@ categories "zero" through "five".  There are 2000 images for each category.
 Created by Shreeda Segan and Albert Yu at Sarah Lawrence College.
 """
     dataset.load_direct([inputs], [targets], [labels])
+    return dataset
 
 
 def load_dataset_npz(path, url):

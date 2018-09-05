@@ -1116,8 +1116,10 @@ class Network():
             for i in range(len(pairs[0][1])):
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
         if isinstance(self.dataset, VirtualDataset):
-            history = self.model.fit_generator(generator=self.dataset.get_generator(),
-                                               epochs=1, verbose=0)
+            history = self.model.fit_generator(
+                generator=self.dataset.get_generator(),
+                validation_data=self.dataset.get_vaidation_generator(),
+                epochs=1, verbose=0)
         else:
             history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
 
@@ -1517,6 +1519,26 @@ class Network():
                     s += "| %9.5f " % as_sum(results[other])
         print(s)
 
+    def get_dataset(self, dataset_name):
+        """
+        Get the named dataset and set this network's dataset
+        to it.
+
+        >>> import conx as cx
+        >>> net = cx.Network("MNIST-Autoencoder")
+        >>> net.add(cx.ImageLayer("input", (28,28), 1),
+        ...         cx.Conv2DLayer("conv", 3, (5,5), activation="relu"),
+        ...         cx.MaxPool2DLayer("pool", pool_size=(2,2)),
+        ...         cx.FlattenLayer("flatten"),
+        ...         cx.Layer("hidden3", 25, activation="relu"),
+        ...         cx.Layer("output", (28,28,1), activation="sigmoid"))
+        'output'
+        >>> net.connect()
+        >>> net.compile(error="mse", optimizer="adam")
+        >>> net.get_dataset("mnist")
+        """
+        self.set_dataset(Dataset.get(dataset_name))
+        
     def set_dataset(self, dataset):
         """
         Set the dataset for the network.
