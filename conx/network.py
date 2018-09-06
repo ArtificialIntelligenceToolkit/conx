@@ -1213,13 +1213,14 @@ class Network():
                 continue
             lmin, lmax = self[layer_name].get_act_minmax()
             # test dataset min to see if in range of act output:
-            if not (lmin <= self.dataset._targets_range[index][0] <= lmax):
-                print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with minimum value of targets" %
-                      (layer_name, self[layer_name].activation), file=sys.stderr)
-            # test dataset min to see if in range of act output:
-            if not (lmin <= self.dataset._targets_range[index][1] <= lmax):
-                print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with maximum value of targets" %
-                      (layer_name, self[layer_name].activation), file=sys.stderr)
+            if self[layer_name].activation is not None:
+                if not (lmin <= self.dataset._targets_range[index][0] <= lmax):
+                    print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with minimum value of targets" %
+                          (layer_name, self[layer_name].activation), file=sys.stderr)
+                # test dataset min to see if in range of act output:
+                if not (lmin <= self.dataset._targets_range[index][1] <= lmax):
+                    print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with maximum value of targets" %
+                          (layer_name, self[layer_name].activation), file=sys.stderr)
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
