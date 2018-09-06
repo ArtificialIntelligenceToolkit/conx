@@ -471,7 +471,7 @@ class DataVector():
 
         Examples:
             >>> import conx as cx
-            >>> print("Downloading...");ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
+            >>> print("Downloading...");ds = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
             Downloading...
             >>> ds.inputs.select(lambda i,dataset: True, slice=10, index=True)
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -1099,7 +1099,7 @@ class Dataset():
         Must be called from the Dataset class. 
 
         >>> import conx as cx
-        >>> print("Downloading..."); ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
+        >>> print("Downloading..."); ds = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(ds.inputs)
         70000
@@ -1478,7 +1478,7 @@ class Dataset():
         0-1, or an integer number of patterns to drop.
 
         >>> import conx as cx
-        >>> print("Downloading..."); dataset = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
+        >>> print("Downloading..."); dataset = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(dataset)
         70000
@@ -1722,11 +1722,22 @@ class Dataset():
 
 class VirtualDataVector(DataVector):
     def __getitem__(self, pos):
-        ## FIXME: allow slices:
         if isinstance(pos, slice):
-            raise Exception("virtual dataset cannot yet handle slice")
-        elif isinstance(pos, int) and pos < 0:
-            pos = len(self.dataset) + pos
+            return [self[i] for i in range(len(self))[pos]]
+        ## Handle negative positions:
+        if isinstance(pos, int) and pos < 0:
+            pos = len(self) + pos
+        original_pos = None
+        if self.item.startswith("test_"):
+            ## dataset.test_inputs[pos]
+            if self.dataset._split == 0: ## no test_ patterns
+                raise Exception("no test data; use dataset.split(VALUE)")
+            elif self.dataset._split == 1.0: ## same as regular, nothing to do
+                pass
+            else: ## self._split is between 0 and 1
+                size, num_train, num_test = self.dataset._get_split_sizes()
+                original_pos = pos
+                pos = num_train + pos
         ## if pos is not in cached values:
         batch = int(np.floor(pos / self.dataset._batch_size))
         if not(self.dataset._cached[0] <= pos < self.dataset._cached[1]):
@@ -1775,11 +1786,24 @@ class VirtualDataVector(DataVector):
                 self.dataset.compile(list(zip(all_inputs, all_targets)))
         ## Do math to get the actual position:
         self.dataset._current_batch = batch
-        return super().__getitem__(pos - (batch * self.dataset._batch_size))
+        if original_pos is None:
+            return super().__getitem__(pos - (batch * self.dataset._batch_size))
+        else:
+            pos = original_pos
+            batch = int(np.floor(pos / self.dataset._batch_size))
+            self.item = self.item[5:] # "test_" ...
+            retval = super().__getitem__(pos - (batch * self.dataset._batch_size))
+            self.item = "test_" + self.item
+            return retval
 
     def __len__(self):
-        ## FIXME: handle test lengths based on split
-        return len(self.dataset)
+        size, num_train, num_test = self.dataset._get_split_sizes()
+        if self.item.startswith("test_"):
+            return num_test
+        elif self.item.startswith("train_"):
+            return num_train
+        else:
+            return size
 
 class VirtualDataset(Dataset):
     """
@@ -2006,7 +2030,10 @@ class VirtualDataset(Dataset):
         self.reset()
 
     def chop(self, amount):
-        if isinstance(amount, numbers.Real):
+        if isinstance(amount, numbers.Integral):
+            if not 0 <= amount < len(self.inputs):
+                raise Exception("out of range: %d" % amount)
+        elif isinstance(amount, numbers.Real):
             if not 0 <= amount < 1:
                 raise Exception("not in the interval [0,1): %s" % amount)
             amount = int(len(self.inputs) * amount)

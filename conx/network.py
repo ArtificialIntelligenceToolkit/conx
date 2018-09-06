@@ -1536,7 +1536,7 @@ class Network():
         'output'
         >>> net.connect()
         >>> net.compile(error="mse", optimizer="adam")
-        >>> net.get_dataset("mnist")
+        >>> net.get_dataset("vmnist")
         """
         self.set_dataset(Dataset.get(dataset_name))
         

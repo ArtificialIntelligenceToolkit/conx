@@ -3,6 +3,20 @@ import numpy as np
 from keras.utils import to_categorical
 from keras.utils.data_utils import get_file
 
+description = """
+Original source: http://yann.lecun.com/exdb/mnist/
+
+The MNIST dataset contains 70,000 images of handwritten digits (zero
+to nine) that have been size-normalized and centered in a square grid
+of pixels.  Each image is a 28 × 28 × 1 array of floating-point numbers
+representing grayscale intensities ranging from 0 (black) to 1
+(white).  The target data consists of one-hot binary vectors of size
+10, corresponding to the digit classification categories zero through
+nine.  Some example MNIST images are shown below:
+
+![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
+"""
+
 def vmnist(*args, batch_size=32, **kwargs):
     path = "mnist.npz"
     path = get_file(path,
@@ -10,18 +24,32 @@ def vmnist(*args, batch_size=32, **kwargs):
                     file_hash='8a61469f7ea1b51cbae51d4f78837e45')
     fp = np.load(path, mmap_mode="r")
     img_rows, img_cols = 28, 28
+    total_len = len(fp["x_train"]) + len(fp["x_test"])
     
     def get_batch(self, batch):
-        ## ['x_test', 'x_train', 'y_train', 'y_test']
+        """
+        Uses both test and train as data.
+        """
+        ## print("vmnist: getting batch #%s" % batch)
         pos = batch * self._batch_size
+        if pos >= total_len:
+            raise Exception("position %s is beyond data" % pos)
+        if pos < len(fp["x_train"]):
+            key_input = "x_train"
+            key_target = "y_train"
+        else:
+            key_input = "x_test"
+            key_target = "y_test"
+            pos = pos - len(fp["x_train"])
+        ## print("vmnist: getting pos #%s of %s" % (pos, key_input))
         ## inputs:
-        x_train = fp["x_train"][pos:pos + self._batch_size]
+        x_train = fp[key_input][pos:pos + self._batch_size]
         x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
         x_train = x_train.astype('float32')
         x_train /= 255
         inputs = x_train
         ## targets:
-        y_train = fp["y_train"][pos:pos + self._batch_size]
+        y_train = fp[key_target][pos:pos + self._batch_size]
         labels = y_train
         ## labels[10994] = 9
         targets = to_categorical(labels)
@@ -29,7 +57,7 @@ def vmnist(*args, batch_size=32, **kwargs):
         self._labels = [labels]
         return [inputs], [targets]
     
-    return cx.VirtualDataset(get_batch, len(fp["x_train"]),
+    dataset = cx.VirtualDataset(get_batch, total_len,
                              input_shapes=[(img_rows,img_cols,1)],
                              target_shapes=[(10,)],
                              inputs_range=[(0,1)],
@@ -37,6 +65,10 @@ def vmnist(*args, batch_size=32, **kwargs):
                              batch_size=batch_size,
                              load_batch_direct=True,
                              pass_self=True)
+    dataset.name = "MNIST"
+    dataset.description = ("This is a virtual dataset that loads from disk as needed.\n" +
+                           description)
+    return dataset
 
 def mnist(*args, **kwargs):
     """
@@ -72,18 +104,6 @@ def mnist(*args, **kwargs):
     targets = to_categorical(labels)
     labels = np.array([str(label) for label in labels], dtype=str)
     dataset.name = "MNIST"
-    dataset.description = """
-Original source: http://yann.lecun.com/exdb/mnist/
-
-The MNIST dataset contains 70,000 images of handwritten digits (zero
-to nine) that have been size-normalized and centered in a square grid
-of pixels.  Each image is a 28 × 28 × 1 array of floating-point numbers
-representing grayscale intensities ranging from 0 (black) to 1
-(white).  The target data consists of one-hot binary vectors of size
-10, corresponding to the digit classification categories zero through
-nine.  Some example MNIST images are shown below:
-
-![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
-"""
+    dataset.description = description
     dataset.load_direct([inputs], [targets], [labels])
     return dataset
