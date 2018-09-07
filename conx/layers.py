@@ -168,12 +168,23 @@ class _BaseLayer():
         if 'dropout' in params:
             dropout = params['dropout']
             del params["dropout"] # we handle dropout layers
-            if dropout == None: dropout = 0
-            if not (isinstance(dropout, numbers.Real) and 0 <= dropout <= 1):
+            if dropout == None:
+                dropout = 0
+                dropout_dim = 0
+            elif isinstance(dropout, numbers.Real):
+                dropout_dim = 0
+            elif isinstance(dropout, (list, tuple)):
+                dropout_dim = dropout[1]
+                dropout = dropout[0]
+            else:
+                raise Exception('bad dropout option: %s' % (dropout,))
+            if not (0 <= dropout <= 1):
                 raise Exception('bad dropout rate: %s' % (dropout,))
             self.dropout = dropout
+            self.dropout_dim = dropout_dim
         else:
             self.dropout = 0
+            self.dropout_dim = 0
 
         if 'bidirectional' in params:
             bidirectional = params['bidirectional']
@@ -275,7 +286,9 @@ class _BaseLayer():
         Make all Keras functions for this layer, including its own,
         dropout, etc.
         """
-        from keras.layers import TimeDistributed, Bidirectional
+        from keras.layers import (TimeDistributed, Bidirectional, Dropout,
+                                  SpatialDropout1D, SpatialDropout2D, SpatialDropout3D)
+
         k = self.make_keras_function() # can override
         ### wrap layer:
         if self.bidirectional:
@@ -286,10 +299,16 @@ class _BaseLayer():
         if self.time_distributed:
             k = TimeDistributed(k, name=self.name)
         ### sequence:
+        k = [k]
         if self.dropout > 0:
-            k = [k] + [keras.layers.Dropout(self.dropout)]
-        else:
-            k = [k]
+            if self.dropout_dim == 0:
+                k += [Dropout(self.dropout)]
+            elif self.dropout_dim == 1:
+                k += [SpatialDropout1D(self.dropout)]
+            elif self.dropout_dim == 2:
+                k += [SpatialDropout2D(self.dropout)]
+            elif self.dropout_dim == 3:
+                k += [SpatialDropout3D(self.dropout)]
         return k
 
     def make_keras_functions_text(self):
@@ -308,10 +327,17 @@ class _BaseLayer():
         if self.bidirectional:
             program = "keras.layers.Bidirectional(%s, name='%s', mode='%s')" % (
                 program, self.name, bidir_mode(self.bidirectional))
+        retval = [program]
         if self.dropout > 0:
-            return "[%s, keras.layers.Dropout(self.dropout)]" % program
-        else:
-            return "[%s]" % program
+            if self.dropout_dim == 0:
+                retval += ["keras.layers.Dropout(self.dropout)"]
+            elif self.dropout_dim == 1:
+                retval += ["keras.layers.SpatialDropout1D(self.dropout)"]
+            elif self.dropout_dim == 2:
+                retval += ["keras.layers.SpatialDropout2D(self.dropout)"]
+            elif self.dropout_dim == 3:
+                retval += ["keras.layers.SpatialDropout3D(self.dropout)"]
+        return "[" + (", ".join(retval)) + "]"
 
     def get_colormap(self):
         if self.__class__.__name__ == "FlattenLayer":
@@ -480,6 +506,8 @@ class _BaseLayer():
             retval += "\n shape = %s" % (self.shape, )
         if self.dropout:
             retval += "\n dropout = %s" % self.dropout
+            if self.dropout_dim > 0:
+                retval += "\n dropout dimension = %s" % self.dropout_dim
         if self.bidirectional:
             retval += "\n bidirectional = %s" % self.bidirectional
         if kind == "input":
@@ -572,6 +600,8 @@ class Layer(_BaseLayer):
             print("        * **Activation function**:", self.activation, file=fp)
         if self.dropout:
             print("        * **Dropout percent**    :", self.dropout, file=fp)
+            if self.dropout_dim > 0:
+                print("        * **Dropout dimension**    :", self.dropout_dim, file=fp)
         if self.bidirectional:
             print("        * **Bidirectional mode** :", self.bidirectional, file=fp)
 
