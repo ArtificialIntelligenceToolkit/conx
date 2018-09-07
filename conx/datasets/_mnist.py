@@ -51,6 +51,7 @@ def vmnist(*args, batch_size=32, **kwargs):
         ## targets:
         y_train = fp[key_target][pos:pos + self._batch_size]
         labels = y_train
+        ## FIXME: at least one is mis-labeled:
         ## labels[10994] = 9
         targets = to_categorical(labels)
         labels = np.array([str(label) for label in labels], dtype=str)
