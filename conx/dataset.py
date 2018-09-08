@@ -1853,16 +1853,16 @@ class VirtualDataset(Dataset):
     >>> ds.split(.25)
 
     >>> ds.inputs[0][0] == 0.0, ds.inputs[-1][0] == 999
-    True, True
+    (True, True)
 
     >>> ds.train_inputs[0][0] == 0, ds.train_inputs[-1][0] == 749
-    True, True
+    (True, True)
 
     >>> ds.test_inputs[0][0] == 750, ds.test_inputs[-1][0] == 999
-    True, True
+    (True, True)
 
     >>> def f(self, pos):
-    ...     return [[pos], [pos]], [[pos]]
+    ...     return [pos, pos], [pos]
 
     >>> ds = cx.VirtualDataset(f, 1000, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                        load_cache_direct=False, cache_size=20)
@@ -1870,13 +1870,13 @@ class VirtualDataset(Dataset):
     >>> ds.split(.25)
 
     >>> ds.inputs[0][0] == 0.0, ds.inputs[-1][0] == 999
-    True, True
+    (True, True)
 
     >>> ds.train_inputs[0][0] == 0, ds.train_inputs[-1][0] == 749
-    True, True
+    (True, True)
 
     >>> ds.test_inputs[0][0] == 750, ds.test_inputs[-1][0] == 999
-    True, True
+    (True, True)
 
     >>> def test_dataset(net):
     ...     net.dataset.split(.1)
