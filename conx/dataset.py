@@ -2106,6 +2106,9 @@ class H5Dataset(VirtualDataset):
                  use_session=True, use_cache=False):
         """
 
+        Fonts from:
+        https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
+
         >>> def f(self, pos):
         ...     return self.h5[self.key][pos][1], self.h5[self.key][pos][1] # where 1 is B
 
@@ -2119,14 +2122,18 @@ class H5Dataset(VirtualDataset):
         >>> font_file = os.path.expanduser("~/.keras/datasets/fonts.hdf5")
 
         >>> if os.path.exists(font_file):
-        ...     ds1 = H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False,
-        ...                     description='''
-        ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
-        ... ''')
-        ...     ds2 = H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts",
-        ...                     description='''
-        ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
-        ... ''')
+        ...     ds1 = H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False)
+        ...     ds2 = H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts", cache_size=32)
+
+        >>> try:
+        ...     import h5pyd
+        ... except:
+        ...     h5pyd = None
+
+        >>> if h5pyd:
+        ...     ds3 = H5Dataset(get_cache, "fonts.public.hdfgroup.org", "fonts", 1, 1, name="Fonts", cache_size=32,
+        ...                     endpoint="http://192.168.1.105:5000")
+        ...     assert len(ds.inputs) == 56443
 
         """
         import h5py
