@@ -1838,10 +1838,7 @@ class VirtualDataset(Dataset):
 
     >>> import conx as cx
     >>> import numpy as np
-    >>> import keras
     >>> import random
-    >>> from distutils.version import LooseVersion
-
 
     >>> def f(self, cache):
     ...     pos1 = cache * self._cache_size
@@ -1855,14 +1852,14 @@ class VirtualDataset(Dataset):
 
     >>> ds.split(.25)
 
-    >>> ds.inputs[0], ds.inputs[-1]
-    ([0, 0], [999, 999])
+    >>> ds.inputs[0][0] == 0.0, ds.inputs[-1][0] == 999
+    True, True
 
-    >>> ds.train_inputs[0], ds.train_inputs[-1]
-    ([0, 0], [749, 749])
+    >>> ds.train_inputs[0][0] == 0, ds.train_inputs[-1][0] == 749
+    True, True
 
-    >>> ds.test_inputs[0], ds.test_inputs[-1]
-    ([750, 750], [999, 999])
+    >>> ds.test_inputs[0][0] == 750, ds.test_inputs[-1][0] == 999
+    True, True
 
     >>> def f(self, pos):
     ...     return [[pos], [pos]], [[pos]]
@@ -1872,14 +1869,14 @@ class VirtualDataset(Dataset):
 
     >>> ds.split(.25)
 
-    >>> ds.inputs[0], ds.inputs[-1]
-    ([0, 0], [999, 999])
+    >>> ds.inputs[0][0] == 0.0, ds.inputs[-1][0] == 999
+    True, True
 
-    >>> ds.train_inputs[0], ds.train_inputs[-1]
-    ([0, 0], [749, 749])
+    >>> ds.train_inputs[0][0] == 0, ds.train_inputs[-1][0] == 749
+    True, True
 
-    >>> ds.test_inputs[0], ds.test_inputs[-1]
-    ([750, 750], [999, 999])
+    >>> ds.test_inputs[0][0] == 750, ds.test_inputs[-1][0] == 999
+    True, True
 
     >>> def test_dataset(net):
     ...     net.dataset.split(.1)
@@ -1900,148 +1897,127 @@ class VirtualDataset(Dataset):
 
     generator_ordered = False, load_cache_direct = False, with function(position):
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self, pos):
-    ...        return ([pos/100, pos/100], [pos/100])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 load_cache_direct=False,
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self, pos):
+    ...    return ([pos/100, pos/100], [pos/100])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             load_cache_direct=False,
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = False, load_cache_direct = True, with function(cache):
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self, cache):
-    ...         i = cache * 16
-    ...         while True:
-    ...             all_inputs = [[]]
-    ...             all_targets = [[]]
-    ...             while i < (cache + 1) * 16:
-    ...                 all_inputs[0].append([i/100, i/100])
-    ...                 all_targets[0].append([i/100])
-    ...                 i += 1
-    ...             return ([np.array(inputs) for inputs in all_inputs],
-    ...                     [np.array(targets) for targets in all_targets])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self, cache):
+    ...     i = cache * 16
+    ...     while True:
+    ...         all_inputs = [[]]
+    ...         all_targets = [[]]
+    ...         while i < (cache + 1) * 16:
+    ...             all_inputs[0].append([i/100, i/100])
+    ...             all_targets[0].append([i/100])
+    ...             i += 1
+    ...         return ([np.array(inputs) for inputs in all_inputs],
+    ...                 [np.array(targets) for targets in all_targets])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = True, load_cache_direct = False, with generator function():
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self):
-    ...         i = 0
-    ...         while True:
-    ...             yield ([i/100, i/100], [i/100])
-    ...             i += 1
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=True,
-    ...                                 load_cache_direct=False,
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self):
+    ...     i = 0
+    ...     while True:
+    ...         yield ([i/100, i/100], [i/100])
+    ...         i += 1
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             generator_ordered=True,
+    ...                             load_cache_direct=False,
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = True, load_cache_direct = True, with generator function():
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self):
-    ...         i = 0
-    ...         while True:
-    ...             i_16 = i + 16
-    ...             all_inputs = [[]]
-    ...             all_targets = [[]]
-    ...             while i < i_16:
-    ...                 all_inputs[0].append([i/100, i/100])
-    ...                 all_targets[0].append([i/100])
-    ...                 i += 1
-    ...             yield ([np.array(inputs) for inputs in all_inputs],
-    ...                    [np.array(targets) for targets in all_targets])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=True,
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self):
+    ...     i = 0
+    ...     while True:
+    ...         i_16 = i + 16
+    ...         all_inputs = [[]]
+    ...         all_targets = [[]]
+    ...         while i < i_16:
+    ...             all_inputs[0].append([i/100, i/100])
+    ...             all_targets[0].append([i/100])
+    ...             i += 1
+    ...         yield ([np.array(inputs) for inputs in all_inputs],
+    ...                [np.array(targets) for targets in all_targets])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             generator_ordered=True,
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = True, load_cache_direct = False, with generator function() (showing another
     function style):
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self):
-    ...         for i in range(100):
-    ...             yield ([i/100, i/100], [i/100])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=True,
-    ...                                 load_cache_direct=False,
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self):
+    ...     for i in range(100):
+    ...         yield ([i/100, i/100], [i/100])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             generator_ordered=True,
+    ...                             load_cache_direct=False,
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = False, load_cache_direct = False, with generator function():
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self):
-    ...         while True:
-    ...             r = random.random()
-    ...             yield ([r, r], [r])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 load_cache_direct=False,
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self):
+    ...     while True:
+    ...         r = random.random()
+    ...         yield ([r, r], [r])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             load_cache_direct=False,
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
 
     generator_ordered = False, load_cache_direct = True, with generator function():
 
-    >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(self):
-    ...         while True:
-    ...             all_inputs = [[]]
-    ...             all_targets = [[]]
-    ...             for i in range(16):
-    ...                 r = random.random()
-    ...                 all_inputs[0].append([r, r])
-    ...                 all_targets[0].append([r])
-    ...             yield ([np.array(inputs) for inputs in all_inputs],
-    ...                    [np.array(targets) for targets in all_targets])
-    ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 cache_size=16)
-    ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
-    ...     net.compile(error="mse", optimizer="adam")
-    ...     net.set_dataset(dataset)
-    ...     test_dataset(net) # doctest: +ELLIPSIS
-    ... else:
-    ...     print("Evaluating initial ...")
+    >>> def f(self):
+    ...     while True:
+    ...         all_inputs = [[]]
+    ...         all_targets = [[]]
+    ...         for i in range(16):
+    ...             r = random.random()
+    ...             all_inputs[0].append([r, r])
+    ...             all_targets[0].append([r])
+    ...         yield ([np.array(inputs) for inputs in all_inputs],
+    ...                [np.array(targets) for targets in all_targets])
+    >>> dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                             cache_size=16)
+    >>> net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
+    >>> net.compile(error="mse", optimizer="adam")
+    >>> net.set_dataset(dataset)
+    >>> test_dataset(net) # doctest: +ELLIPSIS
     Evaluating initial ...
     """
     Vector = VirtualDataVector
