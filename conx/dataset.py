@@ -1827,8 +1827,8 @@ class VirtualDataset(Dataset):
     Optional:
 
     * cache_size - the size of the cache
-    * load_cache_direct - if True, must generator function must return
-      a low-level list of np.arrays for inputs and targets
+    * load_cache_direct - if True, must generator function must return or set
+      the low-level list of np.arrays for inputs and targets
     * generator_ordered - if True, the data is not ordered (e.g., random)
     * network - if None, use network.set_dataset() later
     * name - name of dataset
@@ -1865,7 +1865,6 @@ class VirtualDataset(Dataset):
     ...     def f(self, pos):
     ...        return ([pos/100, pos/100], [pos/100])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=False,
     ...                                 load_cache_direct=False,
     ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
@@ -1891,8 +1890,6 @@ class VirtualDataset(Dataset):
     ...             return ([np.array(inputs) for inputs in all_inputs],
     ...                     [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=False,
-    ...                                 load_cache_direct=True,
     ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
@@ -1939,7 +1936,6 @@ class VirtualDataset(Dataset):
     ...                    [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=True,
-    ...                                 load_cache_direct=True,
     ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
@@ -1976,7 +1972,6 @@ class VirtualDataset(Dataset):
     ...             r = random.random()
     ...             yield ([r, r], [r])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=False,
     ...                                 load_cache_direct=False,
     ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
@@ -2001,8 +1996,6 @@ class VirtualDataset(Dataset):
     ...             yield ([np.array(inputs) for inputs in all_inputs],
     ...                    [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
-    ...                                 generator_ordered=False,
-    ...                                 load_cache_direct=True,
     ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
@@ -2016,7 +2009,7 @@ class VirtualDataset(Dataset):
 
     def __init__(self, function, length, input_shapes, target_shapes,
                  inputs_range, targets_range, generator_ordered=False, cache_size=3200,
-                 load_cache_direct=False, network=None, name=None, description=None):
+                 load_cache_direct=True, network=None, name=None, description=None):
         super().__init__(network, name, description, input_shapes, target_shapes)
         self._function = function
         self._length = length
@@ -2108,24 +2101,31 @@ class H5Dataset(VirtualDataset):
     """
 
     def __init__(self, f, filename, key, input_banks, target_banks, cache_size=3200,
-                 name=None, description=None, network=None, load_cache_direct=False,
+                 name=None, description=None, network=None, load_cache_direct=True,
                  length=None, endpoint=None, username=None, password=None, api_key=None,
                  use_session=True, use_cache=False):
         """
+        >>> from keras.utils import get_file
+
         >>> def f(self, pos):
-        ...     return self.h5[self.key][0][pos], self.h5[self.key][0][pos]
+        ...     return self.h5[self.key][pos][1], self.h5[self.key][pos][1] # where 1 is B
 
         >>> def get_cache(self, cache):
         ...     pos = cache * self._cache_size
-        ...     b = self.h5[self.key][0][pos:pos + self._cache_size]
+        ...     b = self.h5[self.key][pos:pos + self._cache_size,1,:] # where 1 is the B's
         ...     return [b], [b]
 
-        >>> if os.path.exists("/home/dblank/Desktop/fonts/fonts.hdf5"):
-        ...     ds1 = cx.H5Dataset(f, "fonts.hdf5", "fonts", 1, 1, name="Fonts",
+        >>> try:
+        ...     font_file = get_file("fonts.hdf5", None)
+        ... except:
+        ...     font_file = None
+
+        >>> if font_file:
+        ...     ds1 = cx.H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False,
         ...                        description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
-        ...     ds2 = cx.H5Dataset(get_cache, "fonts.hdf5", "fonts", 1, 1, name="Fonts", load_cache_direct=True,
+        ...     ds2 = cx.H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts",
         ...                        description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
