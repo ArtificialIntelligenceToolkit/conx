@@ -1117,8 +1117,8 @@ class Network():
                 targs.append(np.array([pair[1][i] for pair in pairs], "float32"))
         if isinstance(self.dataset, VirtualDataset):
             history = self.model.fit_generator(
-                generator=self.dataset.get_generator(),
-                validation_data=self.dataset.get_vaidation_generator(),
+                generator=self.dataset.get_generator(batch_size),
+                validation_data=self.dataset.get_validation_generator(batch_size),
                 epochs=1, verbose=0)
         else:
             history = self.model.fit(ins, targs, epochs=1, verbose=0, batch_size=batch_size)
@@ -1415,7 +1415,8 @@ class Network():
                 kcallbacks.append(FunctionCallback(self, on_method, function))
         with _InterruptHandler(self) as handler:
             if isinstance(self.dataset, VirtualDataset):
-                result = self.model.fit_generator(generator=self.dataset.get_generator(),
+                result = self.model.fit_generator(generator=self.dataset.get_generator(batch_size),
+                                                  validation_data=self.dataset.get_validation_generator(batch_size),
                                                   epochs=epochs,
                                                   callbacks=kcallbacks,
                                                   shuffle=shuffle,

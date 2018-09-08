@@ -850,13 +850,13 @@ class Dataset():
         ...         targets=[[0], [1], [1], [0]]) # targets
         >>> len(ds)
         4
-        >>> def generator():
+        >>> def generator(self):
         ...     for data in [[[0, 0], [0]],
         ...                  [[0, 1], [1]],
         ...                  [[1, 0], [1]],
         ...                  [[1, 1], [0]]]:
         ...         yield data
-        >>> ds.load(generator(), 4)
+        >>> ds.load(generator(ds), 4)
         >>> len(ds)
         4
         """
@@ -1096,7 +1096,7 @@ class Dataset():
         """
         Get a known dataset by name.
 
-        Must be called from the Dataset class. 
+        Must be called from the Dataset class.
 
         >>> import conx as cx
         >>> print("Downloading..."); ds = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
@@ -1739,32 +1739,32 @@ class VirtualDataVector(DataVector):
                 original_pos = pos
                 pos = num_train + pos
         ## if pos is not in cached values:
-        batch = int(np.floor(pos / self.dataset._batch_size))
+        cache = int(np.floor(pos / self.dataset._cache_size))
         if not(self.dataset._cached[0] <= pos < self.dataset._cached[1]):
-            ## find the min/max batch_size around pos, and fill:
-            self.dataset._cached = (batch*self.dataset._batch_size,
-                                    min((batch+1)*self.dataset._batch_size, len(self.dataset)))
-            if batch != (self.dataset._current_batch + 1) and self.dataset._generator_ordered:
-                if self.dataset._pass_self:
-                    self.dataset._generator = self.dataset._function(self.dataset)
-                else:
-                    self.dataset._generator = self.dataset._function()
+            ## find the min/max cache_size around pos, and fill:
+            self.dataset._cached = (cache * self.dataset._cache_size,
+                                    min((cache + 1)*self.dataset._cache_size, len(self.dataset)))
+            if cache != (self.dataset._current_cache + 1) and self.dataset._generator_ordered:
+                self.dataset._generator = self.dataset._function(self.dataset)
                 ## first, find the set to skip over, if needed:
-                if self.dataset._load_batch_direct:
-                    for i in range(0, batch):
+                if self.dataset._load_cache_direct:
+                    ## skip entire caches:
+                    for i in range(0, cache):
+                        ## next cache
                         next(self.dataset._generator)
                 else:
+                    ## skip one pos at a time:
                     for i in range(0, self.dataset._cached[0]):
+                        ## next pos
                         next(self.dataset._generator)
             ## now fill the cached values with these:
-            if self.dataset._load_batch_direct:
+            if self.dataset._load_cache_direct:
                 if self.dataset._generator:
+                    ## generator
                     all_data = next(self.dataset._generator)
                 else:
-                    if self.dataset._pass_self:
-                        all_data = self.dataset._generate(self.dataset, batch)
-                    else:
-                        all_data = self.dataset._generate(batch)
+                    ## function:
+                    all_data = self.dataset._generate(self.dataset, cache)
                 if all_data is not None:
                     self.dataset._inputs = all_data[0]
                     self.dataset._targets = all_data[1]
@@ -1777,24 +1777,21 @@ class VirtualDataVector(DataVector):
                     if self.dataset._generator:
                         inputs, targets = next(self.dataset._generator)
                     else:
-                        if self.dataset._pass_self:
-                            inputs, targets = self.dataset._generate(self.dataset, i)
-                        else:
-                            inputs, targets = self.dataset._generate(i)
+                        inputs, targets = self.dataset._generate(self.dataset, i)
                     all_inputs.append(inputs)
                     all_targets.append(targets)
                 self.dataset._inputs = []
                 self.dataset._targets = []
                 self.dataset.compile(list(zip(all_inputs, all_targets)))
         ## Do math to get the actual position:
-        self.dataset._current_batch = batch
+        self.dataset._current_cache = cache
         if original_pos is None:
-            return super().__getitem__(pos - (batch * self.dataset._batch_size))
+            return super().__getitem__(pos - (cache * self.dataset._cache_size))
         else:
             pos = original_pos
-            batch = int(np.floor(pos / self.dataset._batch_size))
+            cache = int(np.floor(pos / self.dataset._cache_size))
             self.item = self.item[5:] # "test_" ...
-            retval = super().__getitem__(pos - (batch * self.dataset._batch_size))
+            retval = super().__getitem__(pos - (cache * self.dataset._cache_size))
             self.item = "test_" + self.item
             return retval
 
@@ -1813,14 +1810,14 @@ class VirtualDataset(Dataset):
 
     * a function that is either:
       * a generator function (no arguments) that returns an
-        input and output if load_batch_direct is False, otherwise
+        input and output if load_cache_direct is False, otherwise
         should return a low-level numpy input and target
-        batch, one np.array() for each input/target bank
-      * a generate(pos OR batch) function that takes a position
-        (if load_batch_direct) or batch (if not load_batch_direct). If
-        load_batch_direct, the function(batch) returns a low-level
-        numpy input and target batch, one np.array() for each
-        input/target bank. If not load_batch_direct, return an
+        cache, one np.array() for each input/target bank
+      * a generate(pos OR cache) function that takes a position
+        (if load_cache_direct) or cache (if not load_cache_direct). If
+        load_cache_direct, the function(cache) returns a low-level
+        numpy input and target cache, one np.array() for each
+        input/target bank. If not load_cache_direct, return an
         input/target pair.
     * shape of inputs
     * shape of targets
@@ -1829,8 +1826,8 @@ class VirtualDataset(Dataset):
 
     Optional:
 
-    * batch_size - the size of the batch
-    * load_batch_direct - if True, must generator function must return
+    * cache_size - the size of the cache
+    * load_cache_direct - if True, must generator function must return
       a low-level list of np.arrays for inputs and targets
     * generator_ordered - if True, the data is not ordered (e.g., random)
     * network - if None, use network.set_dataset() later
@@ -1846,7 +1843,8 @@ class VirtualDataset(Dataset):
     >>> from distutils.version import LooseVersion
 
     >>> def test_dataset(net):
-    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False)
+    ...     net.dataset.split(.1)
+    ...     net.train(1, accuracy=1.0, report_rate=10, plot=False, batch_size=8)
     ...     ds = net.dataset
     ...     i0t0 = ds.inputs[0]
     ...     i50t0 = ds.inputs[50]
@@ -1861,15 +1859,15 @@ class VirtualDataset(Dataset):
     ...     assert i0t0 != i50t0, "items 0 and 50 should be different"
 
 
-    generator_ordered = False, load_batch_direct = False, with function(position):
+    generator_ordered = False, load_cache_direct = False, with function(position):
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(pos):
+    ...     def f(self, pos):
     ...        return ([pos/100, pos/100], [pos/100])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=False,
-    ...                                 load_batch_direct=False,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=False,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1878,15 +1876,15 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = False, load_batch_direct = True, with function(batch):
+    generator_ordered = False, load_cache_direct = True, with function(cache):
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f(batch):
-    ...         i = batch * 16
+    ...     def f(self, cache):
+    ...         i = cache * 16
     ...         while True:
     ...             all_inputs = [[]]
     ...             all_targets = [[]]
-    ...             while i < (batch + 1) * 16:
+    ...             while i < (cache + 1) * 16:
     ...                 all_inputs[0].append([i/100, i/100])
     ...                 all_targets[0].append([i/100])
     ...                 i += 1
@@ -1894,8 +1892,8 @@ class VirtualDataset(Dataset):
     ...                     [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=False,
-    ...                                 load_batch_direct=True,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=True,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1904,18 +1902,18 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = True, load_batch_direct = False, with generator function():
+    generator_ordered = True, load_cache_direct = False, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f():
+    ...     def f(self):
     ...         i = 0
     ...         while True:
     ...             yield ([i/100, i/100], [i/100])
     ...             i += 1
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=True,
-    ...                                 load_batch_direct=False,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=False,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1924,10 +1922,10 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = True, load_batch_direct = True, with generator function():
+    generator_ordered = True, load_cache_direct = True, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f():
+    ...     def f(self):
     ...         i = 0
     ...         while True:
     ...             i_16 = i + 16
@@ -1941,8 +1939,8 @@ class VirtualDataset(Dataset):
     ...                    [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=True,
-    ...                                 load_batch_direct=True,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=True,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1951,17 +1949,17 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = True, load_batch_direct = False, with generator function() (showing another
+    generator_ordered = True, load_cache_direct = False, with generator function() (showing another
     function style):
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f():
+    ...     def f(self):
     ...         for i in range(100):
     ...             yield ([i/100, i/100], [i/100])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=True,
-    ...                                 load_batch_direct=False,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=False,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1970,17 +1968,17 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = False, load_batch_direct = False, with generator function():
+    generator_ordered = False, load_cache_direct = False, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f():
+    ...     def f(self):
     ...         while True:
     ...             r = random.random()
     ...             yield ([r, r], [r])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=False,
-    ...                                 load_batch_direct=False,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=False,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -1989,10 +1987,10 @@ class VirtualDataset(Dataset):
     ...     print("Evaluating initial ...")
     Evaluating initial ...
 
-    generator_ordered = False, load_batch_direct = True, with generator function():
+    generator_ordered = False, load_cache_direct = True, with generator function():
 
     >>> if LooseVersion(keras.__version__) >= LooseVersion("2.2.0"):
-    ...     def f():
+    ...     def f(self):
     ...         while True:
     ...             all_inputs = [[]]
     ...             all_targets = [[]]
@@ -2004,8 +2002,8 @@ class VirtualDataset(Dataset):
     ...                    [np.array(targets) for targets in all_targets])
     ...     dataset = cx.VirtualDataset(f, 100, [(2,)], [(1,)], [(0,1)], [(0,1)],
     ...                                 generator_ordered=False,
-    ...                                 load_batch_direct=True,
-    ...                                 batch_size=16)
+    ...                                 load_cache_direct=True,
+    ...                                 cache_size=16)
     ...     net = cx.Network("GEN", 2, 3, 1, activation="sigmoid")
     ...     net.compile(error="mse", optimizer="adam")
     ...     net.set_dataset(dataset)
@@ -2017,18 +2015,16 @@ class VirtualDataset(Dataset):
     Vector = VirtualDataVector
 
     def __init__(self, function, length, input_shapes, target_shapes,
-                 inputs_range, targets_range, generator_ordered=False, batch_size=32,
-                 load_batch_direct=False, network=None, name=None, description=None,
-                 pass_self=False):
+                 inputs_range, targets_range, generator_ordered=False, cache_size=3200,
+                 load_cache_direct=False, network=None, name=None, description=None):
         super().__init__(network, name, description, input_shapes, target_shapes)
         self._function = function
         self._length = length
         self._generator_ordered = generator_ordered
-        self._batch_size = batch_size
+        self._cache_size = cache_size
         self._inputs_range = inputs_range
         self._targets_range = targets_range
-        self._load_batch_direct = load_batch_direct
-        self._pass_self = pass_self
+        self._load_cache_direct = load_cache_direct
         self.reset()
 
     def chop(self, amount):
@@ -2049,10 +2045,7 @@ class VirtualDataset(Dataset):
 
     def reset(self):
         try:
-            if self._pass_self:
-                self._generator = self._function(self)
-            else:
-                self._generator = self._function()
+            self._generator = self._function(self)
             self._generate = False
         except:
             self._generator = None
@@ -2060,14 +2053,18 @@ class VirtualDataset(Dataset):
         if self._generator_ordered and self._generator is None:
             raise Exception("generator_order should only be True when function is a generator")
         self._cached = [-1, -1]
-        self._current_batch = -1
-        ## Force a load of first batch:
+        self._current_cache = -1
+        ## Force a load of first cache:
         self.inputs[0]
 
-    def get_generator(self):
+    def get_generator(self, batch_size):
+        if self._cache_size % batch_size != 0:
+            raise Exception("cache size (%s) is not a multiple of batch_size (%s)" % (self._cache_size, batch_size))
         return DatasetGenerator(self)
 
-    def get_validation_generator(self):
+    def get_validation_generator(self, batch_size):
+        if self._cache_size % batch_size != 0:
+            raise Exception("cache size (%s) is not a multiple of batch_size (%s)" % (self._cache_size, batch_size))
         if self._split == 0:
             return None ## there is no validation partition
         else:
@@ -2091,17 +2088,17 @@ class DatasetGenerator(keras.utils.Sequence):
 
     def __len__(self):
         if self.validation_set == False or self.dataset._split == 1:
-            return int(np.ceil(len(self.dataset) / float(self.dataset._batch_size)))
+            return int(np.ceil(len(self.dataset) / float(self.dataset._cache_size)))
         else:
-            return int(np.ceil(len(self.dataset.test_inputs) / float(self.dataset._batch_size)))
+            return int(np.ceil(len(self.dataset.test_inputs) / float(self.dataset._cache_size)))
 
-    def __getitem__(self, batch):
+    def __getitem__(self, cache):
         if self.validation_set == False or self.dataset._split == 1:
-            i = batch * self.dataset._batch_size
+            i = cache * self.dataset._cache_size
             self.dataset.inputs[i] ## force to load in _inputs/_targets
             return (self.dataset._inputs, self.dataset._targets)
         else:
-            i = batch * self.dataset._batch_size
+            i = cache * self.dataset._cache_size
             self.dataset.test_inputs[i] ## force to load in _inputs/_targets
             return (self.dataset._inputs, self.dataset._targets)
 
@@ -2110,25 +2107,25 @@ class H5Dataset(VirtualDataset):
     A h5py dataset wrapper.
     """
 
-    def __init__(self, f, filename, key, batch_size, input_banks, target_banks,
-                 name=None, description=None, network=None, load_batch_direct=False,
+    def __init__(self, f, filename, key, input_banks, target_banks, cache_size=3200,
+                 name=None, description=None, network=None, load_cache_direct=False,
                  length=None, endpoint=None, username=None, password=None, api_key=None,
                  use_session=True, use_cache=False):
         """
         >>> def f(self, pos):
         ...     return self.h5[self.key][0][pos], self.h5[self.key][0][pos]
 
-        >>> def f_batch(self, batch):
-        ...     pos = batch * self._batch_size
-        ...     b = self.h5[self.key][0][pos:pos + self._batch_size]
+        >>> def get_cache(self, cache):
+        ...     pos = cache * self._cache_size
+        ...     b = self.h5[self.key][0][pos:pos + self._cache_size]
         ...     return [b], [b]
 
-        >>> if os.path.exists("fonts.hdf5"):
-        ...     ds1 = cx.H5Dataset(f, "fonts.hdf5", "fonts", 32, 1, 1, name="Fonts",
+        >>> if os.path.exists("/home/dblank/Desktop/fonts/fonts.hdf5"):
+        ...     ds1 = cx.H5Dataset(f, "fonts.hdf5", "fonts", 1, 1, name="Fonts",
         ...                        description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
-        ...     ds2 = cx.H5Dataset(f_batch, "fonts.hdf5", "fonts", 32, 1, 1, name="Fonts", load_batch_direct=True,
+        ...     ds2 = cx.H5Dataset(get_cache, "fonts.hdf5", "fonts", 1, 1, name="Fonts", load_cache_direct=True,
         ...                        description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
@@ -2145,17 +2142,16 @@ class H5Dataset(VirtualDataset):
             self.h5 = h5py.File(filename)
         super().__init__(f, length if length is not None else len(self.h5[self.key]),
                          generator_ordered=False,
-                         load_batch_direct=load_batch_direct,
-                         batch_size=batch_size,
+                         load_cache_direct=load_cache_direct,
+                         cache_size=cache_size,
                          name=name, description=description, network=network,
                          ## dummy values, for now:
                          input_shapes=[(None,) for i in range(input_banks)],
                          target_shapes=[(None,) for i in range(target_banks)],
                          inputs_range=[(0,1) for i in range(input_banks)],
-                         targets_range=[(0,1) for i in range(target_banks)],
-                         pass_self=True)
+                         targets_range=[(0,1) for i in range(target_banks)])
         ## Now fill in dummy values:
         ## Normally, don't call this with a virtual dataset, but we want shapes and ranges
-        ## so we use first batch as sample:
+        ## so we use first cache as sample:
         self._cache_values_actual()
         ## FIXME: this good, sample more, or get stats from all?

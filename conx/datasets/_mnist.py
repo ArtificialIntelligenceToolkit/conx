@@ -17,7 +17,7 @@ nine.  Some example MNIST images are shown below:
 ![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
 """
 
-def vmnist(*args, batch_size=32, **kwargs):
+def vmnist(*args, cache_size=3200, **kwargs):
     path = "mnist.npz"
     path = get_file(path,
                     origin='https://s3.amazonaws.com/img-datasets/mnist.npz',
@@ -26,12 +26,12 @@ def vmnist(*args, batch_size=32, **kwargs):
     img_rows, img_cols = 28, 28
     total_len = len(fp["x_train"]) + len(fp["x_test"])
     
-    def get_batch(self, batch):
+    def get_cache(self, cache):
         """
         Uses both test and train as data.
         """
-        ## print("vmnist: getting batch #%s" % batch)
-        pos = batch * self._batch_size
+        ## print("vmnist: getting cache #%s" % cache)
+        pos = cache * self._cache_size
         if pos >= total_len:
             raise Exception("position %s is beyond data" % pos)
         if pos < len(fp["x_train"]):
@@ -43,13 +43,13 @@ def vmnist(*args, batch_size=32, **kwargs):
             pos = pos - len(fp["x_train"])
         ## print("vmnist: getting pos #%s of %s" % (pos, key_input))
         ## inputs:
-        x_train = fp[key_input][pos:pos + self._batch_size]
+        x_train = fp[key_input][pos:pos + self._cache_size]
         x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
         x_train = x_train.astype('float32')
         x_train /= 255
         inputs = x_train
         ## targets:
-        y_train = fp[key_target][pos:pos + self._batch_size]
+        y_train = fp[key_target][pos:pos + self._cache_size]
         labels = y_train
         ## FIXME: at least one is mis-labeled:
         ## labels[10994] = 9
@@ -58,14 +58,13 @@ def vmnist(*args, batch_size=32, **kwargs):
         self._labels = [labels]
         return [inputs], [targets]
     
-    dataset = cx.VirtualDataset(get_batch, total_len,
+    dataset = cx.VirtualDataset(get_cache, total_len,
                              input_shapes=[(img_rows,img_cols,1)],
                              target_shapes=[(10,)],
                              inputs_range=[(0,1)],
                              targets_range=[(0,1)],
-                             batch_size=batch_size,
-                             load_batch_direct=True,
-                             pass_self=True)
+                             cache_size=cache_size,
+                             load_cache_direct=True)
     dataset.name = "MNIST"
     dataset.description = ("This is a virtual dataset that loads from disk as needed.\n" +
                            description)
