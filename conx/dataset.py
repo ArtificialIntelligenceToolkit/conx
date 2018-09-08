@@ -2105,7 +2105,6 @@ class H5Dataset(VirtualDataset):
                  length=None, endpoint=None, username=None, password=None, api_key=None,
                  use_session=True, use_cache=False):
         """
-        >>> from keras.utils import get_file
 
         >>> def f(self, pos):
         ...     return self.h5[self.key][pos][1], self.h5[self.key][pos][1] # where 1 is B
@@ -2113,14 +2112,13 @@ class H5Dataset(VirtualDataset):
         >>> def get_cache(self, cache):
         ...     pos = cache * self._cache_size
         ...     b = self.h5[self.key][pos:pos + self._cache_size,1,:] # where 1 is the B's
-        ...     return [b], [b]
+        ...     self._inputs = [b]
+        ...     self._targets = [b]
 
-        >>> try:
-        ...     font_file = get_file("fonts.hdf5", None)
-        ... except:
-        ...     font_file = None
+        >>> import os
+        >>> font_file = os.path.expanduser("~/.keras/datasets/fonts.hdf5")
 
-        >>> if font_file:
+        >>> if os.path.exists(font_file):
         ...     ds1 = cx.H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False,
         ...                        description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
