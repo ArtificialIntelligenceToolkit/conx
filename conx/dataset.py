@@ -2123,7 +2123,9 @@ class H5Dataset(VirtualDataset):
 
         >>> if os.path.exists(font_file):
         ...     ds1 = H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False)
+        ...     ds1.close()
         ...     ds2 = H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts", cache_size=32)
+        ...     ds2.close()
 
         >>> try:
         ...     import h5pyd
@@ -2133,8 +2135,8 @@ class H5Dataset(VirtualDataset):
         >>> if h5pyd:
         ...     ds3 = H5Dataset(get_cache, "fonts.public.hdfgroup.org", "fonts", 1, 1, name="Fonts", cache_size=32,
         ...                     endpoint="http://192.168.1.105:5000")
-        ...     assert len(ds.inputs) == 56443
-
+        ...     assert len(ds3.inputs) == 56443
+        ...     ds3.close()
         """
         import h5py
         self.key = key
@@ -2160,3 +2162,9 @@ class H5Dataset(VirtualDataset):
         ## so we use first cache as sample:
         self._cache_values_actual()
         ## FIXME: this good, sample more, or get stats from all?
+
+    def close(self):
+        """
+        Close the virtual file connection.
+        """
+        self.h5.close()
