@@ -2119,12 +2119,12 @@ class H5Dataset(VirtualDataset):
         >>> font_file = os.path.expanduser("~/.keras/datasets/fonts.hdf5")
 
         >>> if os.path.exists(font_file):
-        ...     ds1 = cx.H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False,
-        ...                        description='''
+        ...     ds1 = H5Dataset(f, font_file, "fonts", 1, 1, name="Fonts", load_cache_direct=False,
+        ...                     description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
-        ...     ds2 = cx.H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts",
-        ...                        description='''
+        ...     ds2 = H5Dataset(get_cache, font_file, "fonts", 1, 1, name="Fonts",
+        ...                     description='''
         ... Based on: https://erikbern.com/2016/01/21/analyzing-50k-fonts-using-deep-neural-networks.html
         ... ''')
 
