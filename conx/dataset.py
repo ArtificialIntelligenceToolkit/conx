@@ -1787,11 +1787,11 @@ class VirtualDataVector(DataVector):
         self.dataset._current_cache = cache
         if original_pos is None:
             return super().__getitem__(pos - (cache * self.dataset._cache_size))
-        else:
-            pos = original_pos
-            cache = int(np.floor(pos / self.dataset._cache_size))
+        else: ## test_ data:
+            size, num_train, num_test = self.dataset._get_split_sizes()
+            pos = (original_pos + num_train) % self.dataset._cache_size
             self.item = self.item[5:] # "test_" ...
-            retval = super().__getitem__(pos - (cache * self.dataset._cache_size))
+            retval = super().__getitem__(pos)
             self.item = "test_" + self.item
             return retval
 
@@ -1841,6 +1841,45 @@ class VirtualDataset(Dataset):
     >>> import keras
     >>> import random
     >>> from distutils.version import LooseVersion
+
+
+    >>> def f(self, cache):
+    ...     pos1 = cache * self._cache_size
+    ...     pos2 = (cache + 1) * self._cache_size
+    ...     inputs = np.array([[pos, pos] for pos in range(pos1, pos2)])
+    ...     targets = np.array([[pos] for pos in range(pos1, pos2)])
+    ...     return [inputs], [targets]
+
+    >>> ds = cx.VirtualDataset(f, 1000, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                        load_cache_direct=True, cache_size=20)
+
+    >>> ds.split(.25)
+
+    >>> ds.inputs[0], ds.inputs[-1]
+    ([0, 0], [999, 999])
+
+    >>> ds.train_inputs[0], ds.train_inputs[-1]
+    ([0, 0], [749, 749])
+
+    >>> ds.test_inputs[0], ds.test_inputs[-1]
+    ([750, 750], [999, 999])
+
+    >>> def f(self, pos):
+    ...     return [[pos], [pos]], [[pos]]
+
+    >>> ds = cx.VirtualDataset(f, 1000, [(2,)], [(1,)], [(0,1)], [(0,1)],
+    ...                        load_cache_direct=False, cache_size=20)
+
+    >>> ds.split(.25)
+
+    >>> ds.inputs[0], ds.inputs[-1]
+    ([0, 0], [999, 999])
+
+    >>> ds.train_inputs[0], ds.train_inputs[-1]
+    ([0, 0], [749, 749])
+
+    >>> ds.test_inputs[0], ds.test_inputs[-1]
+    ([750, 750], [999, 999])
 
     >>> def test_dataset(net):
     ...     net.dataset.split(.1)
