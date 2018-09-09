@@ -859,7 +859,7 @@ class Network():
         else:
             print("Compile network in order to see summary.")
 
-    def reset(self, clear=False, **overrides):
+    def reset(self, clear=False, compile=False, **overrides):
         """
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
@@ -875,10 +875,11 @@ class Network():
             ## Reset all weights and biases:
             self.reset_weights()
             ## Recompile with possibly new options:
-            if clear:
-                self.compile_options = {}
-            self.compile_options.update(overrides)
-            self.compile(**self.compile_options)
+            if compile or clear:
+                if clear:
+                    self.compile_options = {}
+                self.compile_options.update(overrides)
+                self.compile(**self.compile_options)
 
     def reset_weights(self):
         """
@@ -2535,7 +2536,7 @@ class Network():
 
     def compile(self, **kwargs):
         """
-        Check and compile the network.
+        Compile the network with error function and optimizer.
 
         You must provide error/loss and optimizer keywords.
 
@@ -2546,6 +2547,12 @@ class Network():
             * 'msle' - mean_squared_logarithmic_error
             * 'kld' - kullback_leibler_divergence
             * 'cosine' - cosine_proximity
+            * 'categorical_crossentropy' - for categorical outputs
+            * 'binary_crossentropy' - for 0/1 outputs
+            * 'sparse_categorical_crossentropy' - sparse categories
+            * 'kullback_leibler_divergence'
+            * 'poisson'
+            * 'cosine_proximity'
 
         Possible optimizers are:
             * 'sgd'
@@ -2557,6 +2564,12 @@ class Network():
             * 'nadam'
 
         See https://keras.io/ `Model.compile` method for more details.
+
+        Examples:
+
+            >>> net = Network("XOR", 2, 5, 5, 1)
+            >>> net.compile(error="mse", optimizer="adam")
+
         """
         if self.model is None:
             self.build_model()
