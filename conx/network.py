@@ -3667,12 +3667,14 @@ require(['base/js/namespace'], function(Jupyter) {
             raise Exception("connecting layer not found!")
 
         ## First level needs to be in bank_order, and cannot permutate:
-        ordering[0] = [(bank_name, False, []) for bank_name in self.input_bank_order]
-        permutations = [ordering[0]] + list(itertools.product(*[perms(x) for x in ordering[1:]]))
-        if len(permutations) < 70000: ## globally minimize
+        first_level = [(bank_name, False, []) for bank_name in self.input_bank_order]
+        perm_count = reduce(operator.mul, [math.factorial(len(level)) for level in ordering[1:]])
+        if perm_count < 70000: ## globally minimize
+            permutations = itertools.product(*[perms(x) for x in ordering[1:]])
             ## measure arrow distances for them all and find the shortest:
             best = (10000000, None, None)
             for ordering in permutations:
+                ordering = (first_level,) + ordering
                 sum = 0.0
                 for level_num in range(1, len(ordering)):
                     level = ordering[level_num]
@@ -3692,7 +3694,7 @@ require(['base/js/namespace'], function(Jupyter) {
                     best = (sum, ordering)
             return best[1]
         else: # locally minimize, between layers:
-            del permutations
+            ordering[0] = first_level ## replace first level with sorted
             for level_num in range(1, len(ordering)):
                 best = (10000000, None, None)
                 plevel = ordering[level_num - 1]

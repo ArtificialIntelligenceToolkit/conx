@@ -1091,8 +1091,7 @@ class Dataset():
             self = Dataset()
         return sorted(self.DATASETS.keys())
 
-    @classmethod
-    def get(cls, dataset_name, *args, **kwargs):
+    def get(dataset_name=None, *args, **kwargs):
         """
         Get a known dataset by name.
 
@@ -1108,14 +1107,11 @@ class Dataset():
 
         >>> ds.clear()
         """
+        if not isinstance(dataset_name, str):
+            raise Exception("Please use network.get_dataset() or Dataset.get()")
         self = Dataset() ## a dummy to load the datasets
         if dataset_name.lower() in self.DATASETS:
-            if isinstance(dataset_name, str):
-                return self.DATASETS[dataset_name.lower()](*args, **kwargs)
-            else:
-                raise Exception(
-                    ("dataset_name should be one of %s" %
-                     (list(self.DATASETS.keys(),))))
+            return self.DATASETS[dataset_name.lower()](*args, **kwargs)
         else:
             raise Exception(
                 ("unknown dataset name '%s': should be one of %s" %
