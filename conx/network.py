@@ -3259,38 +3259,54 @@ class Network():
                             ## draw a line to this anchor point
                             x2 = positioning[anchor_name2]["x"]
                             y2 = positioning[anchor_name2]["y"]
-                            struct.append(["line_svg", {"x1":cwidth,
-                                                        "y1":cheight,
-                                                        "x2":x2,
-                                                        "y2":y2,
-                                                        "arrow_color": config["arrow_color"],
-                                                        "tooltip": tooltip
+                            struct.append(["curve", {
+                                "endpoint": False,
+                                "drawn": False,
+                                "name": anchor_name2,
+                                "x1": cwidth,
+                                "y1": cheight,
+                                "x2": x2,
+                                "y2": y2,
+                                "arrow_color": config["arrow_color"],
+                                "tooltip": tooltip
                             }])
-                            struct.append(["line_svg", {"x1":cwidth,
-                                                        "y1":cheight + row_heights[row],
-                                                        "x2":cwidth,
-                                                        "y2":cheight,
-                                                        "arrow_color": config["arrow_color"],
-                                                        "tooltip": tooltip
+                            struct.append(["curve", {
+                                "endpoint": False,
+                                "drawn": False,
+                                "name": anchor_name2,
+                                "x1": cwidth,
+                                "y1": cheight + row_heights[row],
+                                "x2": cwidth,
+                                "y2": cheight,
+                                "arrow_color": config["arrow_color"],
+                                "tooltip": tooltip
                             }])
                         else:
                             ## draw a line to this bank
                             x2 = positioning[layer_name]["x"] + positioning[layer_name]["width"]/2
                             y2 = positioning[layer_name]["y"] + positioning[layer_name]["height"]
                             tootip ="TODO"
-                            struct.append(["arrow_svg", {"x1":cwidth,
-                                                         "y1":cheight,
-                                                         "x2":x2,
-                                                         "y2":y2,
-                                                         "arrow_color": config["arrow_color"],
-                                                         "tooltip": tooltip
+                            struct.append(["curve", {
+                                "endpoint": True,
+                                "drawn": False,
+                                "name": layer_name,
+                                "x1": cwidth,
+                                "y1": cheight,
+                                "x2": x2,
+                                "y2": y2,
+                                "arrow_color": config["arrow_color"],
+                                "tooltip": tooltip
                             }])
-                            struct.append(["line_svg",  {"x1":cwidth,
-                                                         "y1":cheight + row_heights[row],
-                                                         "x2":cwidth,
-                                                         "y2":cheight,
-                                                         "arrow_color": config["arrow_color"],
-                                                         "tooltip": tooltip
+                            struct.append(["curve",  {
+                                "endpoint": False,
+                                "drawn": False,
+                                "name": layer_name,
+                                "x1":cwidth,
+                                "y1":cheight + row_heights[row],
+                                "x2":cwidth,
+                                "y2":cheight,
+                                "arrow_color": config["arrow_color"],
+                                "tooltip": tooltip
                             }])
                     else:
                         print("that's weird!", layer_name, "is not in", prev)
@@ -3329,24 +3345,32 @@ class Network():
                         tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                         x2 = positioning[anchor_name]["x"]
                         y2 = positioning[anchor_name]["y"]
-                        struct.append(["line_svg", {"x1":x1,
-                                                    "y1":y1,
-                                                    "x2":x2,
-                                                    "y2":y2,
-                                                    "arrow_color": config["arrow_color"],
-                                                    "tooltip": tooltip
+                        struct.append(["curve", {
+                            "endpoint": False,
+                            "drawn": False,
+                            "name": anchor_name,
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2,
+                            "arrow_color": config["arrow_color"],
+                            "tooltip": tooltip
                         }])
                         continue
                     else:
                         tooltip = html.escape(self.describe_connection_to(self[layer_name], out))
                         x2 = positioning[out.name]["x"] + positioning[out.name]["width"]/2
                         y2 = positioning[out.name]["y"] + positioning[out.name]["height"]
-                        struct.append(["arrow_svg", {"x1":x1,
-                                                     "y1":y1,
-                                                     "x2":x2,
-                                                     "y2":y2 + 2,
-                                                     "arrow_color": config["arrow_color"],
-                                                     "tooltip": tooltip
+                        struct.append(["curve", {
+                            "endpoint": True,
+                            "drawn": False,
+                            "name": out.name,
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2 + 2,
+                            "arrow_color": config["arrow_color"],
+                            "tooltip": tooltip
                         }])
                 #######################################################################
                 ## Bank images
@@ -3553,6 +3577,7 @@ require(['base/js/namespace'], function(Jupyter) {
             })
         line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**config)
+        curve_svg = '''" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)" fill="none" />'''.format(**config)
         arrow_rect = """<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" style="fill:white;stroke:none"><title>{tooltip}</title></rect>"""
         label_svg = """<text x="{x}" y="{y}" font-family="{font_family}" font-size="{font_size}" text-anchor="{text_anchor}" fill="{font_color}" alignment-baseline="central" {transform}>{label}</text>"""
         svg_head = """<svg id='{netname}' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' image-rendering="pixelated" width="{top_width}px" height="{top_height}px">
@@ -3570,6 +3595,7 @@ require(['base/js/namespace'], function(Jupyter) {
             "arrow_rect": arrow_rect,
             "label_svg": label_svg,
             "svg_head": svg_head,
+            "curve": curve_svg,
         }
         ## get the header:
         svg = None
@@ -3577,7 +3603,8 @@ require(['base/js/namespace'], function(Jupyter) {
             if template_name == "svg_head":
                 svg = svg_head.format(**dict)
         ## build the rest:
-        for (template_name, dict) in struct:
+        for index in range(len(struct)):
+            (template_name, dict) = struct[index]
             if template_name != "svg_head" and not template_name.startswith("_"):
                 rotate = dict.get("rotate", config["svg_rotate"])
                 if template_name == "label_svg" and rotate:
@@ -3586,12 +3613,113 @@ require(['base/js/namespace'], function(Jupyter) {
                     dict["transform"] = """ transform="rotate(-90 %s %s) translate(%s)" """ % (dict["x"], dict["y"], 2)
                 else:
                     dict["transform"] = ""
-                t = templates[template_name]
-                svg += t.format(**dict)
+                if template_name == "curve":
+                    if dict["drawn"] == False:
+                        curve_svg = self._render_curve(dict, struct[index + 1:], templates[template_name])
+                        svg += curve_svg
+                else:
+                    t = templates[template_name]
+                    svg += t.format(**dict)
         svg += """</svg></g></svg>"""
         if (not self._initialized_javascript and get_ipython()):
             self._initialize_javascript()
         return svg
+
+    def _render_curve(self, start, struct, end_svg):
+        """
+        Collect and render points on the line/curve.
+        """
+        points = [(start["x2"], start["y2"]), (start["x1"], start["y1"])] # may be direct line
+        start["drawn"] = True
+        for (template, dict) in struct:
+            ## anchor! come in pairs
+            if ((template == "curve") and (dict["drawn"] == False) and
+                points[-1] == (dict["x2"], dict["y2"])):
+                points.append((dict["x1"], dict["y1"]))
+                dict["drawn"] = True
+        end_html = end_svg.format(**start)
+        if len(points) == 2: ## direct, no anchors, no curve:
+            svg_html = """<path d="M {sx} {sy} L {ex} {ey}" """.format(**{
+                "sx": points[-1][0],
+                "sy": points[-1][1],
+                "ex": points[0][0],
+                "ey": points[0][1],
+            }) + end_html
+        else: # construct curve, at least 4 points
+            ## M move to
+            ## C curve start, control, end
+            ## S control, end
+            ## First, insert a mid-point between each anchor:
+            ## end to start
+            #index = 1
+            #while index < len(points) - 1:
+            #    ## insert new point:
+            #    ## Midtpoint, so rotated is fine:
+            #    new_point = ((points[index][0] + points[index + 1][0])/2,
+            #                 (points[index][1] + points[index + 1][1])/2)
+            #    points.insert(index + 1, new_point)
+            #    index += 3
+            midpoints = []
+            svg_html = """<path d="M {sx} {sy} C {sx} {sy}, """.format(**{
+                "sx": points[-1][0],
+                "sy": points[-1][1],
+            })
+            prefix = "" ## initially, end of "C"
+            for p in range(len(points) - 2, 0, -2): # start from last, stop at second, backwards
+                # for each pair of anchor points:
+                svg_html += prefix
+                ## FIXME: rotate issue
+                lowpoint = ((points[p][0] + 0),
+                            (points[p][1] + 25))
+                midpoint = ((points[p][0] + points[p - 1][0])/2,
+                             (points[p][1] + points[p - 1][1])/2)
+                midpoints.append(lowpoint)
+                midpoints.append(midpoint)
+                svg_html += "{x2} {y2}, {x1} {y1}".format(**{
+                    "x2": lowpoint[0],
+                    "y2": lowpoint[1],
+                    "x1": points[p][0],
+                    "y1": points[p][1],
+                })
+                prefix = " S "
+                svg_html += prefix
+                svg_html += "{x2} {y2}, {x1} {y1}".format(**{
+                    "x2": midpoint[0],
+                    "y2": midpoint[1],
+                    "x1": points[p - 1][0],
+                    "y1": points[p - 1][1],
+                })
+                #svg_html += prefix
+                #svg_html += "{x2} {y2}, {x1} {y1}".format(**{
+                #    "x2": midpoint[0],
+                #    "y2": midpoint[1],
+                #    "x1": points[p - 1][0],
+                #    "y1": points[p - 1][1],
+                #})
+            if abs(points[0][0] - points[1][0]) < 10: ## no offset
+                x_offset = 0
+            elif points[0][0] < points[1][0]: # coming in from left
+                x_offset = 75
+            else:
+                x_offset = -75
+            ## FIXME: percentage of space between, FIXME: rotated
+            control_point = (points[0][0] + x_offset,
+                             points[0][1] + 20)
+            midpoints.append(control_point)
+            svg_html += ''' S {x2} {y2}, {x1} {y1}'''.format(**{
+                "x2": control_point[0],
+                "y2": control_point[1],
+                "x1": points[0][0],
+                "y1": points[0][1],
+            })
+            svg_html += end_html
+            if self.debug:
+                for p in midpoints:
+                    svg_html += """<circle cx="{x}" cy="{y}" r="3" stroke="blue" stroke-width="1" fill="blue" />""".format(**{"x": p[0], "y": p[1]})
+        if self.debug:
+            for p in points:
+                svg_html += """<circle cx="{x}" cy="{y}" r="3" stroke="red" stroke-width="1" fill="red" />""".format(**{"x": p[0], "y": p[1]})
+        return svg_html
 
     def _get_level_ordering(self):
         """
