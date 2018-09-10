@@ -1717,7 +1717,10 @@ class Network():
             outputs = self.model.predict(inputs, batch_size=batch_size)
         ## Shape the outputs:
         if sequence:
-            pass
+            if isinstance(outputs, list):
+                outputs = [bank.tolist() for bank in outputs]
+            else:
+                outputs = outputs.tolist()
         elif self.num_target_layers == 1:
             shape = self[self.output_bank_order[0]].shape
             try:
@@ -1807,6 +1810,10 @@ class Network():
                             if self.debug: print("propagate_from 2: class_id_name:", class_id_name)
                             self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         if sequence:
+            if isinstance(outputs, list):
+                outputs = [bank.tolist() for bank in outputs]
+            else:
+                outputs = outputs.tolist()
             return outputs
         index = 0
         for layer_name in output_layer_names:
@@ -1932,6 +1939,10 @@ class Network():
                     self._comm.send({'class': class_id_name, "xlink:href": data_uri})
         ## Shape the outputs:
         if sequence:
+            if isinstance(outputs, list):
+                outputs = [bank.tolist() for bank in outputs]
+            else:
+                outputs = outputs.tolist()
             return outputs
         shape = self[layer_name].shape
         if shape and all([isinstance(v, numbers.Integral) for v in shape]):
