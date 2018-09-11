@@ -37,6 +37,11 @@ import sys
 import os
 import re
 
+try:
+    from IPython import get_ipython
+except:
+    get_ipython = lambda: None
+
 #------------------------------------------------------------------------
 # configuration constants
 
@@ -2285,3 +2290,59 @@ class Experiment():
                 return pil_image
             else:
                 raise Exception("format must be None, 'svg', or 'image'")
+
+_COMM = None
+
+def dynamic_pictures(value=True, reset=False):
+    global _COMM
+    try:
+        from ipykernel.comm import Comm
+    except:
+        print("WARNING: ipykernel is not installed; dynamic_pictures ignored",
+              file=sys.stderr)
+        return False
+    if value: ## turn on
+        if reset or _COMM is None:
+            _COMM = Comm(target_name='conx_svg_control')
+            initialize_javascript()
+        return True
+    else:
+        _COMM = None
+        return False
+
+def dynamic_pictures_check():
+    global _COMM
+    return _COMM is not None and _COMM.kernel
+
+def dynamic_pictures_send(package):
+    global _COMM
+    _COMM.send(package)
+
+def initialize_javascript():
+    from IPython.display import Javascript, display
+    js = """
+require(['base/js/namespace'], function(Jupyter) {
+    Jupyter.notebook.kernel.comm_manager.register_target('conx_svg_control', function(comm, msg) {
+        comm.on_msg(function(msg) {
+            // console.log("received!");
+            // console.log(msg);
+            var data = msg["content"]["data"];
+            var images = document.getElementsByClassName(data["class"]);
+            for (var i = 0; i < images.length; i++) {
+                if (data["xlink:href"]) {
+                    var xlinkns="http://www.w3.org/1999/xlink";
+                    images[i].setAttributeNS(xlinkns, "href", data["xlink:href"]);
+                }
+                if (data["src"]) {
+                    images[i].setAttributeNS(null, "src", data["src"]);
+                }
+            }
+        });
+    });
+});
+"""
+    if get_ipython():
+        display(Javascript(js))
+    else:
+        print("WARNING: get_ipython() is None; javascript not initialized",
+              file=sys.stderr)

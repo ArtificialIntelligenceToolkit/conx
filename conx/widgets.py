@@ -30,7 +30,9 @@ from ipywidgets import (HTML, Button, VBox, HBox, IntSlider, Select, Text,
                         widget_serialization, DOMWidget)
 from traitlets import Bool, Dict, Int, Float, Unicode, List, Instance
 
-from .utils import uri_to_image, AVAILABLE_COLORMAPS, get_colormap
+from .utils import (uri_to_image, AVAILABLE_COLORMAPS, get_colormap,
+                    dynamic_pictures_check)
+
 from ._version import __version__
 
 class _Player(threading.Thread):
@@ -228,7 +230,10 @@ class Dashboard(VBox):
         """
         Propagate inputs through the dashboard view of the network.
         """
-        return self.net.propagate(inputs, class_id=self.class_id, update_pictures=True)
+        if dynamic_pictures_check():
+            return self.net.propagate(inputs, class_id=self.class_id, update_pictures=True)
+        else:
+            self.regenerate(inputs=input)
 
     def goto(self, position):
         if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
@@ -321,6 +326,12 @@ class Dashboard(VBox):
         elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
             return self.net.dataset.test_inputs[self.control_slider.value]
 
+    def get_current_targets(self):
+        if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
+            return self.net.dataset.train_targets[self.control_slider.value]
+        elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
+            return self.net.dataset.test_targets[self.control_slider.value]
+
     def update_slider_control(self, change):
         if len(self.net.dataset.inputs) == 0 or len(self.net.dataset.targets) == 0:
             self.total_text.value = "of 0"
@@ -330,6 +341,10 @@ class Dashboard(VBox):
             if self.control_select.value == "Train" and len(self.net.dataset.train_targets) > 0:
                 self.total_text.value = "of %s" % len(self.net.dataset.train_inputs)
                 if self.net.model is None:
+                    return
+                if not dynamic_pictures_check():
+                    self.regenerate(inputs=self.net.dataset.train_inputs[self.control_slider.value],
+                                    targets=self.net.dataset.train_targets[self.control_slider.value])
                     return
                 output = self.net.propagate(self.net.dataset.train_inputs[self.control_slider.value],
                                             class_id=self.class_id, update_pictures=True)
@@ -362,6 +377,10 @@ class Dashboard(VBox):
             elif self.control_select.value == "Test" and len(self.net.dataset.test_targets) > 0:
                 self.total_text.value = "of %s" % len(self.net.dataset.test_inputs)
                 if self.net.model is None:
+                    return
+                if not dynamic_pictures_check():
+                    self.regenerate(inputs=self.net.dataset.test_inputs[self.control_slider.value],
+                                    targets=self.net.dataset.test_targets[self.control_slider.value])
                     return
                 output = self.net.propagate(self.net.dataset.test_inputs[self.control_slider.value],
                                             class_id=self.class_id, update_pictures=True)
@@ -400,7 +419,7 @@ class Dashboard(VBox):
     def prop_one(self, button=None):
         self.update_slider_control({"name": "value"})
 
-    def regenerate(self, button=None):
+    def regenerate(self, button=None, inputs=None, targets=None):
         ## Protection when deleting object on shutdown:
         if isinstance(button, dict) and 'new' in button and button['new'] is None:
             return
@@ -408,14 +427,15 @@ class Dashboard(VBox):
         self.net.config["dashboard.features.bank"] = self.feature_bank.value
         self.net.config["dashboard.features.columns"] = self.feature_columns.value
         self.net.config["dashboard.features.scale"] = self.feature_scale.value
-        inputs = self.get_current_input()
+        inputs = inputs if inputs is not None else self.get_current_input()
+        targets = targets if targets is not None else self.get_current_targets()
         features = None
         if self.feature_bank.value in self.net.layer_dict.keys() and inputs is not None:
             if self.net.model is not None:
                 features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                           cols=self.feature_columns.value,
                                                           scale=self.feature_scale.value, display=False)
-        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs,
+        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs, targets=targets,
                                                                            class_id=self.class_id),)
         if inputs is not None and features is not None:
             html_horizontal = """
