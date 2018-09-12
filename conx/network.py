@@ -855,7 +855,7 @@ class Network():
         else:
             print("Compile network in order to see summary.")
 
-    def reset(self, clear=False, compile=False, **overrides):
+    def reset(self, clear=False, **overrides):
         """
         Reset all of the weights/biases in a network.
         The magnitude is based on the size of the network.
@@ -869,24 +869,11 @@ class Network():
                 np.random.seed(self.seed)
                 del overrides["seed"]
             ## Reset all weights and biases:
-            self.reset_weights()
             ## Recompile with possibly new options:
-            if compile or clear:
-                if clear:
-                    self.compile_options = {}
-                self.compile_options.update(overrides)
-                self.compile(**self.compile_options)
-
-    def reset_weights(self):
-        """
-        Reset weights and biases.
-        """
-        session = K.get_session()
-        for layer in self.model.layers:
-            if hasattr(layer, 'kernel'):
-                layer.kernel.initializer.run(session=session)
-            elif hasattr(layer, 'cell'):
-                layer.cell.kernel.initializer.run(session=session)
+            if clear:
+                self.compile_options = {}
+            self.compile_options.update(overrides)
+            self.compile_model(**self.compile_options)
 
     def test(self, batch_size=32, show=False, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
