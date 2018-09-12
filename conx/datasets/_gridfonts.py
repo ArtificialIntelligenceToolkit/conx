@@ -35,7 +35,8 @@ https://repository.brynmawr.edu/compsci_pubs/78/
     dataset.load_direct([letters], [targets], [labels])
     return dataset
 
-def figure_ground_a(dataset):
+def figure_ground_a(*args, **kwargs):
+    dataset = cx.Dataset()
     url = "https://raw.githubusercontent.com/Calysto/conx/master/data/figure_ground_a.npy"
     path = get_file("figure_ground_a.npy", origin=url)
     ds = np.load(path)
@@ -68,3 +69,4 @@ You can read a thesis using part of this dataset here:
 https://repository.brynmawr.edu/compsci_pubs/78/
 """
     dataset.load_direct([letters], [brims, bodies])
+    return dataset
