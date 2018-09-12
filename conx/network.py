@@ -883,10 +883,10 @@ class Network():
         """
         session = K.get_session()
         for layer in self.model.layers:
-            if hasattr(layer, 'kernel_initializer'):
+            if hasattr(layer, 'kernel'):
                 layer.kernel.initializer.run(session=session)
-            if hasattr(layer, 'bias_initializer'):
-                layer.bias.initializer.run(session=session)
+            elif hasattr(layer, 'cell'):
+                layer.cell.kernel.initializer.run(session=session)
 
     def test(self, batch_size=32, show=False, tolerance=None, force=False,
              show_inputs=True, show_outputs=True,
