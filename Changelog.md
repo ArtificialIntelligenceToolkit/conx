@@ -1,5 +1,104 @@
 # Changelog
 
+## 3.7.5
+
+Released Wed September 12, 2018
+
+* Re-wrote reset_weights; just recompiles model
+* Fixed error in gridfont loader
+* All widgets/pictures are JupyterLab compatible
+* Added support for dynamic_pictures on/off; default is off
+* SVG arrows are now curves
+* New algorithm for bank layout in SVG
+* moved dataset.get() to Dataset.get() and net.get_dataset()
+* new virtual datasets API, including vmnist, H5Dataset (remote and local)
+* better cache in virtual datasets
+* Allow dropout to operate on 0, 1, 2, or 3 whole dims
+* Added cx.Layer(bidirectional=mode)
+* Show network banks as red until compiled
+
+## 3.7.4
+
+Released Sun August 19, 2018
+
+* net.pp() gives standard formatting for ints and floats
+* Allow negative position in virtual dataset vectors
+* Fixed error in colors dataset that truncated the target integer to 8 bits
+* Add internal error function to net.compile(error={...})
+* New spelling: ConX
+* cx.image_to_array() removes alpha
+* vshape can be three dimensions (for color images)
+* some new image functions: image_resize(), image_remove_alpha()
+* renamed "sequence" to "raw" in utils
+* Added cx.shape(summary=False), cx.get_ranges(array, form), and get_dim(array, DIMS)
+* Use kverbose in train() for all keras activity
+
+## 3.7.3
+
+Released Mon August 13, 2017
+
+* Allow bool values with onehot
+* Unfix fixed crossentropy warning
+* Allow datasets to be composed of bools
+* added temperature to choice()
+* Added net.dataset.inputs.test(tolerance=0.2, index=True)
+
+## 3.7.1
+
+Released Fri August 10, 2018
+
+* Separate build/compile --- compile() no longer resets weights;
+* added net.add_loss()
+* Remove additional_output_banks
+* refactor build/compile
+* add LambdaLayer with size
+* add prop_from_dict[(input, output)] = model
+
+## 3.7.0
+
+Released Tue Aug 7, 2018
+
+* Allow additional output layers for network
+* Fix: crossentropy check
+* added indentity layer for propagating to input layers
+* Include LICENSE.txt file in wheels
+
+## 3.6.10
+
+Released Thu May 17, 2018
+
+* delete layers, IncepetionV3, combine networks
+* ability to delete layers
+* ability to connect two networks together
+* rewrote SVG embedded images to use standard cairosvg
+* added inceptionv3 network
+* cx.download has new verbose flag
+* fixes for minimum and maximum
+* import_keras_model now forms proper connections
+* Warn when displaying network if not compiled then activations won't be visible
+* array_to_image(colormap=) now returns RGBA image
+
+## 3.6.9
+
+Released Fri May 4, 2018
+
+* propagate_to_features() scales layer[0]
+* added cx.array
+* fixed (somewhat) array_to_image(colormap=)
+* added VGG16 and ImageNet notebook
+* New Network.info()
+* Updated Network.propagate_to_features(), util.image()
+* Network.info() describes predefined networks
+* new utility image(filename)
+* rewrote Network.propagate_to_features() to be faster
+* added VGG preprocessing and postprocessing
+* Picture autoscales inputs by default
+* Add net.picture(minmax=)
+* Rebuild models on import_keras
+* Added VGG19
+* Added vgg16 and idea of applications as Network.networks
+* Bug in building intermediate hidden -> output models
+
 ## 3.6.7
 
 Released Tue April 17, 2018
