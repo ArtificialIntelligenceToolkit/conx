@@ -3889,7 +3889,7 @@ class Network():
         return (os.path.isdir(dir) and
                 os.path.isfile("%s/network.pickle" % dir) and
                 os.path.isfile("%s/model.h5" % dir) and
-                os.path.isfile("%s/weights.h5" % dir))
+                os.path.isfile("%s/weights.npy" % dir))
 
     def delete(self, dir=None):
         """
@@ -3952,6 +3952,26 @@ class Network():
         else:
             raise Exception("need to build network before saving")
 
+    def load_dataset(self, dir=None, *args, **kwargs):
+        """
+        Load a dataset from a directory. Returns True if data loaded,
+        else False.
+        """
+        if dir is None:
+            dir = "%s.conx" % self.name.replace(" ", "_")
+        return self.dataset.load_from_disk(dir, *args, **kwargs)
+
+    def save_dataset(self, dir=None, *args, **kwargs):
+        """
+        Save the dataset to directory.
+        """
+        if len(self.dataset) > 0:
+            if dir is None:
+                dir = "%s.conx" % self.name.replace(" ", "_")
+            self.dataset.save_to_disk(dir, *args, **kwargs)
+        else:
+            raise Exception("need to load a dataset before saving")
+
     def load_history(self, dir=None, filename=None):
         """
         Load the history from a dir/file.
@@ -3997,7 +4017,7 @@ class Network():
             if dir is None:
                 dir = "%s.conx" % self.name.replace(" ", "_")
             if filename is None:
-                filename = "weights.h5"
+                filename = "weights.npy"
             full_filename = os.path.join(dir, filename)
             if os.path.exists(full_filename):
                 self.model.load_weights(full_filename)
@@ -4015,7 +4035,7 @@ class Network():
             if dir is None:
                 dir = "%s.conx" % self.name.replace(" ", "_")
             if filename is None:
-                filename = "weights.h5"
+                filename = "weights.npy"
             if not os.path.isdir(dir):
                 os.makedirs(dir)
             self.model.save_weights(os.path.join(dir, filename))
@@ -4306,7 +4326,7 @@ def save_network(datadir, network):
 
     Saves the network name, layers, conecctions, compile args
        to network.pickle.
-    Saves the weights to weights.h5.
+    Saves the weights to weights.npy.
     Saves the training history to history.pickle.
     Saves the network config to config.json.
     """

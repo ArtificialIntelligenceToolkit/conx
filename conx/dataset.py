@@ -830,6 +830,29 @@ class Dataset():
             self._labels = labels # should be a list of np.arrays(dtype=str), one per bank
         self._cache_values()
 
+    def save_to_disk(self, dir, *args, **kwargs):
+        """
+        Save the dataset into the given directory.
+        """
+        if not os.path.isdir(dir):
+            os.makedirs(dir)
+        np.save(os.path.join(dir, "inputs.npy"), self._inputs, *args, **kwargs)
+        np.save(os.path.join(dir, "targets.npy"), self._targets, *args, **kwargs)
+        np.save(os.path.join(dir, "labels.npy"), self._labels, *args, **kwargs)
+
+    def load_from_disk(self, dir, *args, **kwargs):
+        """
+        Load the dataset from the given directory.
+        """
+        loaded = False
+        if os.path.exists(os.path.join(dir, "inputs.npy")):
+            self._inputs = np.load(os.path.join(dir, "inputs.npy"), *args, **kwargs)
+            self._targets = np.load(os.path.join(dir, "targets.npy"), *args, **kwargs)
+            self._labels = np.load(os.path.join(dir, "labels.npy"), *args, **kwargs)
+            self._cache_values()
+            loaded = True
+        return loaded
+
     def load(self, pairs=None, inputs=None, targets=None, labels=None):
         """
         Dataset.load() will clear and load a new dataset.
