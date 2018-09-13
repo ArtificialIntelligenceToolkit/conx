@@ -25,7 +25,7 @@ def test_xor1():
                       [[1, 0], [1]],
                       [[1, 1], [0]]])
     net.train(epochs=2000, accuracy=1, report_rate=25, plot=False)
-    net.test()
+    net.evaluate(show=True)
     net.save_weights("/tmp")
     net.load_weights("/tmp")
     svg = net.to_svg()
@@ -59,7 +59,7 @@ def test_xor2():
         ([[1],[1]], [[0],[0]])
     ])
     net.train(2000, report_rate=10, accuracy=1, plot=False)
-    net.test()
+    net.evaluate(show=True)
     net.propagate_to("shared-hidden", [[1], [1]])
     net.propagate_to("output1", [[1], [1]])
     net.propagate_to("output2", [[1], [1]])
@@ -69,7 +69,7 @@ def test_xor2():
     net.propagate_to("output2", [[1], [1]])
     net.save_weights("/tmp")
     net.load_weights("/tmp")
-    net.test()
+    net.evaluate(show=True)
     svg = net.to_svg()
     assert net is not None
 

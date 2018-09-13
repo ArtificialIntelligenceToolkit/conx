@@ -1735,7 +1735,7 @@ class PCA():
         else:
             return vectors_prime
 
-    def transform_network_bank(self, network, bank, label_index=0, tolerance=None, test=True,
+    def transform_network_bank(self, network, bank, label_index=0, tolerance=None,
                                scale=False):
         """
         >>> from conx import Network
@@ -1762,22 +1762,17 @@ class PCA():
         True
         """
         categories = {}
-        if test:
-            tolerance = tolerance if tolerance is not None else network.tolerance
-            if len(network.dataset.inputs) == 0:
-                raise Exception("nothing to test")
-            inputs = network.dataset._inputs
-            targets = network.dataset._targets
-            results = network._test(inputs, targets, "train dataset", tolerance=tolerance,
-                                    show_inputs=False, show_outputs=False, filter="all",
-                                    interactive=False)
+        tolerance = tolerance if tolerance is not None else network.tolerance
+        if len(network.dataset.inputs) == 0:
+            raise Exception("nothing to test")
+        inputs = network.dataset._inputs
+        targets = network.dataset._targets
+        outputs = network.model.predict(inputs)
+        results = network.compute_correct([outputs], targets, tolerance)
         for i in range(len(network.dataset.inputs)):
             label = network.dataset._labels[label_index][i]
             input_vector = network.dataset.inputs[i]
-            if test:
-                category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
-            else:
-                category = label
+            category = "%s (%s)" % (label, "correct" if results[i] else "wrong")
             hid = network.propagate_to(bank, input_vector)
             hid_prime = self.transform_one(hid, scale)
             if category not in categories:
