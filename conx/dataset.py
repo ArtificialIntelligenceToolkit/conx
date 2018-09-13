@@ -655,6 +655,8 @@ class Dataset():
         Defaults inputs and targets are given as a list of tuple shapes,
         one shape per bank.
         """
+        self.warnings = {}
+        self.warn_categories = {}
         self.network = network
         self.name = name
         self.description = description
@@ -740,7 +742,6 @@ class Dataset():
         """
         Remove all of the inputs/targets.
         """
-        self._warning_set = False
         self._inputs = []
         self._targets = []
         self._labels = []
@@ -1194,7 +1195,7 @@ class Dataset():
             self._target_shapes = [shape(x[0]) for x in self._targets]
         # Final checks:
         if len(self.inputs) != len(self.targets):
-            print("WARNING: inputs/targets lengths do not match", file=sys.stderr)
+            self.warn_once("WARNING: inputs/targets lengths do not match")
         if self.network:
             self.network.test_dataset_ranges()
             self._verify_network_dataset_match()
@@ -1208,24 +1209,35 @@ class Dataset():
         ## check to see if number of input banks match
         if len(self.network.input_bank_order) != self._num_input_banks():
             warning = True
-            print("WARNING: number of dataset input banks != network input banks in network '%s'" % self.network.name,
-                  file=sys.stderr)
+            self.warn_once("WARNING: number of dataset input banks != network input banks in network '%s'" % self.network.name, "VERIFY")
         if len(self.inputs) > 0 and not isinstance(self, VirtualDataset):
             try:
                 self.network.propagate(self.inputs[0])
             except:
                 warning = True
-                print("WARNING: dataset does not yet work with network '%s'" % self.network.name,
-                      file=sys.stderr)
+                self.warn_once("WARNING: dataset does not yet work with network '%s'" % self.network.name, "VERIFY")
         ## check to see if number of output banks match
         if len(self.network.output_bank_order) != self._num_target_banks():
             warning = True
-            print("WARNING: number of dataset target banks != network output banks in network '%s'" % self.network.name,
-                  file=sys.stderr)
-        if self._warning_set and not warning:
-            print("INFO: dataset now works with network '%s'" % self.network.name,
-                  file=sys.stderr)
-        self._warning_set = warning
+            self.warn_once("WARNING: number of dataset target banks != network output banks in network '%s'" % self.network.name, "VERIFY")
+        if not warning and self.warned("VERIFY"):
+            self.warn_once("INFO: dataset now works with network '%s'" % self.network.name)
+
+    def warned(self, category):
+        """
+        Has the user been warned about this category of error before?
+        """
+        return category in self.warn_categories
+
+    def warn_once(self, message, category=None):
+        """
+        Warning the user just once about this particular message.
+        """
+        if category:
+            self.warn_categories[category] = True
+        if message not in self.warnings:
+            print(message, file=sys.stderr)
+            self.warnings[message] = True
 
     def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """

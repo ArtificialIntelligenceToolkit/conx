@@ -281,6 +281,7 @@ class Network():
 
     def __init__(self, name: str, *sizes: int, load_config=True, debug=False,
                  build_propagate_from_models=True, **config: Any):
+        self.warnings = {}
         self.NETWORKS = {name: function for (name, function) in
                          inspect.getmembers(conx.networks, inspect.isfunction)}
         if not isinstance(name, str):
@@ -1224,8 +1225,8 @@ class Network():
             return # nothing to test
         for index in range(len(self.dataset._targets)):
             if len(self.dataset._targets[index].shape) > 2:
-                print("WARNING: network '%s' target bank #%s has a multi-dimensional shape; is this correct?" %
-                      (self.name, index), file=sys.stderr)
+                self.warn_once("WARNING: network '%s' target bank #%s has a multi-dimensional shape; is this correct?" %
+                               (self.name, index))
         for index in range(len(self.output_bank_order)):
             layer_name = self.output_bank_order[index]
             if self[layer_name].activation == "linear":
@@ -1234,12 +1235,12 @@ class Network():
             # test dataset min to see if in range of act output:
             if self[layer_name].activation is not None:
                 if not (lmin <= self.dataset._targets_range[index][0] <= lmax):
-                    print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with minimum value of targets" %
-                          (layer_name, self[layer_name].activation), file=sys.stderr)
+                    self.warn_once("WARNING: output bank '%s' has activation function, '%s', that is not consistent with minimum value of targets" %
+                                   (layer_name, self[layer_name].activation))
                 # test dataset min to see if in range of act output:
                 if not (lmin <= self.dataset._targets_range[index][1] <= lmax):
-                    print("WARNING: output bank '%s' has activation function, '%s', that is not consistent with maximum value of targets" %
-                          (layer_name, self[layer_name].activation), file=sys.stderr)
+                    self.warn_once("WARNING: output bank '%s' has activation function, '%s', that is not consistent with maximum value of targets" %
+                                   (layer_name, self[layer_name].activation))
 
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
@@ -2229,8 +2230,8 @@ class Network():
         aspect_ratio = max(rows,cols)/min(rows,cols)
         #print("aspect_ratio is", aspect_ratio)
         if aspect_ratio > 50:   # threshold may need further refinement
-            print("WARNING: using a visual display shape of (%d, %d), which may be hard to see."
-                  % (rows, cols), file=sys.stderr)
+            self.warn_once("WARNING: using a visual display shape of (%d, %d), which may be hard to see."
+                           % (rows, cols))
             print("You can use vshape=(rows, cols) to specify a different display shape.")
         if not isinstance(wmin, (numbers.Number, type(None))):
             raise Exception("wmin: expected a number or None but got %s" % (wmin,))
@@ -2970,7 +2971,6 @@ class Network():
         """
         Determine sizes and pre-compute images.
         """
-        warned = False
         ### find max_width, image_dims, and row_height
         # Go through and build images, compute max_width:
         row_heights = []
@@ -3043,9 +3043,7 @@ class Network():
                         image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                     self.config["svg_rotate"] = orig_svg_rotate
                 else:
-                    if not warned:
-                        print("WARNING: network is uncompiled; activations cannot be visualized", file=sys.stderr)
-                        warned = True
+                    self.warn_once("WARNING: network is uncompiled; activations cannot be visualized")
                     image = self[layer_name].make_image(np.array(self[layer_name].make_dummy_vector()), config=config)
                 (width, height) = image.size
                 images[layer_name] = image ## little image
@@ -4241,6 +4239,11 @@ class Network():
         if layer.name in self.config["config_layers"]:
             for item in self.config["config_layers"][layer.name]:
                 setattr(layer, item, self.config["config_layers"][layer.name][item])
+
+    def warn_once(self, message):
+        if message not in self.warnings:
+            print(message, file=sys.stderr)
+            self.warnings[message] = True
 
 class _InterruptHandler():
     """
