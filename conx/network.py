@@ -883,7 +883,7 @@ class Network():
 
         If show is True, then it will show details for each
         training/test pair, the amount of detail then determined by
-        show_inputs, and show_outputs.
+        show_inputs, and show_targets.
 
         If force is True, then it will show all patterns, even if there are many.
 
@@ -1055,7 +1055,7 @@ class Network():
                 categories[label] = []
             categories[label].append(self.dataset.inputs[i])
         return sorted(categories.items())
-    
+
     def compute_correct(self, outputs, targets, tolerance=None):
         """
         Both are np.arrays. Return [True, ...].
@@ -4093,11 +4093,11 @@ class Network():
             formatter={'float_kind': precision.format,
                        'int_kind': precision.format},
             separator=", ",
-            max_line_width=max_line_width).replace("\n", "")[:max_line_width]
-        if len(retval) == max_line_width:
-            return retval + "..."
-        else:
+            max_line_width=max_line_width).replace("\n", "")
+        if len(retval) <= max_line_width:
             return retval
+        else:
+            return retval[:max_line_width - 3] + "..."
 
     def set_weights(self, weights, layer_name=None):
         """

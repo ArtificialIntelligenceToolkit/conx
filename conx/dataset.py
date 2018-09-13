@@ -1800,6 +1800,13 @@ class VirtualDataVector(DataVector):
         else:
             return size
 
+    def reshape(self, *args, **kwargs):
+        print("WARNING: applying to virtual dataset, this cache only!",
+              file=sys.stderr)
+        super().reshape(*args, **kwargs)
+
+    ## FIXME: any other virtual functions that should get a datavector warning?
+
 class VirtualDataset(Dataset):
     """
     Create a virtual dataset. VirtualData set takes:
@@ -2074,6 +2081,23 @@ class VirtualDataset(Dataset):
         else:
             ## split can be 1.0 (use all), or > 0 and < 1
             return DatasetGenerator(self, validation_set=True)
+
+    def set_targets_from_labels(self, *args, **kwargs):
+        print("WARNING: applying to virtual dataset, this cache only!",
+              file=sys.stderr)
+        super().set_targets_from_labels(*args, **kwargs)
+
+    def set_targets_from_inputs(self, *args, **kwargs):
+        print("WARNING: applying to virtual dataset, this cache only!",
+              file=sys.stderr)
+        super().set_targets_from_inputs(*args, **kwargs)
+
+    def set_inputs_from_targets(self, *args, **kwargs):
+        print("WARNING: applying to virtual dataset, this cache only!",
+              file=sys.stderr)
+        super().set_inputs_from_targets(*args, **kwargs)
+
+    ## FIXME: any other virtual functions that should get a dataset warning?
 
 class DatasetGenerator(keras.utils.Sequence):
     """
