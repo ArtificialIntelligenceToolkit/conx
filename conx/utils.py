@@ -642,7 +642,7 @@ def choice(seq=None, p=None, temperature=None, index=False):
         >>> bin = [0, 0]
         >>> for i in range(1000):
         ...     bin[choice([0, 1], p=[0.4, 0.6], temperature=100.0)] += 1
-        >>> assert abs(bin[0] - bin[1]) == 50, "%s == %s" % (bin[0], bin[1])
+        >>> assert abs(bin[0] - bin[1]) <= 50, "%s <= 50" % abs(bin[0] - bin[1])
     """
     if seq is None and p is None:
         raise Exception("seq and p can't both be None")
