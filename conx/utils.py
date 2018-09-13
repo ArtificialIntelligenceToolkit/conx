@@ -2094,6 +2094,18 @@ def shape(item, summary=False):
     else:
         return retval
 
+def load_data(filename, *args, **kwargs):
+    """
+    Load a numpy datafile.
+    """
+    return np.load(filename, *args, **kwargs)
+
+def save_data(filename, data, *args, **kwargs):
+    """
+    Save an numpy datafile.
+    """
+    np.save(filename, data, *args, **kwargs)
+
 def get_ranges(items, form, dims=tuple()):
     """
 

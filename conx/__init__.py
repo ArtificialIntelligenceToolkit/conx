@@ -43,3 +43,4 @@ from .layers import *
 from .dataset import *
 
 print("ConX, version %s" % __version__, file=sys.stderr)
+sys.stderr.flush()
