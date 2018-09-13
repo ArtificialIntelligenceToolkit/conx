@@ -16,6 +16,9 @@ Released Wed September 12, 2018
 * Allow dropout to operate on 0, 1, 2, or 3 whole dims
 * Added cx.Layer(bidirectional=mode)
 * Show network banks as red until compiled
+* Rewrote and renamed net.test() to net.evaluate() and net.evaluate_and_label()
+	* net.evaluate() for showing results
+	* net.evaluate_and_label() for use in plots
 
 ## 3.7.4
 
