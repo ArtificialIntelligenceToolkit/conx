@@ -48,7 +48,7 @@ from keras.callbacks import Callback, History
 import keras.backend as K
 
 from .utils import *
-from .layers import Layer
+from .layers import Layer, make_layer
 from .dataset import Dataset, VirtualDataset
 import conx.networks
 
@@ -323,6 +323,7 @@ class Network():
         self.history = []
         self.weight_history = {}
         self.model = None
+        self.connections = []
         self._level_ordering = None
         self.prop_from_dict = {} ## FIXME: can be multiple paths
         self.keras_functions = {}
@@ -391,7 +392,7 @@ class Network():
             "dashboard.features.bank": "",
             "dashboard.features.columns": 3,
             "dashboard.features.scale": 1.0,
-            "config_layers": {},
+            "layers": {},
         }
 
     def _check_network_name(self, name):
@@ -404,25 +405,6 @@ class Network():
             raise Exception("network name must not be length 0: '%s'" % name)
         if not all(char in valid_chars for char in name):
             raise Exception("network name must only contain letters, numbers, '-', ' ', and '_': '%s'" % name)
-
-    def __getstate__(self):
-        return {
-            "name": self.name,
-            "layers": [layer.__getstate__() for layer in self.layers],
-            "outgoing_connections": {layer.name: [layer2.name for layer2 in layer.outgoing_connections]
-                                     for layer in self.layers},
-            "config": self.config,
-        }
-
-    def __setstate__(self, state):
-        from .layers import make_layer
-        Network.__init__(self, state["name"])
-        self.config = state["config"]
-        for layer_state in state["layers"]:
-            self.add(make_layer(layer_state))
-        for layer_from in self.layers:
-            for layer_to in state["outgoing_connections"][layer_from.name]:
-                self.connect(layer_from.name, layer_to)
 
     def _get_tolerance(self):
         return K.get_value(self._tolerance)
@@ -741,9 +723,9 @@ class Network():
         return last_name
 
     def update_layer_from_config(self, layer):
-        if layer.name in self.config["config_layers"]:
-            for item in self.config["config_layers"][layer.name]:
-                setattr(layer, item, self.config["config_layers"][layer.name][item])
+        if layer.name in self.config["layers"]:
+            for item in self.config["layers"][layer.name]:
+                setattr(layer, item, self.config["layers"][layer.name][item])
 
     def connect(self, from_layer_name : str=None, to_layer_name : str=None):
         """
@@ -811,6 +793,7 @@ class Network():
             to_layer.on_connect("to", from_layer)
             from_layer.on_connect("from", to_layer)
             self._reset_layer_metadata()
+            self.connections.append((from_layer_name, to_layer_name))
 
     def _reset_layer_metadata(self):
         """
@@ -2720,12 +2703,12 @@ class Network():
             layer.input_names = set([])
             layer.model = None
 
-    def build_model(self, starting_layers=None):
+    def build_model(self, starting_layers=None, build_intermediary=True):
         """
         Build the model.
         """
         self._reset_layer_metadata()
-        self._build_intermediary_models(starting_layers=starting_layers)
+        self._build_intermediary_models(starting_layers=starting_layers, build_intermediary=build_intermediary)
         output_k_layers = self._get_output_ks_in_order()
         input_k_layers = self._get_input_ks_in_order(self.input_bank_order)
         self.model = keras.models.Model(inputs=input_k_layers, outputs=output_k_layers)
@@ -2828,7 +2811,7 @@ class Network():
         self.build_model(starting_layers=[self[output_layer_name]])
         self.compile_model(**network.compile_options)
 
-    def _build_intermediary_models(self, starting_layers=None):
+    def _build_intermediary_models(self, starting_layers=None, build_intermediary=True):
         """
         Construct the layer.k, layer.input_names, and layer.model's.
         """
@@ -2836,13 +2819,22 @@ class Network():
             starting_layers = self.layers
             self.prop_from_dict.clear()
             self.keras_functions.clear()
+            if not build_intermediary:
+                ## fill keras_functions from existing model's layers:
+                for layer in self.layers:
+                    ## the k:
+                    layer.keras_layer = self._find_keras_layer(layer.name)
+                    if layer.kind() == "input":
+                        self.keras_functions[layer.name] = layer.keras_layer.get_input_at(0)
+                    else:
+                        self.keras_functions[layer.name] = [layer.keras_layer]
         sequence = topological_sort(self, starting_layers)
         if self.debug: print("topological sort:", [l.name for l in sequence])
         for layer in sequence:
             if self.debug: print("sequence:", layer.name)
             if layer.kind() == 'input':
                 if self.debug: print("making input layer for", layer.name)
-                layer.k = layer.make_input_layer_k()
+                layer.k = self.keras_functions.get(layer.name, layer.make_input_layer_k())
                 layer.input_names = set([layer.name])
                 outputs = keras.layers.Lambda(lambda v: v + 0)(layer.k) # identity
                 layer.model = keras.models.Model(inputs=layer.k, outputs=outputs)
@@ -3904,36 +3896,30 @@ class Network():
         """
         Load the model and the weights/history into an existing conx network.
         """
-        import pickle
         if self is None:
             raise Exception("Network.load() requires a directory name")
         elif isinstance(self, str):
             dir = self
-            with open("%s/network.pickle" % (("%s.conx" % self.name.replace(" ", "_"))
-                                             if dir is None else dir), "rb") as fp:
-                network = pickle.load(fp)
-            network.load(dir)
+            network = load_network(dir)
             return network
         else:
-            self.load_model(dir)
-            self.load_weights(dir)
             self.load_config(dir)
+            self.load_models(dir)
+            self.load_weights(dir)
 
     def save(self, dir=None):
         """
         Save the model and the weights/history (if compiled) to a dir.
         """
+        save_network(dir, self)
+        self.save_config(dir)
         if self.model:
-            self.save_model(dir)
+            self.save_models(dir)
             self.save_weights(dir)
-            self.save_config(dir)
-            with open("%s/network.pickle" % (("%s.conx" % self.name.replace(" ", "_"))
-                                             if dir is None else dir), "wb") as fp:
-                pickle.dump(self, fp)
         else:
             raise Exception("need to build network before saving")
 
-    def load_model(self, dir=None, filename=None):
+    def load_models(self, dir=None, filename=None):
         """
         Load a model from a dir/filename.
         """
@@ -3943,11 +3929,15 @@ class Network():
         if filename is None:
             filename = "model.h5"
         self.model = load_model(os.path.join(dir, filename))
+        for layer in self.layers:
+            filename = os.path.join(dir, "%s.model.h5" % layer.name)
+            if os.path.exists(filename):
+                layer.model = load_model(filename)
         self._level_ordering = None
         if self.compile_options:
             self.reset()
 
-    def save_model(self, dir=None, filename=None):
+    def save_models(self, dir=None, filename=None):
         """
         Save a model (if compiled) to a dir/filename.
         """
@@ -3959,6 +3949,10 @@ class Network():
             if not os.path.isdir(dir):
                 os.makedirs(dir)
             self.model.save(os.path.join(dir, filename))
+            for layer in self.layers:
+                if layer.model is not None:
+                    filename = "%s.model.h5" % layer.name
+                    layer.model.save(os.path.join(dir, filename))
         else:
             raise Exception("need to build network before saving")
 
@@ -4219,26 +4213,27 @@ class Network():
     def rebuild_config(self):
         """
         """
-        self.config["config_layers"].clear()
+        self.config["layers"].clear()
         for layer in self.layers:
             d = {}
-            self.config["config_layers"][layer.name] = d
-            for item in ["visible",
-                         "minmax",
-                         "vshape",
-                         "image_maxdim",
-                         "image_pixels_per_unit",
-                         "colormap",
-                         "feature",
-                         "max_draw_units"]:
+            self.config["layers"][layer.name] = d
+            for item in [
+                    "visible",
+                    "minmax",
+                    "vshape",
+                    "image_maxdim",
+                    "image_pixels_per_unit",
+                    "colormap",
+                    "feature",
+                    "max_draw_units"]:
                 d[item] = getattr(layer, item)
 
     def update_layer_from_config(self, layer):
         """
         """
-        if layer.name in self.config["config_layers"]:
-            for item in self.config["config_layers"][layer.name]:
-                setattr(layer, item, self.config["config_layers"][layer.name][item])
+        if layer.name in self.config["layers"]:
+            for item in self.config["layers"][layer.name]:
+                setattr(layer, item, self.config["layers"][layer.name][item])
 
     def warn_once(self, message):
         if message not in self.warnings:
@@ -4282,3 +4277,52 @@ class _InterruptHandler():
         signal.signal(self.sig, self.original_handler)
         self.released = True
         return True
+
+def load_network(dir):
+    import pickle
+    ## load the config file pickle:
+    with open("%s/network.pickle" % (("%s.conx" % network.name.replace(" ", "_"))
+                                     if dir is None else dir), "rb") as fp:
+        config = pickle.load(fp) ## full config
+    ## Make the network:
+    network = Network(config["name"])
+    ## Add the layers:
+    for layer_name in config["layers"]:
+        layer = make_layer(config["layers"][layer_name]["config"])
+        network.add(layer)
+        network.update_layer_from_config(layer)
+    ## Make the connections:
+    for connection in config["connections"]:
+        from_name, to_name = connection
+        network.connect(from_name, to_name)
+    network.load_models(dir)
+    network.build_model(build_intermediary=False)
+    network.load_weights(dir)
+    ## FIXME: don't forget about error/loss functions on other layers
+    ##        after we build model
+    return network
+
+def save_network(datadir, network):
+    import pickle
+    if datadir is None:
+        datadir = "%s.conx" % network.name.replace(" ", "_")
+    if not os.path.exists(datadir):
+        try:
+            os.makedirs(datadir)
+        except:
+            datadir = os.path.join('/tmp', datadir)
+            os.makedirs(datadir)
+    ## get latest from layers:
+    config = {
+        "name": network.name,
+        "layers": {},
+        "connections": network.connections,
+    }
+    for layer in network.layers:
+        d = {}
+        config["layers"][layer.name] = d
+        for item in ["config"]:
+            d[item] = getattr(layer, item)
+    with open("%s/network.pickle" % (("%s.conx" % network.name.replace(" ", "_"))
+                                     if datadir is None else datadir), "wb") as fp:
+        pickle.dump(config, fp)

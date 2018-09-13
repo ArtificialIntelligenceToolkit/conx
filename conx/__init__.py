@@ -18,7 +18,10 @@
 # Boston, MA 02110-1301  USA
 
 import warnings
+## Useless numpy warnings:
 warnings.simplefilter(action='ignore', category=FutureWarning)
+## When a model has not yet been compiled:
+warnings.filterwarnings("ignore", "No training configuration found in save file.*")
 
 import sys
 import os
