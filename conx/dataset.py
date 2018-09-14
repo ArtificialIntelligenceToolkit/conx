@@ -471,7 +471,7 @@ class DataVector():
 
         Examples:
             >>> import conx as cx
-            >>> print("Downloading...");ds = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
+            >>> print("Downloading...");ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
             Downloading...
             >>> ds.inputs.select(lambda i,dataset: True, slice=10, index=True)
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -1122,12 +1122,12 @@ class Dataset():
         Must be called from the Dataset class.
 
         >>> import conx as cx
-        >>> print("Downloading..."); ds = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
+        >>> print("Downloading..."); ds = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(ds.inputs)
         70000
         >>> ds.targets[0]
-        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+        [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
 
         >>> ds.clear()
         """
@@ -1261,6 +1261,74 @@ class Dataset():
         if message not in self.warnings:
             print(message, file=sys.stderr)
             self.warnings[message] = True
+
+    def set_labels_from_function(self, function, length=None):
+        """
+        The function should take an index from 0 to length - 1,
+        where length is given, or, if not, is the length of the
+        inputs/targets. The function should return a string
+        that represents the category of the input/target
+        pair.
+
+        >>> ds = Dataset()
+        >>> ds.load([[[0, 0], [0]],
+        ...          [[0, 1], [1]],
+        ...          [[1, 0], [1]],
+        ...          [[1, 1], [0]]])
+
+        >>> ds.set_labels_from_function(lambda i: "0" if ds.targets[i] == [0] else "1")
+        >>> ds.labels[:]
+        ['0', '1', '1', '0']
+
+        """
+        length = length if length is not None else len(self)
+        labels = [function(i) for i in range(length)]
+        self._labels = [np.array(labels, dtype=str)]
+
+    def set_targets_from_function(self, function, length=None):
+        """
+        The function should take an index from 0 to length - 1,
+        where length is given, or, if not, is the length of the
+        inputs/targets. The function should return a list or matrix
+        that is the target pattern.
+
+        >>> import conx as cx
+        >>> ds = cx.Dataset()
+        >>> ds.set_inputs_from_function(lambda i: cx.binary(i, 2), length=4)
+        >>> def xor(i1, i2):
+        ...     return 1 if ((i1 or i2) and not (i1 and i2)) else 0
+        >>> ds.set_targets_from_function(lambda i: [xor(*ds.inputs[i])])
+        >>> ds.set_labels_from_function(lambda i: "0" if ds.targets[i] == [0] else "1")
+        >>> ds.labels[:]
+        ['0', '1', '1', '0']
+        """
+        length = length if length is not None else len(self)
+        targets = [function(i) for i in range(length)]
+        self._targets = [np.array(targets)]
+        self._cache_values()
+
+    def set_inputs_from_function(self, function, length=None):
+        """
+        The function should take an index from 0 to length - 1,
+        where length is given, or, if not, is the length of the
+        inputs/targets. The function should return a list or matrix
+        that is the input pattern.
+
+        >>> import conx as cx
+
+        >>> ds = cx.Dataset()
+        >>> ds.set_inputs_from_function(lambda i: cx.binary(i, 2), length=4)
+        >>> def xor(i1, i2):
+        ...     return 1 if ((i1 or i2) and not (i1 and i2)) else 0
+        >>> ds.set_targets_from_function(lambda i: [xor(*ds.inputs[i])])
+        >>> ds.set_labels_from_function(lambda i: "0" if ds.targets[i] == [0] else "1")
+        >>> ds.labels[:]
+        ['0', '1', '1', '0']
+        """
+        length = length if length is not None else len(self)
+        inputs = [function(i) for i in range(length)]
+        self._inputs = [np.array(inputs)]
+        self._cache_values()
 
     def set_targets_from_inputs(self, f=None, input_bank=0, target_bank=0):
         """
@@ -1509,7 +1577,7 @@ class Dataset():
         0-1, or an integer number of patterns to drop.
 
         >>> import conx as cx
-        >>> print("Downloading..."); dataset = cx.Dataset.get("vmnist") # doctest: +ELLIPSIS
+        >>> print("Downloading..."); dataset = cx.Dataset.get("mnist") # doctest: +ELLIPSIS
         Downloading...
         >>> len(dataset)
         70000

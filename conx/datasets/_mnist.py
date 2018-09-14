@@ -1,7 +1,7 @@
 import conx as cx
 import numpy as np
+from keras.datasets import mnist
 from keras.utils import to_categorical
-from keras.utils.data_utils import get_file
 
 description = """
 Original source: http://yann.lecun.com/exdb/mnist/
@@ -17,93 +17,47 @@ nine.  Some example MNIST images are shown below:
 ![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
 """
 
-def vmnist(*args, cache_size=3200, **kwargs):
-    path = "mnist.npz"
-    path = get_file(path,
-                    origin='https://s3.amazonaws.com/img-datasets/mnist.npz',
-                    file_hash='8a61469f7ea1b51cbae51d4f78837e45')
-    fp = np.load(path, mmap_mode="r")
-    img_rows, img_cols = 28, 28
-    total_len = len(fp["x_train"]) + len(fp["x_test"])
-    
-    def get_cache(self, cache):
-        """
-        Uses both test and train as data.
-        """
-        ## print("vmnist: getting cache #%s" % cache)
-        pos = cache * self._cache_size
-        if pos >= total_len:
-            raise Exception("position %s is beyond data" % pos)
-        if pos < len(fp["x_train"]):
-            key_input = "x_train"
-            key_target = "y_train"
-        else:
-            key_input = "x_test"
-            key_target = "y_test"
-            pos = pos - len(fp["x_train"])
-        ## print("vmnist: getting pos #%s of %s" % (pos, key_input))
-        ## inputs:
-        x_train = fp[key_input][pos:pos + self._cache_size]
-        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-        x_train = x_train.astype('float32')
-        x_train /= 255
-        inputs = x_train
-        ## targets:
-        y_train = fp[key_target][pos:pos + self._cache_size]
-        labels = y_train
-        ## FIXME: at least one is mis-labeled:
-        ## labels[10994] = 9
-        targets = to_categorical(labels)
-        labels = np.array([str(label) for label in labels], dtype=str)
-        self._labels = [labels]
-        return [inputs], [targets]
-    
-    dataset = cx.VirtualDataset(get_cache, total_len,
-                             input_shapes=[(img_rows,img_cols,1)],
-                             target_shapes=[(10,)],
-                             inputs_range=[(0,1)],
-                             targets_range=[(0,1)],
-                             cache_size=cache_size,
-                             load_cache_direct=True)
-    dataset.name = "MNIST"
-    dataset.description = ("This is a virtual dataset that loads from disk as needed.\n" +
-                           description)
+def mnist_h5(*args, **kwargs):
+    """
+    Load the Keras MNIST dataset from an H5 file.
+    """
+    import h5py
+
+    path = "mnist.h5"
+    url = "https://raw.githubusercontent.com/Calysto/conx/master/data/mnist.h5"
+    path = get_file(path, origin=url)
+    h5 = h5py.File(path, "r")
+    dataset = cx.Dataset()
+    dataset._inputs = h5["inputs"]
+    dataset._targets = h5["targets"]
+    dataset._labels = h5["labels"]
+    dataset.h5 = h5
+    dataset.name = "MNIST-H5"
+    dataset.description = description
+    dataset._cache_values()
     return dataset
 
 def mnist(*args, **kwargs):
-    """
-    Load the Keras MNIST dataset and format it as images.
-    """
-    dataset = cx.Dataset()
     from keras.datasets import mnist
     import keras.backend as K
+
     # input image dimensions
     img_rows, img_cols = 28, 28
     # the data, shuffled and split between train and test sets
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    ## We need to convert the data to images, but which format?
-    ## We ask this Keras instance what it wants, and convert:
-    if K.image_data_format() == 'channels_first':
-        x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
-        x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
-        input_shape = (1, img_rows, img_cols)
-    else:
-        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-        x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
-        input_shape = (img_rows, img_cols, 1)
-    x_train = x_train.astype('float32')
-    x_test = x_test.astype('float32')
-    x_train /= 255
-    x_test /= 255
-    inputs = np.concatenate((x_train,x_test))
-    labels = np.concatenate((y_train,y_test))
+    x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+    x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+    input_shape = (img_rows, img_cols, 1)
+    x_train = x_train.astype('float16')
+    x_test = x_test.astype('float16')
+    inputs = np.concatenate((x_train,x_test)) / 255
+    labels = np.concatenate((y_train,y_test)) # ints, 0 to 10
     ###########################################
     # fix mis-labeled image(s) in Keras dataset
     labels[10994] = 9
     ###########################################
-    targets = to_categorical(labels)
+    targets = to_categorical(labels).astype("uint8")
     labels = np.array([str(label) for label in labels], dtype=str)
-    dataset.name = "MNIST"
-    dataset.description = description
+    dataset = cx.Dataset()
     dataset.load_direct([inputs], [targets], [labels])
     return dataset

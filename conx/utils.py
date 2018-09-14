@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 from urllib.parse import urlparse
 import requests
 import zipfile
+import types
 import math
 import tqdm
 import sys
@@ -847,7 +848,7 @@ def image_to_array(img, resize=None, raw=False):
         img = img.resize(resize)
     if img.mode != "RGB":
         img = img.convert("RGB")
-    img = (np.array(img, "float32") / 255.0)
+    img = (np.array(img, "float16") / 255.0)
     if not raw:
         img = img.tolist()
     return img
@@ -2096,15 +2097,46 @@ def shape(item, summary=False):
 
 def load_data(filename, *args, **kwargs):
     """
-    Load a numpy datafile.
+    Load a numpy or h5 datafile.
     """
-    return np.load(filename, *args, **kwargs)
+    import h5py
+    if filename.endswith("h5"):
+        with h5py.File(filename, 'r') as h5:
+            return h5["data"]
+    else:
+        return np.load(filename, *args, **kwargs)
 
-def save_data(filename, data, *args, **kwargs):
+def save_data(filename, data, dtype='uint8', *args, **kwargs):
     """
-    Save an numpy datafile.
+    Save data to a disk. data can be a generator.
+
+    If the extension is npy, we'll just try to save it.
+    If it is h5, then it will be in a particular format:
+
+    The h5 data format is [bank[:length]] which may be:
+
+    * [array(), array() array(), ...
+    * [list, list, list, ...]
     """
-    np.save(filename, data, *args, **kwargs)
+    import h5py
+    if filename.endswith("h5"):
+        row_count = 0
+        with h5py.File(filename, 'w') as h5:
+            # Initialize a resizable dataset to hold the output
+            dset = None
+            for chunk in data: # list or generator
+                if dset is None:
+                    chunk_shape = (1,) + shape(chunk)
+                    maxshape = (None,) + shape(chunk)
+                    dset = h5.create_dataset('data',
+                                             maxshape=maxshape,
+                                             shape=chunk_shape,
+                                             dtype=dtype)
+                dset.resize(row_count + 1, axis=0)
+                dset[row_count:] = chunk
+                row_count += 1 ## could allow bigger chunks!
+    else:
+        np.save(filename, data, *args, **kwargs)
 
 def get_ranges(items, form, dims=tuple()):
     """

@@ -86,7 +86,7 @@ def test_dataset():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", error="binary_crossentropy")
-    net.get_dataset("vmnist")
+    net.get_dataset("mnist")
     assert net is not None
     net.dataset.clear()
 
@@ -103,7 +103,7 @@ def test_dataset2():
     net.connect('hidden1', 'hidden2')
     net.connect('hidden2', 'output')
     net.compile(optimizer="adam", error="binary_crossentropy")
-    net.get_dataset("vmnist")
+    net.get_dataset("mnist")
     net.dataset.split(100)
     net.dataset.slice(100)
     assert net is not None
@@ -111,7 +111,7 @@ def test_dataset2():
 
 def test_images():
     net = Network("MNIST")
-    net.get_dataset("vmnist")
+    net.get_dataset("mnist")
     assert net.dataset.inputs.shape == [(28,28,1)]
     net.add(Layer("input", shape=(28, 28, 1), colormap="hot", minmax=(0,1)))
     net.add(FlattenLayer("flatten"))
