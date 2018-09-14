@@ -1,7 +1,7 @@
 import conx as cx
 import numpy as np
 from keras.datasets import mnist
-from keras.utils import to_categorical
+from keras.utils import (to_categorical, get_file)
 
 description = """
 Original source: http://yann.lecun.com/exdb/mnist/

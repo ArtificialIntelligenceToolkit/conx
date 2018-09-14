@@ -2095,14 +2095,17 @@ def shape(item, summary=False):
     else:
         return retval
 
-def load_data(filename, *args, **kwargs):
+def load_data(filename, return_h5=False, *args, **kwargs):
     """
     Load a numpy or h5 datafile.
     """
     import h5py
     if filename.endswith("h5"):
-        with h5py.File(filename, 'r') as h5:
-            return h5["data"]
+        h5 = h5py.File(filename, 'r')
+        if return_h5:
+            return h5
+        else:
+            return h5["data"][:]
     else:
         return np.load(filename, *args, **kwargs)
 

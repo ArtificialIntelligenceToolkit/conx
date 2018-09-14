@@ -32,6 +32,7 @@ from functools import reduce
 import types
 import keras
 import operator
+import os
 
 from .utils import *
 import conx.datasets
@@ -834,21 +835,35 @@ class Dataset():
         """
         Save the dataset into the given directory.
         """
+        import h5py
         if not os.path.isdir(dir):
             os.makedirs(dir)
-        np.save(os.path.join(dir, "inputs.npy"), self._inputs, *args, **kwargs)
-        np.save(os.path.join(dir, "targets.npy"), self._targets, *args, **kwargs)
-        np.save(os.path.join(dir, "labels.npy"), self._labels, *args, **kwargs)
+        with h5py.File(os.path.join(dir, "dataset.h5"), "w") as h5:
+            h5.create_dataset('inputs', data=self._inputs, compression='gzip', compression_opts=9)
+            h5.create_dataset('targets', data=self._targets, compression='gzip', compression_opts=9)
+            if len(self._labels) > 0:
+                string = h5py.special_dtype(vlen=str)
+                if isinstance(self._labels, np.ndarray) and self._labels.dtype != string:
+                    labels = self._labels.astype(string)
+                else:
+                    labels = self._labels
+            h5.create_dataset('labels', data=labels, compression='gzip', compression_opts=9)
 
     def load_from_disk(self, dir, *args, **kwargs):
         """
         Load the dataset from the given directory.
         """
+        import h5py
         loaded = False
-        if os.path.exists(os.path.join(dir, "inputs.npy")):
-            self._inputs = np.load(os.path.join(dir, "inputs.npy"), *args, **kwargs)
-            self._targets = np.load(os.path.join(dir, "targets.npy"), *args, **kwargs)
-            self._labels = np.load(os.path.join(dir, "labels.npy"), *args, **kwargs)
+        path = os.path.join(dir, "dataset.h5")
+        if os.path.exists(path):
+            h5 = h5py.File(path, "r")
+            self._inputs = h5["inputs"]
+            self._targets = h5["targets"]
+            self._labels = h5["labels"]
+            self.h5 = h5
+            self.name = dir
+            #self.description = description
             self._cache_values()
             loaded = True
         return loaded
