@@ -44,13 +44,33 @@ except:
     get_ipython = lambda: None
 
 #------------------------------------------------------------------------
-# configuration constants
+# configuration settings
 
 AVAILABLE_COLORMAPS = sorted(list(plt.cm.cmap_d.keys()))
 CURRENT_COLORMAP = "seismic_r"
 ERROR_COLORMAP = "seismic_r"
+_PROGRESS_BAR = 'standard'
 
 array = np.array
+
+def progress_bar(*args, **kwargs):
+    if _PROGRESS_BAR is None:
+        return items
+    elif _PROGRESS_BAR == "notebook":
+        tqdm.tqdm_notebook(*args, **kwargs)
+    elif _PROGRESS_BAR == "standard":
+        tqdm.tqdm(*args, **kwargs)
+    else:
+        return items
+
+def set_progress_bar(mode):
+    if mode in [None, 'notebook', 'standard']:
+        _PROGRESS_BAR = mode
+    else:
+        raise Exception("no such progress mode: use None, 'notebook', or 'standard'")
+
+def get_progress_bar():
+    return _PROGRESS_BAR
 
 def set_colormap(s):
     """
@@ -537,12 +557,13 @@ def download(url, directory="./", force=False, unzip=True, filename=None,
         response = requests.get(url, stream=True)
         total_length = response.headers.get('content-length')
         if total_length:
-            bar = tqdm.tqdm_notebook(total=int(total_length))
+            bar = progress_bar(total=int(total_length))
         with open(file_path, 'wb') as f:
             for data in response.iter_content(chunk_size=4096):
                 f.write(data)
                 if total_length:
-                    bar.update(4096)
+                    if bar:
+                        bar.update(4096)
         print("Done!")
     else:
         print("Using cached %s as '%s'." % (url, file_path))

@@ -902,6 +902,7 @@ class Network():
                                           sample_weight=sample_weight, steps=steps)
             for i in range(len(self.model.metrics_names)):
                 print("    %15s: %10s" % (self.model.metrics_names[i], self.pf(results[i])))
+            print("    %15s: %10s" % ("Total", num_train))
             print()
             print("Testing Data Results:")
             if show:
@@ -915,6 +916,7 @@ class Network():
                                           sample_weight=sample_weight, steps=steps)
             for i in range(len(self.model.metrics_names)):
                 print("    %15s: %10s" % (self.model.metrics_names[i], self.pf(results[i])))
+            print("    %15s: %10s" % ("Total", num_test))
         else: # all (or select data):
             if select is None:
                 print("All Data Results:")
@@ -934,6 +936,7 @@ class Network():
                                               sample_weight=sample_weight, steps=steps)
             for i in range(len(self.model.metrics_names)):
                 print("    %15s: %10s" % (self.model.metrics_names[i], self.pf(results[i])))
+            print("    %15s: %10s" % ("Total", len(self.dataset)))
 
     def _evaluate_range(self, slice, show_inputs, show_targets, batch_size,
                         kverbose, sample_weight, steps, force, max_col_width):
