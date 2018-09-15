@@ -1396,7 +1396,7 @@ class Network():
                 if not need_to_train:
                     print("Training dataset status:")
                     self.report_epoch(self.epoch_count, results)
-                    print("Validation dataset status:")
+                    print("Testing dataset status:")
                     self.report_epoch(self.epoch_count, val_results)
                     return (self.epoch_count, results) if verbose == 0 else None
         else: ## regular training to stop, use_validation_to_stop is False
@@ -1491,6 +1491,8 @@ class Network():
             raise KeyboardInterrupt
         if verbose == 0:
             return (self.epoch_count, self.history[-1])
+        elif verbose == -1:
+            return result
 
     def report_epoch(self, epoch_count, results):
         """
@@ -2532,11 +2534,11 @@ class Network():
             if metric == 'loss':
                 loss_ax.plot(x_values, y_values, label='Training set')
             elif metric == 'val_loss':
-                loss_ax.plot(x_values, y_values, label='Validation set')
+                loss_ax.plot(x_values, y_values, label='Testing set')
             elif metric == 'acc' and acc_ax is not None:
                 acc_ax.plot(x_values, y_values, label='Training set')
             elif metric == 'val_acc' and acc_ax is not None:
-                acc_ax.plot(x_values, y_values, label='Validation set')
+                acc_ax.plot(x_values, y_values, label='Testing set')
         loss_ax.set_ylim(bottom=0)
         loss_ax.set_title("%s: Error" % (self.name,))
         loss_ax.set_xlabel('Epoch')
