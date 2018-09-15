@@ -4,7 +4,7 @@ from keras.utils import get_file
 
 def gridfonts(*args, **kwargs):
     dataset = cx.Dataset()
-    url = "https://raw.githubusercontent.com/Calysto/conx/master/data/gridfonts.npy"
+    url = "https://raw.githubusercontent.com/Calysto/conx-data/master/gridfonts/gridfonts.npy"
     path = get_file("gridfonts.npy", origin=url)
     ds = np.load(path)
     ## [letters, labels]
@@ -18,12 +18,12 @@ group:
 
 http://goosie.cogsci.indiana.edu/pub/gridfonts.data
 
-![Gridfont Grid](https://github.com/Calysto/conx/raw/master/data/grid.png)
+![Gridfont Grid](https://github.com/Calysto/conx-data/raw/master/gridfonts/grid.png)
 
 These data have been processed to make them neural
 network friendly:
 
-https://github.com/Calysto/conx/blob/master/data/gridfonts.py
+https://github.com/Calysto/conx-data/blob/master/gridfonts/gridfonts.py
 
 The dataset is composed of letters on a 25 row x 9 column
 grid. The inputs and targets are identical, and the labels
@@ -37,7 +37,7 @@ https://repository.brynmawr.edu/compsci_pubs/78/
 
 def figure_ground_a(*args, **kwargs):
     dataset = cx.Dataset()
-    url = "https://raw.githubusercontent.com/Calysto/conx/master/data/figure_ground_a.npy"
+    url = "https://raw.githubusercontent.com/Calysto/conx-data/master/gridfonts/figure_ground_a.npy"
     path = get_file("figure_ground_a.npy", origin=url)
     ds = np.load(path)
     ## [[[letter], [brim, body]], ...]
@@ -51,12 +51,12 @@ Hofstadter's research group:
 
 http://goosie.cogsci.indiana.edu/pub/gridfonts.data
 
-![Gridfont Grid](https://github.com/Calysto/conx/raw/master/data/grid.png)
+![Gridfont Grid](https://github.com/Calysto/conx-data/raw/master/gridfonts/grid.png)
 
 These data (all the letter A) have been processed to make them neural
 network friendly:
 
-https://github.com/Calysto/conx/blob/master/data/gridfonts.py
+https://github.com/Calysto/conx-data/blob/master/gridfonts/gridfonts.py
 
 The brim and body parts have been idenified manually.  The dataset is
 composed of letters on a 17 row x 9 column grid (4 lines not used on

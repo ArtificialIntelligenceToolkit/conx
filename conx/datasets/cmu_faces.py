@@ -5,7 +5,7 @@ def cmu_faces_full_size(*args, path="cmu_faces_full_size.npz", **kwargs):
     dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
-        "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_full_size.npz")
+        "https://raw.githubusercontent.com/Calysto/conx-data/master/cmu_faces/cmu_faces_full_size.npz")
     dataset.name = "CMU Faces, full-size"
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
@@ -16,7 +16,7 @@ def cmu_faces_quarter_size(*args, path="cmu_faces_quarter_size.npz", **kwargs):
     dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
-        "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_quarter_size.npz")
+        "https://raw.githubusercontent.com/Calysto/conx-data/master/cmu_faces/cmu_faces_quarter_size.npz")
     dataset.name = "CMU Faces, quarter-size"
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images
@@ -27,7 +27,7 @@ def cmu_faces_half_size(*args, path="cmu_faces_half_size.npz", **kwargs):
     dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
-        "https://raw.githubusercontent.com/Calysto/conx/master/data/cmu_faces_half_size.npz")
+        "https://raw.githubusercontent.com/Calysto/conx-data/master/cmu_faces/cmu_faces_half_size.npz")
     dataset.name = "CMU Faces, half-size"
     dataset.description = """
 Original source: http://archive.ics.uci.edu/ml/datasets/cmu+face+images

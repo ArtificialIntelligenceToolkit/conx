@@ -5,7 +5,7 @@ def fingers(*args, path='fingers.npz', **kwargs):
     dataset = cx.Dataset()
     inputs, labels = load_dataset_npz(
         path,
-        "https://raw.githubusercontent.com/Calysto/conx/master/data/fingers.npz")
+        "https://raw.githubusercontent.com/Calysto/conx-data/master/fingers/fingers.npz")
     inputs = inputs.astype('float32')
     inputs /= 255
     make_target_vector = lambda label: [int(label == n) for n in range(6)]

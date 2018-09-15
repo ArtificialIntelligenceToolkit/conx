@@ -3,7 +3,7 @@ import numpy as np
 import csv
 
 def colors(*args, path='colors.csv',
-           url="https://raw.githubusercontent.com/Calysto/conx/master/data/colors.csv",
+           url="https://raw.githubusercontent.com/Calysto/conx-data/master/colors/colors.csv",
            **kwargs):
     dataset = cx.Dataset()
     from keras.utils import get_file

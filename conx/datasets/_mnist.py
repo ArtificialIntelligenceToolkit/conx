@@ -14,7 +14,7 @@ representing grayscale intensities ranging from 0 (black) to 1
 10, corresponding to the digit classification categories zero through
 nine.  Some example MNIST images are shown below:
 
-![MNIST Images](https://github.com/Calysto/conx/raw/master/data/mnist_images.png)
+![MNIST Images](https://github.com/Calysto/conx-data/raw/master/mnist/mnist_images.png)
 """
 
 def mnist_h5(*args, **kwargs):
@@ -24,7 +24,7 @@ def mnist_h5(*args, **kwargs):
     import h5py
 
     path = "mnist.h5"
-    url = "https://raw.githubusercontent.com/Calysto/conx/master/data/mnist.h5"
+    url = "https://raw.githubusercontent.com/Calysto/conx-data/master/mnist/mnist.h5"
     path = get_file(path, origin=url)
     h5 = h5py.File(path, "r")
     dataset = cx.Dataset()

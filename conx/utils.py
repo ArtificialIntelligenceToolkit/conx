@@ -55,15 +55,19 @@ array = np.array
 
 def progress_bar(*args, **kwargs):
     if _PROGRESS_BAR is None:
-        return items
+        if args:
+            return lambda i: i
+        else:
+            return None
     elif _PROGRESS_BAR == "notebook":
-        tqdm.tqdm_notebook(*args, **kwargs)
+        return tqdm.tqdm_notebook(*args, **kwargs)
     elif _PROGRESS_BAR == "standard":
-        tqdm.tqdm(*args, **kwargs)
+        return tqdm.tqdm(*args, **kwargs)
     else:
-        return items
+        raise Exception("no such progress bar: use None, 'notebook', or 'standard'")
 
 def set_progress_bar(mode):
+    global _PROGRESS_BAR
     if mode in [None, 'notebook', 'standard']:
         _PROGRESS_BAR = mode
     else:
@@ -569,7 +573,11 @@ def download(url, directory="./", force=False, unzip=True, filename=None,
         print("Using cached %s as '%s'." % (url, file_path))
     ## Now, if it is a zip file, check to unzip:
     if file_path.endswith(".zip") and os.path.isfile(file_path):
-        zip_ref = zipfile.ZipFile(file_path, 'r')
+        try:
+            zip_ref = zipfile.ZipFile(file_path, 'r')
+        except zipfile.BadZipFile:
+            print("URL appears to be invalid for zip file. Try deleteing the file and re-trying.")
+            return
         # first, count existing unzipped files:
         total_count = 0
         for name in zip_ref.namelist():
