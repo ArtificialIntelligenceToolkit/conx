@@ -642,7 +642,8 @@ class Dataset():
                  name=None,
                  description=None,
                  input_shapes=None,
-                 target_shapes=None):
+                 target_shapes=None,
+                 version="1.0.0"):
         """
         Dataset constructor.
 
@@ -660,6 +661,7 @@ class Dataset():
         self.warn_categories = {}
         self.network = network
         self.name = name
+        self.version = version
         self.description = description
         self.DATASETS = {name: function for (name, function) in
                          inspect.getmembers(conx.datasets, inspect.isfunction)}
@@ -668,6 +670,21 @@ class Dataset():
             self._input_shapes = input_shapes
         if target_shapes is not None:
             self._target_shapes = target_shapes
+
+    def get_id(self):
+        """
+        Get the version number of the dataset.
+
+        >>> ds = Dataset(name="Test", version="1.0.0")
+        >>> ds.get_id()
+        'Test-1.0.0'
+
+        >>> ds.version = "2.0.1"
+        >>> ds.get_id()
+        'Test-2.0.1'
+
+        """
+        return "%s-%s" % (self.name, self.version)
 
     def __getattr__(self, item):
         """

@@ -2221,9 +2221,9 @@ class Experiment():
     ...     return category, net
     >>> exp = Experiment("XOR")
     >>> exp.run(function,
-    ...         epochs=[5],
+    ...         epochs=5,
     ...         accuracy=[0.8],
-    ...         tolerance=[0.2],
+    ...         tolerance=0.2,
     ...         optimizer=["adam", "sgd"],
     ...         activation=["sigmoid", "relu"],
     ...         dir="/tmp/")
@@ -2287,7 +2287,8 @@ class Experiment():
         """
         options = sorted(options.items())
         keys = [option[0] for option in options]
-        values = [option[1] for option in options]
+        values = [option[1] if isinstance(option[1], (tuple, list)) else [option[1]]
+                  for option in options]
         for trial in range(1, trials + 1):
             count = 1
             for combination in itertools.product(*values):

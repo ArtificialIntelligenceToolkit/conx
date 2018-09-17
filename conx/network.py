@@ -862,7 +862,7 @@ class Network():
 
     def evaluate(self, batch_size=None, show=False, show_inputs=True, show_targets=True,
                  kverbose=0, sample_weight=None, steps=None, tolerance=None, force=False,
-                 max_col_width=15, select=None):
+                 max_col_width=15, select=None, verbose=0):
         """
         Evaluate the train and/or test sets.
 
@@ -917,6 +917,9 @@ class Network():
             for i in range(len(self.model.metrics_names)):
                 print("    %15s: %10s" % (self.model.metrics_names[i], self.pf(results[i])))
             print("    %15s: %10s" % ("Total", num_test))
+            if verbose == -1:
+                ## FIXME: combine results from train and test
+                return results
         else: # all (or select data):
             if select is None:
                 print("All Data Results:")
@@ -937,6 +940,8 @@ class Network():
             for i in range(len(self.model.metrics_names)):
                 print("    %15s: %10s" % (self.model.metrics_names[i], self.pf(results[i])))
             print("    %15s: %10s" % ("Total", len(self.dataset)))
+            if verbose == -1:
+                return results
 
     def _evaluate_range(self, slice, show_inputs, show_targets, batch_size,
                         kverbose, sample_weight, steps, force, max_col_width):
