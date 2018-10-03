@@ -4323,7 +4323,7 @@ def load_network(dir):
     for connection in config["connections"]:
         from_name, to_name = connection
         network.connect(from_name, to_name)
-    if config["compile_args"]:
+    if "compile_args" in config and config["compile_args"]:
         network.compile(**config["compile_args"])
     if network.model:
         network.load_weights(dir)
