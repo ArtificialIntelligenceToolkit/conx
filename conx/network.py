@@ -3471,11 +3471,18 @@ class Network():
                                                      "text_anchor": "start",
                         }])
                 if (self[layer_name].dropout > 0):
-                    label = "&#10683;"
-                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - len(label) * 2.0 - 5,
-                                                 "y": positioning[layer_name]["y"] + 5,
-                                                 "label": label,
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - 1 * 2.0 - 18, # length of chars * 2.0
+                                                 "y": positioning[layer_name]["y"] + 4,
+                                                 "label": "o", # "&#10683;"
                                                  "font_size": config["font_size"] * 2.0,
+                                                 "font_color": "black",
+                                                 "font_family": config["font_family"],
+                                                 "text_anchor": "start",
+                    }])
+                    struct.append(["label_svg", {"x": positioning[layer_name]["x"] - 1 * 2.0 - 15 + (-3 if config["svg_rotate"] else 0), # length of chars * 2.0
+                                                 "y": positioning[layer_name]["y"] + 5 + (-1 if config["svg_rotate"] else 0),
+                                                 "label": "x", # "&#10683;"
+                                                 "font_size": config["font_size"] * 1.3,
                                                  "font_color": "black",
                                                  "font_family": config["font_family"],
                                                  "text_anchor": "start",
