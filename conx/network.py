@@ -1252,7 +1252,7 @@ class Network():
     def train(self, epochs=1, accuracy=None, error=None, batch_size=32,
               report_rate=1, verbose=1, kverbose=0, shuffle=True, tolerance=None,
               class_weight=None, sample_weight=None, use_validation_to_stop=False,
-              plot=True, record=0, callbacks=None, save=False):
+              plot=True, record=0, callbacks=None, kcallbacks=None, save=False):
         """
         Train the network.
 
@@ -1426,7 +1426,9 @@ class Network():
         if self.in_console(mpl_backend) and verbose > 0:
             self.report_epoch(self.epoch_count, self.history[-1])
         interrupted = False
-        kcallbacks = [
+        if kcallbacks is None:
+            kcallbacks = []
+        kcallbacks = kcallbacks + [
             History(),
             ReportCallback(self, verbose, report_rate, mpl_backend, record),
         ]
@@ -3905,7 +3907,6 @@ class Network():
             dir = "%s.conx" % self.name.replace(" ", "_")
         return (os.path.isdir(dir) and
                 os.path.isfile("%s/network.pickle" % dir) and
-                os.path.isfile("%s/model.h5" % dir) and
                 os.path.isfile("%s/weights.npy" % dir))
 
     def delete(self, dir=None):
