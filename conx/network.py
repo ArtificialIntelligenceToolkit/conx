@@ -300,8 +300,7 @@ class Network():
             del config["seed"]
         else:
             seed = np.random.randint(2 ** 31 - 1)
-        self.seed = seed
-        np.random.seed(self.seed)
+        self.set_random_seed(seed)
         self.reset_config()
         ## Next, load a config if available, and override defaults:
         self.layers = []
@@ -848,17 +847,16 @@ class Network():
         self.epoch_count = 0
         self.history = []
         self.weight_history.clear()
-        if self.model:
-            if "seed" in overrides:
-                self.seed = overrides["seed"]
-                np.random.seed(self.seed)
-                del overrides["seed"]
-            ## Reset all weights and biases:
-            ## Recompile with possibly new options:
-            if clear:
-                self.compile_options = {}
-            self.compile_options.update(overrides)
-            self.compile_model(**self.compile_options)
+        self.build_model()
+        if "seed" in overrides:
+            self.set_random_seed(overrides["seed"])
+            del overrides["seed"]
+        ## Reset all weights and biases:
+        ## Recompile with possibly new options:
+        if clear:
+            self.compile_options = {}
+        self.compile_options.update(overrides)
+        self.compile_model(**self.compile_options)
 
     def evaluate(self, batch_size=None, show=False, show_inputs=True, show_targets=True,
                  kverbose=0, sample_weight=None, steps=None, tolerance=None, force=False,
@@ -2611,6 +2609,27 @@ class Network():
         if self.model is None:
             self.build_model()
         self.compile_model(**kwargs)
+
+    def set_random_seed(self, seed):
+        """
+        Set the random seed for reproducible results.
+        """
+        self.seed = seed
+        os.environ['PYTHONHASHSEED'] = '0'
+        np.random.seed(self.seed)
+        random.seed(self.seed)
+        self.set_backend_seed(self.seed)
+
+    def set_backend_seed(self, seed):
+        """
+        Set the seed in the backend.
+        """
+        ## FIXME: this should do it in the proper backend
+        try:
+            import tensorflow as tf
+            tf.set_random_seed(seed)
+        except:
+            pass
 
     def add_loss(self, layer_name, function):
         """
