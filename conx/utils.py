@@ -273,6 +273,8 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1,
         * (int, None) - determine cols automatically
 
     """
+    if labels is not None:
+        labels = [label for label in labels]
     if not 0 <= spacing <= 1:
         print("spacing must be between 0 and 1")
         return
@@ -310,7 +312,7 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1,
                     plt.show(block=False)
                     return  # no more images to display
                 axes[r][c].imshow(images[k])
-                if labels:
+                if labels is not None:
                     axes[r][c].set_title(labels[k])
                 k += 1
     else:
@@ -320,7 +322,7 @@ def view_image_list(images, labels=None, layout=None, spacing=0.1,
                     plt.show(block=False)
                     return  # no more images to display
                 axes[r][c].imshow(images[k])
-                if labels:
+                if labels is not None:
                     axes[r][c].set_title(labels[k])
                 k += 1
     plt.show(block=False)
@@ -441,6 +443,7 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
             return view_svg(item, title, background, scale=scale)
         else:
             ## assume it is a file:
+            item = os.path.expanduser(item)
             return view_image(PIL.Image.open(item), title, scale=scale)
     elif isinstance(item, Network):
         return view_network(item, title=title, background=background, scale=scale, **kwargs)
@@ -465,6 +468,9 @@ def view(item, title=None, background=(255, 255, 255, 255), scale=1.0, **kwargs)
             return view_image_list(item, title=title, scale=scale, **kwargs)
         elif isinstance(item[0], SVG):
             images = [svg_to_image(svg.data) for svg in item]
+            return view_image_list(images, title=title, scale=scale, **kwargs)
+        elif isinstance(item[0], str):
+            images = [image(s) for s in item]
             return view_image_list(images, title=title, scale=scale, **kwargs)
         else:
             print("I don't know how to view this item")
@@ -550,6 +556,7 @@ def download(url, directory="./", force=False, unzip=True, filename=None,
     ...          "/tmp/testme") # doctest: +ELLIPSIS
     Using cached ...
     """
+    directory = os.path.expanduser(directory)
     result = urlparse(url)
     if filename is None:
         filename = result.path.split("/")[-1]
@@ -818,7 +825,7 @@ def crop_image(image, x1, y1, x2, y2):
     """
     return image.crop((x1, y1, x2, y2))
 
-def image(img, resize=None):
+def image(img, resize=None, gray=False):
     """
     Given a filename, load it. Optionally, given a picture,
     resize it.
@@ -833,7 +840,10 @@ def image(img, resize=None):
     <PIL.Image.Image image mode=RGB size=4x4 at ...>
     """
     if isinstance(img, str):
+        img = os.path.expanduser(img)
         img = PIL.Image.open(img)
+    if gray:
+        img = img.convert('L')
     if resize is not None:
         img = img.resize(resize)
     return img
@@ -872,11 +882,16 @@ def image_to_array(img, resize=None, raw=False):
 
     """
     if isinstance(img, str):
+        img = os.path.expanduser(img)
         img = PIL.Image.open(img)
     if resize is not None:
         img = img.resize(resize)
-    if img.mode != "RGB":
-        img = img.convert("RGB")
+    if img.mode == "L":
+        pass ## ok, we'll make a 2D array
+    elif img.mode == "LA":
+        img = img.convert("L") ## drop alpha
+    elif img.mode != "RGB":
+        img = img.convert("RGB") ## force no alpha
     img = (np.array(img, "float16") / 255.0)
     if not raw:
         img = img.tolist()
@@ -1675,6 +1690,7 @@ def gif2mp4(filename):
     Convert an animated gif into a mp4, to show with controls.
     """
     from IPython.display import HTML
+    filename = os.path.expanduser(img)
     if filename.endswith(".gif"):
         filename = filename[:-4]
     if os.path.exists(filename + ".mp4"):
@@ -2129,6 +2145,7 @@ def load_data(filename, *args, **kwargs):
     Load a numpy or h5 datafile.
     """
     import h5py
+    filename = os.path.expand(filename)
     if filename.endswith("h5"):
         h5 = h5py.File(filename, 'r')
         return np.array(h5["data"])
@@ -2148,6 +2165,7 @@ def save_data(filename, data, dtype='uint8', *args, **kwargs):
     * [list, list, list, ...]
     """
     import h5py
+    filename = os.path.expand(filename)
     if filename.endswith("h5"):
         row_count = 0
         with h5py.File(filename, 'w') as h5:
