@@ -386,6 +386,7 @@ class Network():
             "precision": 2,
             "svg_scale": None, # for svg, 0 - 1, or None for optimal
             "svg_rotate": False, # for rotating SVG
+            "svg_smoothing": 0.02, # smoothing curves
             "svg_preferred_size": 400, # in pixels
             "svg_max_width": 800, # in pixels
             "dashboard.dataset": "Train",
@@ -3665,7 +3666,9 @@ class Network():
                     dict["transform"] = ""
                 if template_name == "curve":
                     if dict["drawn"] == False:
-                        curve_svg = self._render_curve(dict, struct[index + 1:], templates[template_name])
+                        curve_svg = self._render_curve(dict, struct[index + 1:],
+                                                       templates[template_name],
+                                                       config)
                         svg += curve_svg
                 else:
                     t = templates[template_name]
@@ -3673,10 +3676,93 @@ class Network():
         svg += """</svg></g></svg>"""
         return svg
 
-    def _render_curve(self, start, struct, end_svg):
+    def _render_curve(self, start, struct, end_svg, config):
         """
         Collect and render points on the line/curve.
         """
+        class Line():
+            """
+            Properties of a line
+
+            Arguments:
+                pointA (array) [x,y]: coordinates
+                pointB (array) [x,y]: coordinates
+
+            Returns:
+                Line: { length: l, angle: a }
+            """
+            def __init__(self, pointA, pointB):
+                lengthX = pointB[0] - pointA[0]
+                lengthY = pointB[1] - pointA[1]
+                self.length = math.sqrt(math.pow(lengthX, 2) + math.pow(lengthY, 2))
+                self.angle = math.atan2(lengthY, lengthX)
+
+        def controlPoint(current, previous_point, next_point, reverse=False):
+            """
+            ## Position of a control point
+            ## I:  - current (array) [x, y]: current point coordinates
+            ##     - previous (array) [x, y]: previous point coordinates
+            ##     - next (array) [x, y]: next point coordinates
+            ##     - reverse (boolean, optional): sets the direction
+            ## O:  - (array) [x,y]: a tuple of coordinates
+            """
+            ## When 'current' is the first or last point of the array
+            ## 'previous' or 'next' don't exist.
+            ## Replace with 'current'
+            p = previous_point or current
+            n = next_point or current
+
+            ##  // Properties of the opposed-line
+            o = Line(p, n)
+
+            ## // If is end-control-point, add PI to the angle to go backward
+            angle = o.angle + (math.pi if reverse else 0)
+            length = o.length * config["svg_smoothing"]
+
+            ## // The control point position is relative to the current point
+            x = current[0] + math.cos(angle) * length
+            y = current[1] + math.sin(angle) * length
+            return (x, y)
+
+        def bezier(points, index):
+            """
+            Create the bezier curve command
+
+            Arguments:
+                points: complete array of points coordinates
+                index: index of 'point' in the array 'a'
+
+            Returns:
+                String of current path
+            """
+            current = points[index]
+            if index == 0:
+                return "M %s,%s " % (current[0], current[1])
+            ## start control point
+            prev1 = points[index - 1] if index >= 1 else None
+            prev2 = points[index - 2] if index >= 2 else None
+            next1 = points[index + 1] if index < len(points) - 1 else None
+            cps = controlPoint(prev1, prev2, current, False)
+            ## end control point
+            cpe = controlPoint(current, prev1, next1, True)
+            return "C %s,%s %s,%s, %s,%s " % (cps[0], cps[1], cpe[0], cpe[1],
+                                              current[0], current[1])
+
+        def svgPath(points):
+            """
+            // Render the svg <path> element
+            // I:  - points (array): points coordinates
+            //     - command (function)
+            //       I:  - point (array) [x,y]: current point coordinates
+            //           - i (integer): index of 'point' in the array 'a'
+            //           - a (array): complete array of points coordinates
+            //       O:  - (string) a svg path command
+            // O:  - (string): a Svg <path> element
+            """
+            ## build the d attributes by looping over the points
+            return '<path d="' + ("".join([bezier(points, i)
+                                          for i in range(len(points))]))
+
         points = [(start["x2"], start["y2"]), (start["x1"], start["y1"])] # may be direct line
         start["drawn"] = True
         for (template, dict) in struct:
@@ -3694,79 +3780,8 @@ class Network():
                 "ey": points[0][1],
             }) + end_html
         else: # construct curve, at least 4 points
-            ## M move to
-            ## C curve start, control, end
-            ## S control, end
-            ## First, insert a mid-point between each anchor:
-            ## end to start
-            #index = 1
-            #while index < len(points) - 1:
-            #    ## insert new point:
-            #    ## Midtpoint, so rotated is fine:
-            #    new_point = ((points[index][0] + points[index + 1][0])/2,
-            #                 (points[index][1] + points[index + 1][1])/2)
-            #    points.insert(index + 1, new_point)
-            #    index += 3
-            midpoints = []
-            svg_html = """<path d="M {sx} {sy} C {sx} {sy}, """.format(**{
-                "sx": points[-1][0],
-                "sy": points[-1][1],
-            })
-            prefix = "" ## initially, end of "C"
-            for p in range(len(points) - 2, 0, -2): # start from last, stop at second, backwards
-                # for each pair of anchor points:
-                svg_html += prefix
-                ## FIXME: rotate issue
-                lowpoint = ((points[p][0] + 0),
-                            (points[p][1] + 25))
-                midpoint = ((points[p][0] + points[p - 1][0])/2,
-                             (points[p][1] + points[p - 1][1])/2)
-                midpoints.append(lowpoint)
-                midpoints.append(midpoint)
-                svg_html += "{x2} {y2}, {x1} {y1}".format(**{
-                    "x2": lowpoint[0],
-                    "y2": lowpoint[1],
-                    "x1": points[p][0],
-                    "y1": points[p][1],
-                })
-                prefix = " S "
-                svg_html += prefix
-                svg_html += "{x2} {y2}, {x1} {y1}".format(**{
-                    "x2": midpoint[0],
-                    "y2": midpoint[1],
-                    "x1": points[p - 1][0],
-                    "y1": points[p - 1][1],
-                })
-                #svg_html += prefix
-                #svg_html += "{x2} {y2}, {x1} {y1}".format(**{
-                #    "x2": midpoint[0],
-                #    "y2": midpoint[1],
-                #    "x1": points[p - 1][0],
-                #    "y1": points[p - 1][1],
-                #})
-            if abs(points[0][0] - points[1][0]) < 10: ## no offset
-                x_offset = 0
-            elif points[0][0] < points[1][0]: # coming in from left
-                x_offset = 75
-            else:
-                x_offset = -75
-            ## FIXME: percentage of space between, FIXME: rotated
-            control_point = (points[0][0] + x_offset,
-                             points[0][1] + 20)
-            midpoints.append(control_point)
-            svg_html += ''' S {x2} {y2}, {x1} {y1}'''.format(**{
-                "x2": control_point[0],
-                "y2": control_point[1],
-                "x1": points[0][0],
-                "y1": points[0][1],
-            })
-            svg_html += end_html
-            if self.debug:
-                for p in midpoints:
-                    svg_html += """<circle cx="{x}" cy="{y}" r="3" stroke="blue" stroke-width="1" fill="blue" />""".format(**{"x": p[0], "y": p[1]})
-        if self.debug:
-            for p in points:
-                svg_html += """<circle cx="{x}" cy="{y}" r="3" stroke="red" stroke-width="1" fill="red" />""".format(**{"x": p[0], "y": p[1]})
+            points = list(reversed(points))
+            svg_html = svgPath(points) + end_html
         return svg_html
 
     def _get_level_ordering(self):
