@@ -23,6 +23,7 @@ import base64
 import itertools
 import functools
 import operator
+import random
 import io
 import numpy as np
 from keras.utils import to_categorical
@@ -50,6 +51,8 @@ AVAILABLE_COLORMAPS = sorted(list(plt.cm.cmap_d.keys()))
 CURRENT_COLORMAP = "seismic_r"
 ERROR_COLORMAP = "seismic_r"
 _PROGRESS_BAR = 'standard'
+
+SEED = None
 
 array = np.array
 
@@ -2433,3 +2436,21 @@ require(['base/js/namespace'], function(Jupyter) {
     else:
         print("WARNING: get_ipython() is None; javascript not initialized",
               file=sys.stderr)
+
+def set_random_seed(seed):
+    """
+    Set the random seed for reproducible results.
+    """
+    global SEED
+    SEED = seed
+    np.random.seed(SEED)
+    random.seed(SEED)
+    ## FIXME: this should do it in the proper backend
+    try:
+        import tensorflow as tf
+        tf.set_random_seed(SEED)
+    except:
+        pass
+
+## Set to a known seed, so we can replicate if we wish
+set_random_seed(np.random.randint(2 ** 31 - 1))

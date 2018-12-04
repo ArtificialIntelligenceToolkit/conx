@@ -298,9 +298,7 @@ class Network():
         if "seed" in config:
             seed = config["seed"]
             del config["seed"]
-        else:
-            seed = np.random.randint(2 ** 31 - 1)
-        self.set_random_seed(seed)
+            set_random_seed(seed)
         self.reset_config()
         ## Next, load a config if available, and override defaults:
         self.layers = []
@@ -850,7 +848,7 @@ class Network():
         self.weight_history.clear()
         self.build_model()
         if "seed" in overrides:
-            self.set_random_seed(overrides["seed"])
+            set_random_seed(overrides["seed"])
             del overrides["seed"]
         ## Reset all weights and biases:
         ## Recompile with possibly new options:
@@ -2610,27 +2608,6 @@ class Network():
         if self.model is None:
             self.build_model()
         self.compile_model(**kwargs)
-
-    def set_random_seed(self, seed):
-        """
-        Set the random seed for reproducible results.
-        """
-        self.seed = seed
-        os.environ['PYTHONHASHSEED'] = '0'
-        np.random.seed(self.seed)
-        random.seed(self.seed)
-        self.set_backend_seed(self.seed)
-
-    def set_backend_seed(self, seed):
-        """
-        Set the seed in the backend.
-        """
-        ## FIXME: this should do it in the proper backend
-        try:
-            import tensorflow as tf
-            tf.set_random_seed(seed)
-        except:
-            pass
 
     def add_loss(self, layer_name, function):
         """
