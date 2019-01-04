@@ -29,15 +29,17 @@ setup(name='conx',
       author='Douglas S. Blank',
       author_email='doug.blank@gmail.com',
       url='https://github.com/Calysto/conx',
-      install_requires=['numpy', 'keras>=2.1.3', 'matplotlib', 'ipywidgets>=7.0',
-                        'Pillow', 'IPython', 'h5py', "svgwrite", "sklearn",
-                        "tqdm", "requests", "pydot", "cairosvg", "h5py"],
+      install_requires=['numpy', 'keras>=2.1.3', 'matplotlib',
+                        'ipywidgets>=7.0', 'Pillow', 'IPython',
+                        'h5py', "svgwrite", "sklearn",
+                        "tqdm", "requests", "pydot", "cairosvg"],
       packages=find_packages(include=['conx', 'conx.*']),
       include_data_files = True,
       test_suite = 'nose.collector',
       classifiers=[
           'Framework :: IPython',
-          'License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)',
+          ('License :: OSI Approved :: ' +
+           'GNU Affero General Public License v3 or later (AGPLv3+)'),
           'Programming Language :: Python :: 3',
       ]
 )
