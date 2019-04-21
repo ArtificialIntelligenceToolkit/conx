@@ -204,12 +204,12 @@ class Dashboard(VBox):
         self._height = height
         ## Global widgets:
         style = {"description_width": "initial"}
-        self.feature_columns = IntText(description="Feature columns:",
+        self.feature_columns = IntText(description="Detail columns:",
                                        value=self.net.config["dashboard.features.columns"],
                                        min=0,
                                        max=1024,
                                        style=style)
-        self.feature_scale = FloatText(description="Feature scale:",
+        self.feature_scale = FloatText(description="Detail scale:",
                                        value=self.net.config["dashboard.features.scale"],
                                        min=0.1,
                                        max=10,
@@ -350,7 +350,7 @@ class Dashboard(VBox):
                                             class_id=self.class_id, update_pictures=True)
                 if self.feature_bank.value in self.net.layer_dict.keys():
                     self.net.propagate_to_features(self.feature_bank.value, self.net.dataset.train_inputs[self.control_slider.value],
-                                               cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
+                                                   cols=self.feature_columns.value, scale=self.feature_scale.value, html=False)
                 if self.net.config["show_targets"]:
                     if len(self.net.output_bank_order) == 1: ## FIXME: use minmax of output bank
                         self.net.display_component([self.net.dataset.train_targets[self.control_slider.value]],
@@ -435,8 +435,14 @@ class Dashboard(VBox):
                 features = self.net.propagate_to_features(self.feature_bank.value, inputs,
                                                           cols=self.feature_columns.value,
                                                           scale=self.feature_scale.value, display=False)
-        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(inputs=inputs, targets=targets,
-                                                                           class_id=self.class_id),)
+        svg = """<p style="text-align:center">%s</p>""" % (self.net.to_svg(
+            inputs=inputs,
+            targets=targets,
+            class_id=self.class_id,
+            highlights={self.feature_bank.value: {
+                "border_color": "orange",
+                "border_width": 30,
+            }}))
         if inputs is not None and features is not None:
             html_horizontal = """
 <table align="center" style="width: 100%%;">
@@ -455,7 +461,7 @@ class Dashboard(VBox):
 </tr>
 </table>"""
             self.net_svg.value = (html_vertical if self.net.config["svg_rotate"] else html_horizontal) % (
-                svg, "%s features" % self.feature_bank.value, features)
+                svg, "%s details" % self.feature_bank.value, features)
         else:
             self.net_svg.value = svg
 
@@ -490,6 +496,8 @@ class Dashboard(VBox):
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         #button_train = Button(description="Train", layout=Layout(width='100%'))
         self.button_play = Button(icon="play", description="Play", layout=Layout(width="100%"))
+        step_down = Button(icon="sort-down", layout=Layout(width="25%"))
+        step_up = Button(icon="sort-up", layout=Layout(width="25%"))
         refresh_button = Button(icon="refresh", layout=Layout(width="25%"))
 
         self.position_text = IntText(value=0, layout=Layout(width="100%"))
@@ -502,6 +510,8 @@ class Dashboard(VBox):
             button_next,
             button_end,
             self.button_play,
+            step_down,
+            step_up,
             refresh_button
         ], layout=Layout(width='100%', height="50px"))
         length = (len(self.net.dataset.train_inputs) - 1) if len(self.net.dataset.train_inputs) > 0 else 0
@@ -533,6 +543,8 @@ class Dashboard(VBox):
         refresh_button.on_click(lambda widget: (self.update_control_slider(),
                                                 self.output.clear_output(),
                                                 self.regenerate()))
+        step_down.on_click(lambda widget: self.move_step("down"))
+        step_up.on_click(lambda widget: self.move_step("up"))
         self.zoom_slider.observe(self.update_zoom_slider, names='value')
         self.position_text.observe(self.update_position_text, names='value')
         # Put them together:
@@ -542,6 +554,19 @@ class Dashboard(VBox):
         #net_page = VBox([control, self.net_svg], layout=Layout(width='95%'))
         controls.on_displayed(lambda widget: self.regenerate())
         return controls
+
+    def move_step(self, direction):
+        """
+        Move the layer stepper up/down through network
+        """
+        options = [""] + [layer.name for layer in self.net.layers]
+        index = options.index(self.feature_bank.value)
+        if direction == "up":
+            new_index = (index + 1) % len(options)
+        else: ## down
+            new_index = (index - 1) % len(options)
+        self.feature_bank.value = options[new_index]
+        self.regenerate()
 
     def make_config(self):
         layout = Layout()
@@ -559,8 +584,8 @@ class Dashboard(VBox):
         vspace = IntText(value=self.net.config["vspace"], description="Vertical space between layers:",
                          style=style, layout=layout)
         vspace.observe(lambda change: self.set_attr(self.net.config, "vspace", change["new"]), names='value')
-        self.feature_bank = Select(description="Features:", value=self.net.config["dashboard.features.bank"],
-                              options=[""] + [layer.name for layer in self.net.layers if self.net._layer_has_features(layer.name)],
+        self.feature_bank = Select(description="Details:", value=self.net.config["dashboard.features.bank"],
+                              options=[""] + [layer.name for layer in self.net.layers],
                               rows=1)
         self.feature_bank.observe(self.regenerate, names='value')
         self.control_select = Select(

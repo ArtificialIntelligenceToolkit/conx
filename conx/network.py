@@ -481,7 +481,7 @@ class Network():
         epochs = epochs if epochs is not None else sorted(self.weight_history.keys())
         return self.weight_history[epochs[index]]
 
-    def playback(self, function):
+    def playback(self, function, display=True):
         """
         Playback a function over the set of recorded weights.
 
@@ -515,8 +515,12 @@ class Network():
         def display_weight_history(index):
             self.set_weights_from_history(index, epochs)
             return function(self, epochs[index])
-        sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(epochs))
-        return sv
+        if display:
+            sv = SequenceViewer("%s Playback:" % self.name, display_weight_history, len(epochs))
+            return sv
+        else:
+            for index in range(len(epochs)):
+                print(display_weight_history(index))
 
     def movie(self, function, movie_name=None, start=0, stop=None, step=1,
               loop=0, optimize=True, duration=100, embed=False, mp4=True):
@@ -1998,17 +2002,17 @@ class Network():
         if not isinstance(layer_name, str):
             raise Exception("layer_name should be a string")
         output_shape = self[layer_name].get_output_shape()
-        retval = """<table><tr>"""
-        if self._layer_has_features(layer_name):
-            if html:
-                outputs = np.array(self.propagate_to(layer_name, inputs))
-                orig_minmax = self[layer_name].minmax
-                if minmax:
-                    self[layer_name].minmax = minmax
-                elif self[layer_name].kind() == "input":
-                    self[layer_name].minmax = (minimum(outputs), maximum(outputs))
-                else:
-                    pass # leave minmax alone
+        outputs = np.array(self.propagate_to(layer_name, inputs))
+        if html:
+            retval = """<table><tr>"""
+            orig_minmax = self[layer_name].minmax
+            if minmax:
+                self[layer_name].minmax = minmax
+            elif self[layer_name].kind() == "input":
+                self[layer_name].minmax = (minimum(outputs), maximum(outputs))
+            else:
+                pass # leave minmax alone
+            if self._layer_has_features(layer_name):
                 ## move the channel to first index:
                 outputs = np.moveaxis(outputs, -1, 0)
                 for i in range(outputs.shape[0]):
@@ -2024,11 +2028,29 @@ class Network():
                         retval += """</tr><tr>"""
                 self[layer_name].minmax = orig_minmax
                 retval += "</tr></table>"
-                if display:
-                    return HTML(retval)
-                else:
-                    return retval
+            else: ## no features
+                image = self[layer_name].make_image(outputs)
+                if resize is not None:
+                    image = image.resize(resize)
+                if scale != 1.0:
+                    image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                new_size = list(image.size)
+                if image.size[0] < 100:
+                    new_size[0] = 100
+                if image.size[1] < 100:
+                    new_size[1] = 100
+                if new_size != image.size:
+                    image = image.resize(new_size)
+                self[layer_name].minmax = orig_minmax
+                data_uri = self._image_to_uri(image)
+                retval += """<td style="border: 1px solid black;"><img style="image-rendering: pixelated;" class="%s_%s_feature%s" src="%s"/><br/><center>Details</center></td>""" % (self.name, layer_name, 0, data_uri)
+                retval += """</tr>"""
+            if display:
+                return HTML(retval)
             else:
+                return retval
+        else: ## not html
+            if self._layer_has_features(layer_name):
                 orig_feature = self[layer_name].feature
                 for i in range(output_shape[3]):
                     self[layer_name].feature = i
@@ -2039,12 +2061,28 @@ class Network():
                         image = image.resize(resize)
                     if scale != 1.0:
                         image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                    new_size = list(image.size)
+                    if image.size[0] < 100:
+                        new_size[0] = 100
+                    if image.size[1] < 100:
+                        new_size[1] = 100
+                    if new_size != image.size:
+                        image = image.resize(new_size)
                     data_uri = self._image_to_uri(image)
                     if dynamic_pictures_check():
                         dynamic_pictures_send({'class': "%s_%s_feature%s" % (self.name, layer_name, i), "src": data_uri})
                 self[layer_name].feature = orig_feature
-        else:
-            raise Exception("layer '%s' has no features" % layer_name)
+            else: ## no features
+                ## This should return in proper orientation, regardless of rotate setting:
+                image = self.propagate_to_image(layer_name, inputs, class_id=class_id,
+                                                update_pictures=update_pictures, sequence=sequence)
+                if resize is not None:
+                    image = image.resize(resize)
+                if scale != 1.0:
+                    image = image.resize((int(image.size[0] * scale), int(image.size[1] * scale)))
+                data_uri = self._image_to_uri(image)
+                if dynamic_pictures_check():
+                    dynamic_pictures_send({'class': "%s_%s_feature%s" % (self.name, layer_name, 0), "src": data_uri})
 
     def propagate_to_image(self, layer_name, input, batch_size=32, resize=None, scale=1.0,
                            class_id=None, update_pictures=False, sequence=False, feature=None):
@@ -3136,6 +3174,18 @@ class Network():
         """
         return max_width / (len(ordering[row]) + 1)
 
+    def _get_border_color(self, layer_name, config):
+        if config.get("highlights") and layer_name in config.get("highlights"):
+            return config["highlights"][layer_name]["border_color"]
+        else:
+            return config["border_color"] if self.model is not None else "red"
+
+    def _get_border_width(self, layer_name, config):
+        if config.get("highlights") and layer_name in config.get("highlights"):
+            return config["highlights"][layer_name]["border_width"]
+        else:
+            return config["border_width"] if self.model is not None else 4
+
     def build_struct(self, inputs, class_id, config, targets):
         ordering = list(reversed(self._get_level_ordering())) # list of names per level, input to output
         max_width, max_height, row_heights, images, image_dims = self._pre_process_struct(inputs, config, ordering, targets)
@@ -3161,6 +3211,8 @@ class Network():
                                              "width": width,
                                              "height": height,
                                              "tooltip": self[layer_name].tooltip(),
+                                             "border_color": self._get_border_color(layer_name, config),
+                                             "border_width": self._get_border_width(layer_name, config),
                                              "rx": cwidth - 1, # based on arrow width
                                              "ry": cheight - 1,
                                              "rh": height + 2,
@@ -3196,6 +3248,8 @@ class Network():
                                              "width": width,
                                              "height": height,
                                              "tooltip": self[layer_name].tooltip(),
+                                             "border_color": self._get_border_color(layer_name, config),
+                                             "border_width": self._get_border_width(layer_name, config),
                                              "rx": cwidth - 1, # based on arrow width
                                              "ry": cheight - 1,
                                              "rh": height + 2,
@@ -3372,6 +3426,8 @@ class Network():
                                                "width": width,
                                                "height": height,
                                                "tooltip": self[layer_name].tooltip(),
+                                               "border_color": self._get_border_color(layer_name, config),
+                                               "border_width": self._get_border_width(layer_name, config),
                                                "rx": cwidth - 1, # based on arrow width
                                                "ry": cheight - 1,
                                                "rh": height + 2,
@@ -3597,11 +3653,9 @@ class Network():
         config.update(kwargs)
         struct = self.build_struct(inputs, class_id, config, targets)
         ### Define the SVG strings:
-        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{border_color};stroke-width:{border_width}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" image-rendering="optimizeSpeed" xlink:href="{{image}}"><title>{{tooltip}}</title></image>""".format(
+        image_svg = """<rect x="{{rx}}" y="{{ry}}" width="{{rw}}" height="{{rh}}" style="fill:none;stroke:{{border_color}};stroke-width:{{border_width}}"/><image id="{netname}_{{name}}_{{svg_counter}}" class="{netname}_{{name}}" x="{{x}}" y="{{y}}" height="{{height}}" width="{{width}}" preserveAspectRatio="none" image-rendering="optimizeSpeed" xlink:href="{{image}}"><title>{{tooltip}}</title></image>""".format(
             **{
                 "netname": class_id if class_id is not None else self.name,
-                "border_color": config["border_color"] if self.model is not None else "red",
-                "border_width": config["border_width"] if self.model is not None else 4,
             })
         line_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}"><title>{{tooltip}}</title></line>""".format(**config)
         arrow_svg = """<line x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}" stroke="{{arrow_color}}" stroke-width="{arrow_width}" marker-end="url(#arrow)"><title>{{tooltip}}</title></line>""".format(**config)
