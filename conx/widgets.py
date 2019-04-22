@@ -489,18 +489,20 @@ class Dashboard(VBox):
             self.regenerate()
 
     def make_controls(self):
-        button_begin = Button(icon="fast-backward", layout=Layout(width='100%'))
-        button_prev = Button(icon="backward", layout=Layout(width='100%'))
-        button_next = Button(icon="forward", layout=Layout(width='100%'))
-        button_end = Button(icon="fast-forward", layout=Layout(width='100%'))
+        layout = Layout(width='100%', height="100%")
+        button_begin = Button(icon="fast-backward", layout=layout)
+        button_prev = Button(icon="backward", layout=layout)
+        button_next = Button(icon="forward", layout=layout)
+        button_end = Button(icon="fast-forward", layout=layout)
         #button_prop = Button(description="Propagate", layout=Layout(width='100%'))
         #button_train = Button(description="Train", layout=Layout(width='100%'))
-        self.button_play = Button(icon="play", description="Play", layout=Layout(width="100%"))
-        step_down = Button(icon="sort-down", layout=Layout(width="25%"))
-        step_up = Button(icon="sort-up", layout=Layout(width="25%"))
-        refresh_button = Button(icon="refresh", layout=Layout(width="25%"))
+        self.button_play = Button(icon="play", description="Play", layout=layout)
+        step_down = Button(icon="sort-down", layout=Layout(width="95%", height="100%"))
+        step_up = Button(icon="sort-up", layout=Layout(width="95%", height="100%"))
+        up_down = HBox([step_down, step_up], layout=Layout(width="100%", height="100%"))
+        refresh_button = Button(icon="refresh", layout=Layout(width="25%", height="100%"))
 
-        self.position_text = IntText(value=0, layout=Layout(width="100%"))
+        self.position_text = IntText(value=0, layout=layout)
 
         self.control_buttons = HBox([
             button_begin,
@@ -510,10 +512,9 @@ class Dashboard(VBox):
             button_next,
             button_end,
             self.button_play,
-            step_down,
-            step_up,
+            up_down,
             refresh_button
-        ], layout=Layout(width='100%', height="50px"))
+        ], layout=Layout(width='100%', height="100%"))
         length = (len(self.net.dataset.train_inputs) - 1) if len(self.net.dataset.train_inputs) > 0 else 0
         self.control_slider = IntSlider(description="Dataset index",
                                    continuous_update=False,
