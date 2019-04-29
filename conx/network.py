@@ -3200,6 +3200,8 @@ class Network():
             # draw the row of targets:
             cwidth = 0
             for (layer_name, anchor, fname) in ordering[0]: ## no anchors in output
+                if layer_name + "_targets" not in images:
+                    continue
                 image = images[layer_name + "_targets"]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - width/2)
@@ -3237,6 +3239,8 @@ class Network():
             # draw the row of errors:
             cwidth = 0
             for (layer_name, anchor, fname) in ordering[0]: # no anchors in output
+                if layer_name + "_errors" not in images:
+                    continue
                 image = images[layer_name + "_errors"]
                 (width, height) = image_dims[layer_name]
                 cwidth += (spacing - (width/2))
