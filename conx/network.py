@@ -2009,7 +2009,8 @@ class Network():
             if minmax:
                 self[layer_name].minmax = minmax
             elif self[layer_name].kind() == "input":
-                self[layer_name].minmax = (minimum(outputs), maximum(outputs))
+                #self[layer_name].minmax = (minimum(outputs), maximum(outputs))
+                pass
             else:
                 pass # leave minmax alone
             if self._layer_has_features(layer_name):
