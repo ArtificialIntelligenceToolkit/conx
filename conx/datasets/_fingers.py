@@ -32,6 +32,6 @@ def load_dataset_npz(path, url):
     """
     from keras.utils import get_file
     path = get_file(path, origin=url)
-    f = np.load(path)
+    f = np.load(path, allow_pickle=True)
     images, labels = f['data'], f['labels']
     return images, labels

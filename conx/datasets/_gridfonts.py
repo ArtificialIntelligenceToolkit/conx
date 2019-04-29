@@ -6,7 +6,7 @@ def gridfonts(*args, **kwargs):
     dataset = cx.Dataset()
     url = "https://raw.githubusercontent.com/Calysto/conx-data/master/gridfonts/gridfonts.npy"
     path = get_file("gridfonts.npy", origin=url)
-    ds = np.load(path)
+    ds = np.load(path, allow_pickle=True)
     ## [letters, labels]
     letters = np.array([matrix for matrix in ds[0]])
     targets = np.array([matrix for matrix in ds[0]])
@@ -39,7 +39,7 @@ def figure_ground_a(*args, **kwargs):
     dataset = cx.Dataset()
     url = "https://raw.githubusercontent.com/Calysto/conx-data/master/gridfonts/figure_ground_a.npy"
     path = get_file("figure_ground_a.npy", origin=url)
-    ds = np.load(path)
+    ds = np.load(path, allow_pickle=True)
     ## [[[letter], [brim, body]], ...]
     letters = np.array([pair[0] for pair in ds])
     brims = np.array([pair[1][0] for pair in ds])
