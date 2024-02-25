@@ -12,7 +12,7 @@ nbsphinx
 jupyter_sphinx
 sphinxcontrib-napoleon
 recommonmark
-sklearn
+scikit-learn ### The 'sklearn' PyPI package is deprecated, use 'scikit-learn'  rather than 'sklearn' for pip commands.
 tqdm
 requests
 pydot
